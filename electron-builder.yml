@@ -11,13 +11,24 @@ files:
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
 asarUnpack:
   - resources/**
+  - node_modules/node-pty/**
+npmRebuild: true
 win:
   executableName: 'zen-workspace'
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: zip
+      arch:
+        - x64
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
+  oneClick: false
+  allowToChangeInstallationDirectory: true
 mac:
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
@@ -26,16 +37,55 @@ mac:
     - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
     - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
   notarize: false
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+    - target: zip
+      arch:
+        - x64
+        - arm64
 dmg:
-  artifactName: ${name}-${version}.${ext}
+  artifactName: ${name}-${version}-${arch}.${ext}
 linux:
   target:
-    - AppImage
-  maintainer: electronjs.org
-  category: Utility
+    - target: AppImage
+      arch:
+        - x64
+    - target: deb
+      arch:
+        - x64
+    - target: rpm
+      arch:
+        - x64
+    - target: snap
+      arch:
+        - x64
+  maintainer: riftzen-bit
+  category: Development
+  executableName: zen-workspace
+  synopsis: An isolated, distraction-free command center and elite coding assistant.
+  description: >
+    Orchestrate multiple AI CLI agents side-by-side with peak performance.
+    Features integrated terminal, AI chat, code editor, and media player.
 appImage:
-  artifactName: ${name}-${version}.${ext}
-npmRebuild: false
+  artifactName: ${name}-${version}-${arch}.${ext}
+deb:
+  artifactName: ${name}-${version}-${arch}.${ext}
+  depends:
+    - libnotify4
+    - libxtst6
+    - libnss3
+rpm:
+  artifactName: ${name}-${version}-${arch}.${ext}
+snap:
+  artifactName: ${name}-${version}-${arch}.${ext}
+  plugs:
+    - default
+    - home
+    - removable-media
 publish:
-  provider: generic
-  url: https://example.com/auto-updates
+  provider: github
+  owner: riftzen-bit
+  repo: zen-workspace-ide
