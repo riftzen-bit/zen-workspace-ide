@@ -11,14 +11,11 @@ export interface ChatSession {
 }
 
 interface ChatState {
-  isOpen: boolean
   sessions: ChatSession[]
   activeSessionId: string | null
   isStreaming: boolean
   model: string
 
-  toggleChat: () => void
-  setChatOpen: (isOpen: boolean) => void
   addMessage: (msg: ChatMessage) => void
   updateLastMessage: (text: string) => void
   setIsStreaming: (isStreaming: boolean) => void
@@ -40,14 +37,10 @@ const generateTitle = (text: string) => {
 export const useChatStore = create<ChatState>()(
   persist(
     (set, get) => ({
-      isOpen: false,
       sessions: [],
       activeSessionId: null,
       isStreaming: false,
       model: 'gemini-2.5-flash',
-
-      toggleChat: () => set((state) => ({ isOpen: !state.isOpen })),
-      setChatOpen: (isOpen) => set({ isOpen }),
 
       getMessages: () => {
         const { sessions, activeSessionId } = get()
@@ -64,7 +57,7 @@ export const useChatStore = create<ChatState>()(
           // If no active session, or adding the first message, create one correctly if needed
           if (!activeId || updatedSessions.length === 0) {
             const newSession: ChatSession = {
-              id: Date.now().toString(),
+              id: crypto.randomUUID(),
               title: generateTitle(msg.text),
               messages: [msg],
               updatedAt: Date.now()
@@ -131,7 +124,7 @@ export const useChatStore = create<ChatState>()(
       createNewSession: () =>
         set((state) => {
           const newSession: ChatSession = {
-            id: Date.now().toString(),
+            id: crypto.randomUUID(),
             title: 'New Chat',
             messages: [],
             updatedAt: Date.now()

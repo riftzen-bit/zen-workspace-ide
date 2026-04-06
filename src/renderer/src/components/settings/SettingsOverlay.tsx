@@ -1,6 +1,8 @@
+import { motion, AnimatePresence } from 'framer-motion'
 import { X, KeyRound, Type, WrapText, PlayCircle } from 'lucide-react'
 import { useUIStore } from '../../store/useUIStore'
 import { useSettingsStore } from '../../store/useSettingsStore'
+import { transition } from '../../lib/motion'
 
 export const SettingsOverlay = () => {
   const { activeView, setActiveView } = useUIStore()
@@ -15,124 +17,220 @@ export const SettingsOverlay = () => {
     setWordWrap
   } = useSettingsStore()
 
-  if (activeView !== 'settings') return null
-
   return (
-    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-8 animate-in fade-in duration-200">
-      <div className="w-full max-w-2xl bg-[#141415] border border-white/10 rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-zinc-900/50">
-          <h2 className="text-lg font-semibold text-zinc-100 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-            Workspace Settings
-          </h2>
-          <button
-            onClick={() => setActiveView('explorer')}
-            className="p-2 -mr-2 rounded-lg text-zinc-400 hover:bg-white/10 hover:text-white transition-all"
+    <AnimatePresence>
+      {activeView === 'settings' && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={transition.fade}
+          className="absolute inset-0 z-50 flex items-center justify-center p-8"
+          style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)' }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setActiveView('explorer')
+          }}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.97, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.97, y: 8 }}
+            transition={transition.overlay}
+            className="w-full max-w-xl flex flex-col overflow-hidden rounded-2xl"
+            style={{
+              backgroundColor: 'var(--color-surface-2)',
+              border: '1px solid var(--color-border-default)',
+              boxShadow: '0 24px 60px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.04)'
+            }}
           >
-            <X size={20} />
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-8 flex flex-col gap-10 max-h-[70vh] hide-scrollbar">
-          {/* AI Settings */}
-          <section className="flex flex-col gap-4">
-            <h3 className="text-xs font-bold text-amber-500 uppercase tracking-widest flex items-center gap-2">
-              <KeyRound size={14} /> AI Assistant
-            </h3>
-
-            <div className="bg-zinc-900/50 border border-white/5 rounded-xl p-6 flex flex-col gap-3">
-              <label className="block text-sm font-medium text-zinc-300">
-                Google Gemini API Key
-              </label>
-              <input
-                type="password"
-                value={geminiApiKey}
-                onChange={(e) => setGeminiApiKey(e.target.value)}
-                placeholder="AIzaSy..."
-                className="w-full bg-[#0a0a0b] border border-white/10 text-sm text-zinc-200 px-4 py-2.5 rounded-lg focus:outline-none focus:border-amber-500/50 shadow-inner transition-all placeholder:text-zinc-600"
-              />
-              <p className="text-xs text-zinc-500">
-                Securely stored on your local machine via Electron Store backend.
-              </p>
+            {/* Header */}
+            <div
+              className="flex items-center justify-between px-6 py-4 border-b"
+              style={{
+                borderColor: 'var(--color-border-subtle)',
+                backgroundColor: 'var(--color-surface-1)'
+              }}
+            >
+              <h2 className="text-subhead" style={{ color: 'var(--color-text-primary)' }}>
+                Workspace Settings
+              </h2>
+              <button onClick={() => setActiveView('explorer')} className="btn-ghost">
+                <X size={16} />
+              </button>
             </div>
-          </section>
 
-          {/* Editor Settings */}
-          <section className="flex flex-col gap-4">
-            <h3 className="text-xs font-bold text-amber-500 uppercase tracking-widest flex items-center gap-2">
-              <Type size={14} /> Editor Preferences
-            </h3>
-
-            <div className="bg-zinc-900/50 border border-white/5 rounded-xl p-6 grid grid-cols-2 gap-8">
-              <div className="space-y-3">
-                <label className="block text-sm font-medium text-zinc-300">
-                  Font Size ({fontSize}px)
-                </label>
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-8 max-h-[70vh] hide-scrollbar">
+              {/* AI Settings — amber left tint */}
+              <section className="flex flex-col gap-4">
                 <div className="flex items-center gap-3">
-                  <input
-                    type="range"
-                    min="10"
-                    max="24"
-                    value={fontSize}
-                    onChange={(e) => setFontSize(Number(e.target.value))}
-                    className="flex-1 accent-amber-500 h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
+                  <h3
+                    className="text-label flex items-center gap-2"
+                    style={{ color: 'var(--color-accent)' }}
+                  >
+                    <KeyRound size={12} /> AI Assistant
+                  </h3>
+                  <div
+                    className="flex-1 h-px"
+                    style={{ backgroundColor: 'var(--color-border-subtle)' }}
                   />
                 </div>
-              </div>
 
-              <div className="space-y-3">
-                <label className="block text-sm font-medium text-zinc-300 flex items-center gap-2">
-                  <WrapText size={16} /> Word Wrap
-                </label>
-                <button
-                  onClick={() => setWordWrap(!wordWrap)}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
-                    wordWrap ? 'bg-amber-500' : 'bg-zinc-700'
-                  }`}
+                <div
+                  className="rounded-xl p-5 flex flex-col gap-3 border-l-2"
+                  style={{
+                    backgroundColor: 'var(--color-surface-3)',
+                    border: '1px solid var(--color-border-subtle)',
+                    borderLeftColor: 'var(--color-accent)',
+                    borderLeftWidth: '2px'
+                  }}
                 >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      wordWrap ? 'translate-x-6' : 'translate-x-1'
-                    }`}
+                  <label
+                    className="text-body font-medium"
+                    style={{ color: 'var(--color-text-secondary)' }}
+                  >
+                    Google Gemini API Key
+                  </label>
+                  <input
+                    type="password"
+                    value={geminiApiKey}
+                    onChange={(e) => setGeminiApiKey(e.target.value)}
+                    placeholder="AIzaSy…"
+                    className="input-field w-full"
                   />
-                </button>
-              </div>
-            </div>
-          </section>
-
-          {/* Media Settings */}
-          <section className="flex flex-col gap-4">
-            <h3 className="text-xs font-bold text-amber-500 uppercase tracking-widest flex items-center gap-2">
-              <PlayCircle size={14} /> Vibe Player
-            </h3>
-
-            <div className="bg-zinc-900/50 border border-white/5 rounded-xl p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="text-sm font-medium text-zinc-300">Autoplay Music</h4>
-                  <p className="text-xs text-zinc-500 mt-1">
-                    Automatically start Lo-Fi music stream when the app launches.
+                  <p className="text-caption" style={{ color: 'var(--color-text-muted)' }}>
+                    Stored locally via Electron Store.
                   </p>
                 </div>
-                <button
-                  onClick={() => setAutoPlayVibe(!autoPlayVibe)}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
-                    autoPlayVibe ? 'bg-amber-500' : 'bg-zinc-700'
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      autoPlayVibe ? 'translate-x-6' : 'translate-x-1'
-                    }`}
+              </section>
+
+              {/* Editor Settings — secondary tint */}
+              <section className="flex flex-col gap-4">
+                <div className="flex items-center gap-3">
+                  <h3
+                    className="text-label flex items-center gap-2"
+                    style={{ color: 'var(--color-secondary)' }}
+                  >
+                    <Type size={12} /> Editor
+                  </h3>
+                  <div
+                    className="flex-1 h-px"
+                    style={{ backgroundColor: 'var(--color-border-subtle)' }}
                   />
-                </button>
-              </div>
+                </div>
+
+                <div
+                  className="rounded-xl p-5 grid grid-cols-2 gap-8"
+                  style={{
+                    backgroundColor: 'var(--color-surface-3)',
+                    border: '1px solid var(--color-border-subtle)',
+                    borderLeftColor: 'var(--color-secondary)',
+                    borderLeftWidth: '2px'
+                  }}
+                >
+                  <div className="space-y-3">
+                    <label
+                      className="text-body font-medium block"
+                      style={{ color: 'var(--color-text-secondary)' }}
+                    >
+                      Font Size ({fontSize}px)
+                    </label>
+                    <input
+                      type="range"
+                      min="10"
+                      max="24"
+                      value={fontSize}
+                      onChange={(e) => setFontSize(Number(e.target.value))}
+                      className="w-full h-1.5 rounded-lg appearance-none cursor-pointer"
+                      style={{
+                        accentColor: 'var(--color-accent)',
+                        backgroundColor: 'var(--color-surface-5)'
+                      }}
+                    />
+                  </div>
+
+                  <div className="space-y-3">
+                    <label
+                      className="text-body font-medium flex items-center gap-2"
+                      style={{ color: 'var(--color-text-secondary)' }}
+                    >
+                      <WrapText size={14} /> Word Wrap
+                    </label>
+                    <button
+                      onClick={() => setWordWrap(!wordWrap)}
+                      className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none"
+                      style={{
+                        backgroundColor: wordWrap ? 'var(--color-accent)' : 'var(--color-surface-5)'
+                      }}
+                    >
+                      <motion.span
+                        layout
+                        className="inline-block h-4 w-4 rounded-full bg-white"
+                        animate={{ x: wordWrap ? 22 : 4 }}
+                        transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                      />
+                    </button>
+                  </div>
+                </div>
+              </section>
+
+              {/* Vibe Settings — muted zinc tint */}
+              <section className="flex flex-col gap-4">
+                <div className="flex items-center gap-3">
+                  <h3
+                    className="text-label flex items-center gap-2"
+                    style={{ color: 'var(--color-text-tertiary)' }}
+                  >
+                    <PlayCircle size={12} /> Vibe Player
+                  </h3>
+                  <div
+                    className="flex-1 h-px"
+                    style={{ backgroundColor: 'var(--color-border-subtle)' }}
+                  />
+                </div>
+
+                <div
+                  className="rounded-xl p-5"
+                  style={{
+                    backgroundColor: 'var(--color-surface-3)',
+                    border: '1px solid var(--color-border-subtle)'
+                  }}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4
+                        className="text-body font-medium"
+                        style={{ color: 'var(--color-text-secondary)' }}
+                      >
+                        Autoplay Music
+                      </h4>
+                      <p className="text-caption mt-1" style={{ color: 'var(--color-text-muted)' }}>
+                        Start Lo-Fi stream when the app launches.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setAutoPlayVibe(!autoPlayVibe)}
+                      className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none"
+                      style={{
+                        backgroundColor: autoPlayVibe
+                          ? 'var(--color-accent)'
+                          : 'var(--color-surface-5)'
+                      }}
+                    >
+                      <motion.span
+                        layout
+                        className="inline-block h-4 w-4 rounded-full bg-white"
+                        animate={{ x: autoPlayVibe ? 22 : 4 }}
+                        transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                      />
+                    </button>
+                  </div>
+                </div>
+              </section>
             </div>
-          </section>
-        </div>
-      </div>
-    </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   )
 }

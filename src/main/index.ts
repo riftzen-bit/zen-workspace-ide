@@ -1,4 +1,14 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, session } from 'electron'
+
+// Suppress Chromium XDG portal noise on Linux
+if (process.platform === 'linux') {
+  const origWrite = process.stderr.write.bind(process.stderr)
+  process.stderr.write = (chunk: unknown, ...args: unknown[]) => {
+    const s = String(chunk)
+    if (s.includes('xdg/request.cc') || s.includes('Request cancelled by user')) return true
+    return (origWrite as (...a: unknown[]) => boolean)(chunk, ...args)
+  }
+}
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -17,7 +27,7 @@ function createWindow(): void {
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false
+      sandbox: true
     }
   })
 
@@ -25,14 +35,24 @@ function createWindow(): void {
     mainWindow.show()
   })
 
-  process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true'
+  mainWindow.webContents.on('before-input-event', (_, input) => {
+    if (input.control && input.shift && input.key === 'I' && input.type === 'keyDown') {
+      mainWindow.webContents.toggleDevTools()
+    }
+  })
+
+  if (is.dev) {
+    process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true'
+  }
 
   mainWindow.webContents.on('console-message', (event) => {
     const msg = event.message
     if (
       msg.includes('[vite] connecting...') ||
       msg.includes('[vite] connected.') ||
-      msg.includes('Download the React DevTools')
+      msg.includes('Download the React DevTools') ||
+      msg.includes('Autofill.enable') ||
+      msg.includes('Autofill.setAddresses')
     ) {
       return
     }
@@ -42,7 +62,14 @@ function createWindow(): void {
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url)
+    try {
+      const url = new URL(details.url)
+      if (url.protocol === 'http:' || url.protocol === 'https:') {
+        shell.openExternal(details.url)
+      }
+    } catch {
+      /* ignore malformed URLs */
+    }
     return { action: 'deny' }
   })
 
@@ -60,7 +87,29 @@ function createWindow(): void {
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
   // Set app user model id for windows
-  electronApp.setAppUserModelId('com.electron')
+  electronApp.setAppUserModelId('com.zen.workspace')
+
+  // Production CSP via response headers (dev keeps the loose meta tag for HMR)
+  if (!is.dev) {
+    session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+      callback({
+        responseHeaders: {
+          ...details.responseHeaders,
+          'Content-Security-Policy': [
+            "default-src 'self';",
+            "script-src 'self' 'unsafe-eval' blob:;",
+            "style-src 'self' 'unsafe-inline';",
+            "img-src 'self' data: https:;",
+            "font-src 'self' data:;",
+            "connect-src 'self' https://generativelanguage.googleapis.com https://*.youtube.com;",
+            'frame-src https://www.youtube.com https://youtube.com;',
+            "media-src 'self' blob:;",
+            "worker-src 'self' blob:;"
+          ].join(' ')
+        }
+      })
+    })
+  }
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.

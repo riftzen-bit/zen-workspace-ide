@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { TerminalSquare, Trash2, KeyRound, Plus, History, ChevronDown } from 'lucide-react'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { useChatStore } from '../../store/useChatStore'
@@ -6,8 +7,8 @@ import { useUIStore } from '../../store/useUIStore'
 import { useResizable } from '../../hooks/useResizable'
 import { useFileStore } from '../../store/useFileStore'
 import { useMediaStore } from '../../store/useMediaStore'
-
 import { useSettingsStore } from '../../store/useSettingsStore'
+import { transition } from '../../lib/motion'
 
 const ThinkingIndicator = () => {
   const [seconds, setSeconds] = useState(0)
@@ -17,13 +18,22 @@ const ThinkingIndicator = () => {
   }, [])
 
   return (
-    <div className="flex gap-2 items-center text-zinc-400 font-medium text-[13px] italic">
-      <span className="flex space-x-1 mr-1">
-        <span className="w-1.5 h-1.5 bg-amber-500/70 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
-        <span className="w-1.5 h-1.5 bg-amber-500/70 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
-        <span className="w-1.5 h-1.5 bg-amber-500/70 rounded-full animate-bounce"></span>
+    <div
+      className="flex gap-2 items-center text-caption italic"
+      style={{ color: 'var(--color-text-tertiary)' }}
+    >
+      <span className="flex space-x-1 mr-0.5">
+        {[0, 0.12, 0.24].map((delay, i) => (
+          <motion.span
+            key={i}
+            className="w-1 h-1 rounded-full"
+            style={{ backgroundColor: 'var(--color-secondary)' }}
+            animate={{ y: [-2, 0, -2], opacity: [0.5, 1, 0.5] }}
+            transition={{ duration: 0.75, repeat: Infinity, ease: 'easeInOut', delay }}
+          />
+        ))}
       </span>
-      Thinking... {seconds}s
+      Thinking… {seconds}s
     </div>
   )
 }
@@ -33,7 +43,6 @@ export const GeminiChat = () => {
   const { geminiApiKey, setGeminiApiKey } = useSettingsStore()
   const [isEditingKey, setIsEditingKey] = useState(!geminiApiKey)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-
   const [viewMode, setViewMode] = useState<'chat' | 'history'>('chat')
 
   const {
@@ -54,9 +63,7 @@ export const GeminiChat = () => {
     return sessions.find((s) => s.id === activeSessionId)?.messages || []
   }, [sessions, activeSessionId])
 
-  const { isChatOpen } = useUIStore()
   const { activeFile, fileContents } = useFileStore()
-
   const { chatWidth, setChatWidth } = useUIStore()
   const { width, startResizing, isResizing } = useResizable(
     chatWidth,
@@ -80,12 +87,22 @@ export const GeminiChat = () => {
     }
   }
 
+  const genAI = useMemo(
+    () => (geminiApiKey ? new GoogleGenerativeAI(geminiApiKey) : null),
+    [geminiApiKey]
+  )
+
+  const generativeModel = useMemo(
+    () => (genAI ? genAI.getGenerativeModel({ model }) : null),
+    [genAI, model]
+  )
+
   const handleSend = async () => {
-    if (!input.trim() || isStreaming || !geminiApiKey) return
+    if (!input.trim() || isStreaming || !geminiApiKey || !generativeModel) return
     const userText = input.trim()
     setInput('')
 
-    addMessage({ id: Date.now().toString(), role: 'user', text: userText })
+    addMessage({ id: crypto.randomUUID(), role: 'user', text: userText })
     setIsStreaming(true)
 
     let contextText = ''
@@ -114,14 +131,12 @@ CRITICAL RULES FOR MUSIC:
 - Keep your conversational response friendly, concise, and professional.`
 
     const fullPrompt = `${SYSTEM_PROMPT}\n\n${contextText}\nUser question: ${userText}`
-    addMessage({ id: (Date.now() + 1).toString(), role: 'model', text: '' })
+    addMessage({ id: crypto.randomUUID(), role: 'model', text: '' })
 
     let accumulatedText = ''
     let musicTriggered = false
 
     try {
-      const genAI = new GoogleGenerativeAI(geminiApiKey)
-      const generativeModel = genAI.getGenerativeModel({ model })
       const result = await generativeModel.generateContentStream(fullPrompt)
 
       for await (const chunk of result.stream) {
@@ -134,13 +149,13 @@ CRITICAL RULES FOR MUSIC:
           const query = match[1].trim()
           window.api
             .searchYoutube(query)
-            .then((res: any) => {
+            .then((res) => {
               if (res) {
                 useMediaStore.getState().setCustomVibe(res.videoId, res.title)
                 useMediaStore.getState().setIsPlaying(true)
               }
             })
-            .catch((err: any) => console.error('Failed to search youtube:', err))
+            .catch((err: unknown) => console.error('Failed to search youtube:', err))
         }
 
         let displayText = accumulatedText.replace(
@@ -152,10 +167,11 @@ CRITICAL RULES FOR MUSIC:
         }
         updateLastMessage(displayText)
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Unknown error'
       console.error(error)
-      updateLastMessage(accumulatedText + `\n\nError: ${error.message}`)
-      if (error.message?.includes('API key not valid')) {
+      updateLastMessage(accumulatedText + `\n\nError: ${message}`)
+      if (message?.includes('API key not valid')) {
         setIsEditingKey(true)
       }
     } finally {
@@ -163,47 +179,84 @@ CRITICAL RULES FOR MUSIC:
     }
   }
 
-  if (!isChatOpen) return null
-
   return (
     <div
-      className="h-full flex flex-col shrink-0 relative bg-[#141415] border-l border-white/5"
-      style={{ width: `${width}px` }}
+      className="h-full flex flex-col shrink-0 relative border-l"
+      style={{
+        width: `${width}px`,
+        backgroundColor: 'var(--color-surface-2)',
+        borderColor: 'var(--color-border-subtle)'
+      }}
     >
+      {/* Resize handle */}
       <div
-        className={`w-1 cursor-col-resize absolute left-0 top-0 bottom-0 z-10 transition-colors
-          ${isResizing ? 'bg-amber-500/50' : 'bg-transparent hover:bg-white/10'}
-        `}
+        className="absolute left-0 top-0 bottom-0 z-10 cursor-col-resize transition-colors"
+        style={{
+          width: '3px',
+          borderRadius: '2px',
+          backgroundColor: isResizing ? 'var(--color-secondary)' : 'transparent'
+        }}
+        onMouseEnter={(e) => {
+          if (!isResizing) {
+            ;(e.currentTarget as HTMLDivElement).style.backgroundColor =
+              'var(--color-secondary-glow)'
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (!isResizing) {
+            ;(e.currentTarget as HTMLDivElement).style.backgroundColor = 'transparent'
+          }
+        }}
         onMouseDown={startResizing}
       />
 
-      <div className="h-12 px-4 flex justify-between items-center border-b border-white/5 bg-transparent">
-        <span className="text-xs font-semibold text-zinc-500 uppercase tracking-widest flex items-center gap-2">
-          {viewMode === 'history' ? 'History' : 'Assistant'}
-        </span>
-        <div className="flex items-center gap-1">
+      {/* Header */}
+      <div
+        className="h-11 px-4 flex justify-between items-center border-b shrink-0"
+        style={{ borderColor: 'var(--color-border-subtle)' }}
+      >
+        <div className="flex items-center gap-2">
+          {/* Static sage indicator — no breathing animation */}
+          <div
+            className="w-1.5 h-1.5 rounded-full transition-colors"
+            style={{
+              backgroundColor: isStreaming ? 'var(--color-secondary)' : 'var(--color-secondary-dim)'
+            }}
+          />
+          <span className="text-label" style={{ color: 'var(--color-text-muted)' }}>
+            {viewMode === 'history' ? 'History' : 'Assistant'}
+          </span>
+        </div>
+        <div className="flex items-center gap-0.5">
           <button
             onClick={() => {
               createNewSession()
               setViewMode('chat')
             }}
-            className="p-1.5 rounded-lg text-zinc-500 hover:text-amber-400 hover:bg-white/5 transition-colors"
+            className="btn-ghost"
+            title="New session"
           >
             <Plus size={14} />
           </button>
           <button
             onClick={() => setViewMode(viewMode === 'history' ? 'chat' : 'history')}
-            className={`p-1.5 rounded-lg transition-colors ${
+            className="btn-ghost"
+            title="History"
+            style={
               viewMode === 'history'
-                ? 'text-amber-400 bg-amber-400/10'
-                : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'
-            }`}
+                ? {
+                    color: 'var(--color-secondary)',
+                    backgroundColor: 'var(--color-secondary-glow)'
+                  }
+                : undefined
+            }
           >
             <History size={14} />
           </button>
           <button
             onClick={() => setIsEditingKey(!isEditingKey)}
-            className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-white/5 transition-colors"
+            className="btn-ghost"
+            title="API key"
           >
             <KeyRound size={14} />
           </button>
@@ -211,7 +264,8 @@ CRITICAL RULES FOR MUSIC:
             onClick={() => {
               if (viewMode === 'chat') clearChat()
             }}
-            className="p-1.5 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-white/5 transition-colors"
+            className="btn-ghost-danger"
+            title="Clear chat"
           >
             <Trash2 size={14} />
           </button>
@@ -219,34 +273,47 @@ CRITICAL RULES FOR MUSIC:
       </div>
 
       {isEditingKey ? (
+        /* API Key setup */
         <div className="flex-1 p-6 flex flex-col items-center justify-center">
-          <div className="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center mb-4">
-            <KeyRound size={32} className="text-amber-400" strokeWidth={1.5} />
+          <div
+            className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
+            style={{
+              backgroundColor: 'var(--color-surface-3)',
+              border: '1px solid var(--color-border-subtle)'
+            }}
+          >
+            <KeyRound size={24} strokeWidth={1.5} style={{ color: 'var(--color-secondary)' }} />
           </div>
-          <h2 className="text-sm font-semibold text-zinc-200 mb-2 text-center">API Key Setup</h2>
-          <p className="text-xs text-zinc-500 mb-6 text-center max-w-[220px] leading-relaxed">
-            Enter your Google Gemini API key to interact with the assistant.
+          <h2
+            className="text-subhead mb-1.5 text-center"
+            style={{ color: 'var(--color-text-primary)' }}
+          >
+            API Key Setup
+          </h2>
+          <p
+            className="text-caption mb-6 text-center max-w-[200px] leading-relaxed"
+            style={{ color: 'var(--color-text-muted)' }}
+          >
+            Enter your Google Gemini API key to start chatting.
           </p>
-          <form onSubmit={handleSaveKey} className="w-full max-w-[260px] flex flex-col gap-3">
+          <form onSubmit={handleSaveKey} className="w-full max-w-[240px] flex flex-col gap-3">
             <input
               name="apiKey"
               type="password"
               placeholder="AIzaSy..."
               defaultValue={geminiApiKey}
-              className="w-full bg-[#1e1e20] border border-white/5 text-sm text-zinc-200 px-4 py-2.5 rounded-xl focus:outline-none focus:border-amber-500/50 shadow-inner transition-all placeholder:text-zinc-600"
+              className="input-field w-full"
               autoFocus
             />
-            <button
-              type="submit"
-              className="w-full bg-amber-600 hover:bg-amber-500 text-white text-sm font-medium py-2.5 rounded-xl shadow-md shadow-amber-900/20 transition-all"
-            >
+            <button type="submit" className="btn-primary w-full text-center">
               Save Key
             </button>
             {geminiApiKey && (
               <button
                 type="button"
                 onClick={() => setIsEditingKey(false)}
-                className="w-full bg-transparent hover:bg-white/5 text-zinc-400 text-sm font-medium py-2 rounded-xl transition-all"
+                className="btn-ghost w-full text-center text-caption py-2"
+                style={{ color: 'var(--color-text-secondary)' }}
               >
                 Cancel
               </button>
@@ -254,94 +321,173 @@ CRITICAL RULES FOR MUSIC:
           </form>
         </div>
       ) : viewMode === 'history' ? (
-        <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4 hide-scrollbar">
+        /* History list */
+        <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-2.5 hide-scrollbar">
           {sessions.length === 0 && (
-            <div className="text-center text-zinc-500 text-sm mt-10">No history yet</div>
+            <div
+              className="text-caption text-center mt-10"
+              style={{ color: 'var(--color-text-muted)' }}
+            >
+              No history yet
+            </div>
           )}
           {sessions.map((s) => (
-            <div
+            <motion.div
               key={s.id}
               onClick={() => {
                 setActiveSession(s.id)
                 setViewMode('chat')
               }}
-              className={`p-4 rounded-xl flex flex-col gap-1 cursor-pointer border transition-all group shadow-sm ${
-                s.id === activeSessionId
-                  ? 'bg-amber-500/10 border-amber-500/20 text-amber-500'
-                  : 'bg-[#1e1e20] border-white/5 hover:bg-white/10 hover:border-white/10 text-zinc-300'
-              }`}
+              className="p-3.5 rounded-xl flex flex-col gap-1 cursor-pointer border group transition-all"
+              style={{
+                backgroundColor:
+                  s.id === activeSessionId
+                    ? 'var(--color-secondary-glow)'
+                    : 'var(--color-surface-3)',
+                borderColor:
+                  s.id === activeSessionId
+                    ? 'var(--color-border-secondary)'
+                    : 'var(--color-border-subtle)',
+                color:
+                  s.id === activeSessionId
+                    ? 'var(--color-secondary)'
+                    : 'var(--color-text-secondary)'
+              }}
+              onMouseEnter={(e) => {
+                if (s.id !== activeSessionId) {
+                  ;(e.currentTarget as HTMLDivElement).style.borderColor =
+                    'var(--color-border-hover)'
+                  ;(e.currentTarget as HTMLDivElement).style.backgroundColor =
+                    'var(--color-surface-4)'
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (s.id !== activeSessionId) {
+                  ;(e.currentTarget as HTMLDivElement).style.borderColor =
+                    'var(--color-border-subtle)'
+                  ;(e.currentTarget as HTMLDivElement).style.backgroundColor =
+                    'var(--color-surface-3)'
+                }
+              }}
             >
-              <div className="flex justify-between items-start">
-                <div className="font-semibold text-[13px] truncate pr-4 leading-relaxed">
-                  {s.title}
-                </div>
+              <div className="flex justify-between items-start gap-3">
+                <div className="text-body font-semibold truncate leading-relaxed">{s.title}</div>
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
                     deleteSession(s.id)
                   }}
-                  className="opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-red-400 transition-all p-1 -m-1"
+                  className="btn-ghost-danger opacity-0 group-hover:opacity-100 p-1 -m-1 shrink-0"
                 >
-                  <Trash2 size={13} />
+                  <Trash2 size={12} />
                 </button>
               </div>
-              <div className="text-[11px] text-zinc-500 mt-1 flex items-center justify-between font-medium">
+              <div
+                className="text-caption flex items-center justify-between"
+                style={{ color: 'var(--color-text-muted)' }}
+              >
                 <span>{s.messages.length} msgs</span>
                 <span>{new Date(s.updatedAt).toLocaleDateString()}</span>
               </div>
-            </div>
+            </motion.div>
           ))}
         </div>
       ) : (
         <>
-          <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6 hide-scrollbar">
+          {/* Chat messages */}
+          <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4 hide-scrollbar">
             {messages.length === 0 && (
-              <div className="h-full flex flex-col items-center justify-center text-zinc-500 space-y-4 opacity-70">
-                <TerminalSquare size={32} strokeWidth={1.5} className="text-zinc-400" />
-                <p className="text-sm font-medium">How can I help you?</p>
+              <div
+                className="h-full flex flex-col items-center justify-center gap-3 opacity-50"
+                style={{ color: 'var(--color-text-muted)' }}
+              >
+                <TerminalSquare
+                  size={24}
+                  strokeWidth={1.4}
+                  style={{ color: 'var(--color-secondary-dim)' }}
+                />
+                <p className="text-body">How can I help you?</p>
               </div>
             )}
 
-            {messages.map((msg) => {
-              if (!msg.text && !isStreaming) return null
-
-              return (
-                <div
-                  key={msg.id}
-                  className={`flex gap-4 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
-                  {msg.role === 'model' && (
-                    <div
-                      className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-1 ${
-                        !msg.text && isStreaming
-                          ? 'bg-amber-500/20 text-amber-500 animate-pulse'
-                          : 'bg-amber-500/10 border border-amber-500/20 text-amber-400'
-                      }`}
-                    >
-                      <TerminalSquare size={14} strokeWidth={2} />
-                    </div>
-                  )}
-
-                  <div
-                    className={`
-                    max-w-[85%] rounded-[24px] px-6 py-4 text-[14px] leading-relaxed whitespace-pre-wrap shadow-sm
-                    ${
-                      msg.role === 'user'
-                        ? 'bg-zinc-800 text-white rounded-tr-sm border border-white/10'
-                        : 'bg-[#141415] text-zinc-300 rounded-tl-sm border border-white/5'
-                    }
-                  `}
+            <AnimatePresence initial={false}>
+              {messages.map((msg) => {
+                if (!msg.text && !isStreaming) return null
+                return (
+                  <motion.div
+                    key={msg.id}
+                    initial={{ opacity: 0, x: msg.role === 'user' ? 10 : -10, y: 3 }}
+                    animate={{ opacity: 1, x: 0, y: 0 }}
+                    transition={transition.micro}
+                    className={`flex gap-2.5 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
-                    {msg.text ? msg.text : isStreaming ? <ThinkingIndicator /> : null}
-                  </div>
-                </div>
-              )
-            })}
-            <div ref={messagesEndRef} className="h-6" />
+                    {msg.role === 'model' && (
+                      <div
+                        className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-1"
+                        style={{
+                          backgroundColor: 'var(--color-secondary-glow)',
+                          border: '1px solid var(--color-border-secondary)',
+                          color: 'var(--color-secondary)'
+                        }}
+                      >
+                        <TerminalSquare size={12} strokeWidth={2} />
+                      </div>
+                    )}
+
+                    <div
+                      className="max-w-[85%] rounded-2xl px-4 py-3 text-body leading-relaxed whitespace-pre-wrap"
+                      style={
+                        msg.role === 'user'
+                          ? {
+                              backgroundColor: 'var(--color-surface-4)',
+                              color: 'var(--color-text-primary)',
+                              border: '1px solid var(--color-border-default)',
+                              borderTopRightRadius: '6px'
+                            }
+                          : {
+                              backgroundColor: 'var(--color-surface-1)',
+                              color: 'var(--color-text-secondary)',
+                              border: '1px solid var(--color-border-subtle)',
+                              borderLeft: '2px solid var(--color-secondary-dim)',
+                              borderTopLeftRadius: '6px'
+                            }
+                      }
+                    >
+                      {msg.text ? msg.text : isStreaming ? <ThinkingIndicator /> : null}
+                    </div>
+                  </motion.div>
+                )
+              })}
+            </AnimatePresence>
+            <div ref={messagesEndRef} className="h-4" />
           </div>
 
-          <div className="p-6 bg-[#0a0a0b] border-t border-white/5">
-            <div className="relative flex items-end bg-[#141415] border border-white/5 rounded-2xl focus-within:border-amber-500/50 focus-within:ring-4 ring-amber-500/10 transition-all shadow-inner">
+          {/* Input area */}
+          <div
+            className="p-4 border-t shrink-0"
+            style={{
+              backgroundColor: 'var(--color-surface-1)',
+              borderColor: 'var(--color-border-subtle)'
+            }}
+          >
+            <div
+              className="relative flex items-end rounded-xl transition-all"
+              style={{
+                backgroundColor: 'var(--color-surface-3)',
+                border: '1px solid var(--color-border-subtle)'
+              }}
+              onFocus={(e) => {
+                ;(e.currentTarget as HTMLDivElement).style.borderColor =
+                  'var(--color-border-secondary)'
+                ;(e.currentTarget as HTMLDivElement).style.boxShadow =
+                  '0 0 0 2px var(--color-secondary-glow)'
+              }}
+              onBlur={(e) => {
+                ;(e.currentTarget as HTMLDivElement).style.borderColor =
+                  'var(--color-border-subtle)'
+                ;(e.currentTarget as HTMLDivElement).style.boxShadow = ''
+              }}
+            >
               <textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
@@ -351,26 +497,37 @@ CRITICAL RULES FOR MUSIC:
                     handleSend()
                   }
                 }}
-                placeholder="Message..."
-                className="w-full bg-transparent text-sm text-zinc-200 pl-5 pr-14 py-4 resize-none focus:outline-none hide-scrollbar placeholder:text-zinc-600 font-medium"
+                placeholder="Message…"
+                className="w-full bg-transparent text-body pl-4 pr-12 py-3.5 resize-none focus:outline-none hide-scrollbar placeholder:text-zinc-600"
+                style={{
+                  color: 'var(--color-text-primary)',
+                  minHeight: '48px',
+                  maxHeight: '160px'
+                }}
                 rows={1}
-                style={{ minHeight: '52px', maxHeight: '160px' }}
               />
-              <button
+              <motion.button
                 onClick={handleSend}
                 disabled={!input.trim() || isStreaming || !geminiApiKey}
-                className="absolute right-2 bottom-2 p-2.5 rounded-xl text-amber-400 hover:bg-amber-500/10 hover:text-amber-300 disabled:text-zinc-700 disabled:hover:bg-transparent transition-colors"
+                className="absolute right-2 bottom-2 p-2 rounded-lg transition-colors disabled:opacity-25"
+                style={{ color: 'var(--color-secondary)' }}
+                whileTap={{ scale: 0.9 }}
+                onMouseEnter={(e) => {
+                  ;(e.currentTarget as HTMLButtonElement).style.backgroundColor =
+                    'var(--color-secondary-glow)'
+                }}
+                onMouseLeave={(e) => {
+                  ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = ''
+                }}
               >
                 <div className="rotate-[-90deg]">
-                  <ChevronDown size={20} strokeWidth={2.5} />
+                  <ChevronDown size={18} strokeWidth={2.5} />
                 </div>
-              </button>
+              </motion.button>
             </div>
-            <div className="text-center mt-3">
-              <span className="text-[11px] text-zinc-600 font-medium tracking-wide">
-                Assistant can make mistakes
-              </span>
-            </div>
+            <p className="text-center mt-2 text-label" style={{ color: 'var(--color-text-muted)' }}>
+              AI can make mistakes
+            </p>
           </div>
         </>
       )}

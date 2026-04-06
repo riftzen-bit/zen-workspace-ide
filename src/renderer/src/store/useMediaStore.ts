@@ -1,5 +1,6 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { persist, createJSONStorage } from 'zustand/middleware'
+import { electronZustandStorage } from './electronZustandStorage'
 
 export type VibeType = 'lofi' | 'rain' | 'custom' | null
 
@@ -28,6 +29,14 @@ export const useMediaStore = create<MediaState>()(
       setIsPlaying: (isPlaying) => set({ isPlaying }),
       setVolume: (volume) => set({ volume })
     }),
-    { name: 'media-storage' }
+    {
+      name: 'media-storage',
+      storage: createJSONStorage(() => electronZustandStorage),
+      partialize: (state) => ({
+        currentVibe: state.currentVibe,
+        customVibe: state.customVibe,
+        volume: state.volume
+      })
+    }
   )
 )

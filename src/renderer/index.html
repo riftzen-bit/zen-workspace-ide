@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <title>Electron</title>
-    <!-- Relaxed CSP for API calls, YouTube iframe, and Monaco Editor -->
+    <!-- Dev-only CSP (loose for HMR/Vite). Production CSP is set via main process response headers. -->
     <meta
       http-equiv="Content-Security-Policy"
       content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: https: wss: ws:; frame-src 'self' https://www.youtube.com https://youtube.com; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.youtube.com https://s.ytimg.com https://cdn.jsdelivr.net; worker-src 'self' blob:;"
