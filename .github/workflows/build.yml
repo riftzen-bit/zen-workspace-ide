@@ -87,20 +87,22 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # Build the Electron app (typecheck + vite build + electron-builder)
+      # Build the Electron app (vite build + electron-builder)
       - name: Build
         run: npx electron-vite build && npx electron-builder --${{ matrix.platform }} --publish=never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Skip code signing when secrets aren't configured
+          CSC_IDENTITY_AUTO_DISCOVERY: ${{ secrets.MAC_CSC_LINK != '' && 'true' || 'false' }}
           # macOS code signing (optional — set secrets to enable)
-          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK || '' }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD || '' }}
+          APPLE_ID: ${{ secrets.APPLE_ID || '' }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID || '' }}
           # Windows code signing (optional — set secrets to enable)
-          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
-          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK || '' }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD || '' }}
 
       # List built artifacts for debugging
       - name: List dist
