@@ -1,6 +1,14 @@
 import { ipcMain, dialog } from 'electron'
-import { join } from 'path'
+import { join, resolve, normalize, sep } from 'path'
 import * as fs from 'fs'
+
+let currentWorkspace: string | null = null
+
+function isWithinWorkspace(filePath: string): boolean {
+  if (!currentWorkspace) return false
+  const resolved = resolve(normalize(filePath))
+  return resolved === currentWorkspace || resolved.startsWith(currentWorkspace + sep)
+}
 
 export type FileNode = {
   path: string
@@ -17,18 +25,26 @@ export function setupFSHandlers(): void {
     if (canceled || filePaths.length === 0) {
       return null
     }
-    return filePaths[0]
+    currentWorkspace = resolve(filePaths[0])
+    return currentWorkspace
+  })
+
+  ipcMain.handle('fs:setWorkspace', (_, dirPath: string) => {
+    currentWorkspace = resolve(normalize(dirPath))
   })
 
   ipcMain.handle('fs:readDirectory', async (_, dirPath: string) => {
+    if (!isWithinWorkspace(dirPath)) return []
     return await scanDirAsync(dirPath)
   })
 
   ipcMain.handle('fs:searchFiles', async (_, query: string, dirPath: string) => {
+    if (!isWithinWorkspace(dirPath)) return []
     return await searchFilesAsync(query, dirPath)
   })
 
   ipcMain.handle('fs:readFile', async (_, filePath: string) => {
+    if (!isWithinWorkspace(filePath)) return null
     try {
       return await fs.promises.readFile(filePath, 'utf-8')
     } catch (e: unknown) {
@@ -38,6 +54,7 @@ export function setupFSHandlers(): void {
   })
 
   ipcMain.handle('fs:saveFile', async (_, filePath: string, content: string) => {
+    if (!isWithinWorkspace(filePath)) return false
     try {
       await fs.promises.writeFile(filePath, content, 'utf-8')
       return true

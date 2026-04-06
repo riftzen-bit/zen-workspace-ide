@@ -62,9 +62,12 @@ export const useFileStore = create<FileState>()(
             newActiveFile =
               newOpenFiles.length > 0 ? newOpenFiles[newOpenFiles.length - 1].path : null
           }
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { [path]: _removed, ...remainingContents } = state.fileContents
           return {
             openFiles: newOpenFiles,
-            activeFile: newActiveFile
+            activeFile: newActiveFile,
+            fileContents: remainingContents
           }
         })
       },

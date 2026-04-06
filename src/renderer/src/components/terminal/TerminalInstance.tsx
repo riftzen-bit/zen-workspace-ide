@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
+import { useFileStore } from '../../store/useFileStore'
 
 interface TerminalInstanceProps {
   id: string
@@ -12,19 +13,20 @@ export const TerminalInstance = ({ id, command }: TerminalInstanceProps) => {
   const terminalRef = useRef<HTMLDivElement>(null)
   const term = useRef<Terminal | null>(null)
   const fitAddon = useRef<FitAddon | null>(null)
+  const workspaceDir = useFileStore.getState().workspaceDir
 
   useEffect(() => {
     if (!terminalRef.current) return
 
     term.current = new Terminal({
       theme: {
-        background: '#0a0a0b',
+        background: '#050506',
         foreground: '#d4d4d8',
-        cursor: '#d4d4d8',
-        selectionBackground: '#52525b'
+        cursor: '#a1a1aa',
+        selectionBackground: '#3f3f46'
       },
-      fontFamily: 'monospace',
-      fontSize: 14,
+      fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+      fontSize: 13,
       cursorBlink: true
     })
 
@@ -32,47 +34,57 @@ export const TerminalInstance = ({ id, command }: TerminalInstanceProps) => {
     term.current.loadAddon(fitAddon.current)
     term.current.open(terminalRef.current)
 
-    // Fit on mount
-    fitAddon.current.fit()
+    const doFit = () => {
+      if (fitAddon.current && term.current) {
+        fitAddon.current.fit()
+      }
+    }
 
-    // Setup IPC
-    const { cols, rows } = term.current
-    window.api.terminal.create(id, cols, rows, command).catch(console.error)
+    const fitTimer = setTimeout(() => {
+      doFit()
+      const { cols, rows } = term.current!
+      window.api.terminal
+        .create(id, cols, rows, command, workspaceDir ?? undefined)
+        .catch(console.error)
+    }, 50)
 
-    // Setup input
     const disposable = term.current.onData((data) => {
       window.api.terminal.write(id, data)
     })
 
-    // Setup output
     const onDataHandler = (tid: string, data: string) => {
       if (tid === id && term.current) {
         term.current.write(data)
       }
     }
 
-    // Add event listeners
     const unsubscribeOnData = window.api.terminal.onData(onDataHandler)
 
-    const handleResize = () => {
+    const resizeObserver = new ResizeObserver(() => {
       if (fitAddon.current && term.current) {
         fitAddon.current.fit()
         window.api.terminal.resize(id, term.current.cols, term.current.rows)
       }
-    }
-    window.addEventListener('resize', handleResize)
+    })
+    resizeObserver.observe(terminalRef.current)
 
     return () => {
+      clearTimeout(fitTimer)
+      resizeObserver.disconnect()
       unsubscribeOnData()
       disposable.dispose()
-      window.removeEventListener('resize', handleResize)
-      window.api.terminal.kill(id)
       term.current?.dispose()
     }
-  }, [id, command])
+  }, [id, command, workspaceDir])
 
   return (
-    <div className="w-full h-full overflow-hidden bg-[#0a0a0b] p-2 border border-white/5 rounded-lg shadow-inner">
+    <div
+      className="w-full h-full overflow-hidden p-2 rounded-lg"
+      style={{
+        backgroundColor: 'var(--color-surface-0)',
+        border: '1px solid var(--color-border-subtle)'
+      }}
+    >
       <div ref={terminalRef} className="w-full h-full" />
     </div>
   )
