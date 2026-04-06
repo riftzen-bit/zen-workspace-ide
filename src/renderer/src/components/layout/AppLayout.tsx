@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { ActivityBar } from './ActivityBar'
 import { Sidebar } from './Sidebar'
+import { ProjectList } from '../projects/ProjectList'
 import { MonacoEditor } from '../editor/MonacoEditor'
 import { GeminiChat } from '../chat/GeminiChat'
 import { VibePlayer } from '../media/VibePlayer'
@@ -87,7 +88,7 @@ export const AppLayout = () => {
             style={{ overflow: 'hidden', flexShrink: 0 }}
           >
             <div style={{ width: sidebarWidth, minWidth: sidebarWidth, height: '100%' }}>
-              <Sidebar />
+              {activeView === 'projects' ? <ProjectList /> : <Sidebar />}
             </div>
           </motion.div>
         )}

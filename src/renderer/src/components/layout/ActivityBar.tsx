@@ -4,6 +4,7 @@ import { useUIStore } from '../../store/useUIStore'
 import { transition } from '../../lib/motion'
 import {
   Folder,
+  FolderKanban,
   Search,
   TerminalSquare,
   Settings,
@@ -12,9 +13,10 @@ import {
   type LucideIcon
 } from 'lucide-react'
 
-type ActivityView = 'explorer' | 'search' | 'settings' | 'terminal'
+type ActivityView = 'explorer' | 'search' | 'settings' | 'terminal' | 'projects'
 
 const TOOLTIPS: Partial<Record<ActivityView | 'chat' | 'vibe', string>> = {
+  projects: 'Projects',
   explorer: 'Explorer',
   search: 'Search',
   terminal: 'Terminal',
@@ -129,6 +131,13 @@ export const ActivityBar = () => {
       }}
     >
       <div className="flex flex-col w-full items-center gap-1.5 px-[10px]">
+        <IconWrapper
+          view="projects"
+          tooltip={TOOLTIPS.projects!}
+          Icon={FolderKanban}
+          activeView={activeView}
+          setActiveView={setActiveView}
+        />
         <IconWrapper
           view="explorer"
           tooltip={TOOLTIPS.explorer!}

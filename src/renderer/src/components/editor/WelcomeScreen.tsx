@@ -2,6 +2,7 @@ import { motion } from 'framer-motion'
 import { Code2, FolderOpen, FilePlus, Terminal, MessageSquare, Folder } from 'lucide-react'
 import { useFileStore } from '../../store/useFileStore'
 import { useUIStore } from '../../store/useUIStore'
+import { useProjectStore } from '../../store/useProjectStore'
 import { transition } from '../../lib/motion'
 
 const isMac = navigator.platform.toLowerCase().includes('mac')
@@ -44,6 +45,63 @@ interface QuickAction {
   onClick: () => void
 }
 
+const RecentProjects = () => {
+  const projects = useProjectStore((s) => s.projects)
+  const { setWorkspaceDir, setFileTree } = useFileStore()
+  const { setActiveView, setSidebarOpen } = useUIStore()
+
+  const recent = [...projects].sort((a, b) => b.lastOpenedAt - a.lastOpenedAt).slice(0, 6)
+  if (recent.length === 0) return null
+
+  const handleOpen = async (id: string, path: string) => {
+    useProjectStore.getState().setActiveProject(id)
+    setWorkspaceDir(path)
+    const tree = await window.api.readDirectory(path)
+    setFileTree(tree)
+    setSidebarOpen(true)
+    setActiveView('explorer')
+  }
+
+  return (
+    <motion.div
+      className="w-full"
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, delay: 0.3, ease: [0.4, 0, 0.2, 1] }}
+    >
+      <p className="text-caption mb-2 px-1" style={{ color: 'var(--color-text-muted)' }}>
+        Recent Projects
+      </p>
+      <div className="flex flex-col gap-1">
+        {recent.map((project) => (
+          <button
+            key={project.id}
+            onClick={() => handleOpen(project.id, project.path)}
+            className="flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors duration-150 hover:bg-white/[0.04] group"
+          >
+            <Folder
+              size={14}
+              strokeWidth={1.5}
+              className="shrink-0 text-zinc-600 group-hover:text-zinc-400 transition-colors"
+            />
+            <div className="flex-1 min-w-0">
+              <p className="text-body text-zinc-400 group-hover:text-zinc-200 transition-colors truncate">
+                {project.name}
+              </p>
+              <p
+                className="text-mono truncate"
+                style={{ color: 'var(--color-text-muted)', fontSize: '11px' }}
+              >
+                {project.path}
+              </p>
+            </div>
+          </button>
+        ))}
+      </div>
+    </motion.div>
+  )
+}
+
 export const WelcomeScreen = () => {
   const { workspaceDir, setWorkspaceDir, setFileTree } = useFileStore()
   const { setActiveView, setSidebarOpen, setChatOpen } = useUIStore()
@@ -51,6 +109,7 @@ export const WelcomeScreen = () => {
   const handleOpenFolder = async () => {
     const dirPath = await window.api.openDirectory()
     if (dirPath) {
+      useProjectStore.getState().addProject(dirPath)
       setWorkspaceDir(dirPath)
       const tree = await window.api.readDirectory(dirPath)
       setFileTree(tree)
@@ -185,6 +244,9 @@ export const WelcomeScreen = () => {
             </div>
           ))}
         </motion.div>
+
+        {/* Recent Projects */}
+        <RecentProjects />
 
         {/* Workspace path */}
         {workspaceDir && (

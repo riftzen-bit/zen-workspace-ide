@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-type ActivityView = 'explorer' | 'search' | 'settings' | 'terminal'
+type ActivityView = 'explorer' | 'search' | 'settings' | 'terminal' | 'projects'
 
 interface UIState {
   activeView: ActivityView

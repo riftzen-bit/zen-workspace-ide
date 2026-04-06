@@ -23,6 +23,7 @@ interface FileState {
   setActiveSearchQuery: (query: string | null) => void
   setIsSaving: (isSaving: boolean) => void
   setIsLoadingDir: (isLoading: boolean) => void
+  resetForProjectSwitch: () => void
 }
 
 export const useFileStore = create<FileState>()(
@@ -82,7 +83,9 @@ export const useFileStore = create<FileState>()(
           }
         })),
       setIsSaving: (isSaving) => set({ isSaving }),
-      setIsLoadingDir: (isLoadingDir) => set({ isLoadingDir })
+      setIsLoadingDir: (isLoadingDir) => set({ isLoadingDir }),
+      resetForProjectSwitch: () =>
+        set({ fileTree: [], openFiles: [], activeFile: null, fileContents: {}, activeSearchQuery: null })
     }),
     {
       name: 'file-storage',
