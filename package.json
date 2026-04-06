@@ -1,6 +1,6 @@
 {
   "name": "zen-workspace",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "description": "An isolated, distraction-free command center and elite coding assistant. Orchestrate multiple AI CLI agents side-by-side with peak performance.",
   "main": "./out/main/index.js",
   "author": "riftzen-bit",
