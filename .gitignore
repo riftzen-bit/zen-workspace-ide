@@ -1,0 +1,17 @@
+node_modules
+dist
+dist-electron
+out
+.DS_Store
+.eslintcache
+*.log*
+.env
+.env.local
+.env.*.local
+coverage
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/launch.json
+build/
+release/

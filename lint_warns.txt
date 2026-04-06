@@ -1,0 +1,18 @@
+
+/home/paul/Projects/app/src/renderer/src/components/chat/GeminiChat.tsx
+  174:21  warning  Replace `·className={`mt-0.5·shrink-0·${msg.role·===·'user'·?·'text-[#808080]'·:·'text-[#ffffff]'}`}` with `⏎··················className={`mt-0.5·shrink-0·${msg.role·===·'user'·?·'text-[#808080]'·:·'text-[#ffffff]'}`}⏎················`  prettier/prettier
+
+/home/paul/Projects/app/src/renderer/src/components/media/VibePlayer.tsx
+   92:34  warning  Replace `"Pause"·:·"Play"` with `'Pause'·:·'Play'`                                                                                                                                                                                                                 prettier/prettier
+  130:1   warning  Delete `············`                                                                                                                                                                                                                                              prettier/prettier
+  151:13  warning  Replace `·<span·className="text-[#808080]·text-[10px]·uppercase·font-bold·tracking-widest">Sys.Media·//·Vibe·Module` with `<span·className="text-[#808080]·text-[10px]·uppercase·font-bold·tracking-widest">⏎··············Sys.Media·//·Vibe·Module⏎············`  prettier/prettier
+  152:13  warning  Delete `·`                                                                                                                                                                                                                                                         prettier/prettier
+  153:1   warning  Delete `··`                                                                                                                                                                                                                                                        prettier/prettier
+  154:1   warning  Delete `··`                                                                                                                                                                                                                                                        prettier/prettier
+  155:13  warning  Delete `··`                                                                                                                                                                                                                                                        prettier/prettier
+  156:1   warning  Delete `··`                                                                                                                                                                                                                                                        prettier/prettier
+  157:1   warning  Delete `··`                                                                                                                                                                                                                                                        prettier/prettier
+
+✖ 10 problems (0 errors, 10 warnings)
+  0 errors and 10 warnings potentially fixable with the `--fix` option.
+
