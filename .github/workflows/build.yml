@@ -51,17 +51,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # macOS — native build for node-pty
           - os: macos-latest
             label: macOS
             platform: mac
 
-          # Windows — native build for node-pty
           - os: windows-latest
             label: Windows
             platform: win
 
-          # Linux — native build for node-pty
           - os: ubuntu-22.04
             label: Linux
             platform: linux
@@ -83,26 +80,29 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential python3 make rpm fakeroot libfuse2 snapcraft
 
-      # Install project dependencies (skip postinstall, rebuild separately)
+      # Windows: exclude build dir from Windows Defender to prevent rcedit lock
+      - name: Exclude build from Windows Defender
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          Add-MpPreference -ExclusionPath "${{ github.workspace }}\dist"
+          Add-MpPreference -ExclusionPath "${{ github.workspace }}\node_modules"
+
+      # Install project dependencies
       - name: Install dependencies
         run: npm ci
 
-      # Build the Electron app (vite build + electron-builder)
-      - name: Build
-        run: npx electron-vite build && npx electron-builder --${{ matrix.platform }} --publish=never
+      # Vite build (compile TypeScript + bundle renderer)
+      - name: Vite build
+        run: npx electron-vite build
+
+      # Package with electron-builder (no code signing without certs)
+      - name: Package
+        run: npx electron-builder --${{ matrix.platform }} --publish=never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Skip code signing when secrets aren't configured
-          CSC_IDENTITY_AUTO_DISCOVERY: ${{ secrets.MAC_CSC_LINK != '' && 'true' || 'false' }}
-          # macOS code signing (optional — set secrets to enable)
-          CSC_LINK: ${{ secrets.MAC_CSC_LINK || '' }}
-          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD || '' }}
-          APPLE_ID: ${{ secrets.APPLE_ID || '' }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID || '' }}
-          # Windows code signing (optional — set secrets to enable)
-          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK || '' }}
-          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD || '' }}
+          # Disable auto code signing discovery (sign only when secrets are set)
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
 
       # List built artifacts for debugging
       - name: List dist
