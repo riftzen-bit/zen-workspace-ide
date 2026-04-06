@@ -109,7 +109,7 @@ jobs:
         run: ls -la dist/
         shell: bash
 
-      # Upload artifacts
+      # Upload artifacts (only installers, no yml/blockmap)
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -122,8 +122,6 @@ jobs:
             dist/*.deb
             dist/*.rpm
             dist/*.snap
-            dist/*.blockmap
-            dist/latest*.yml
           if-no-files-found: warn
           retention-days: 30
 
@@ -161,7 +159,5 @@ jobs:
             artifacts/**/*.deb
             artifacts/**/*.rpm
             artifacts/**/*.snap
-            artifacts/**/*.blockmap
-            artifacts/**/latest*.yml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
