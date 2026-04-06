@@ -85,7 +85,13 @@ export const useFileStore = create<FileState>()(
       setIsSaving: (isSaving) => set({ isSaving }),
       setIsLoadingDir: (isLoadingDir) => set({ isLoadingDir }),
       resetForProjectSwitch: () =>
-        set({ fileTree: [], openFiles: [], activeFile: null, fileContents: {}, activeSearchQuery: null })
+        set({
+          fileTree: [],
+          openFiles: [],
+          activeFile: null,
+          fileContents: {},
+          activeSearchQuery: null
+        })
     }),
     {
       name: 'file-storage',
