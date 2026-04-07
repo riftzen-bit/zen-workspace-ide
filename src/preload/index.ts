@@ -48,6 +48,20 @@ const api = {
     branch: (cwd: string) => ipcRenderer.invoke('git:branch', cwd) as Promise<string | null>,
     status: (cwd: string) =>
       ipcRenderer.invoke('git:status', cwd) as Promise<{ staged: boolean; unstaged: boolean }>,
+    statusFiles: (cwd: string) =>
+      ipcRenderer.invoke('git:statusFiles', cwd) as Promise<{
+        staged: { file: string; status: string }[]
+        unstaged: { file: string; status: string }[]
+      }>,
+    fileDiffContent: (cwd: string, file: string, stagedOnly: boolean) =>
+      ipcRenderer.invoke('git:fileDiffContent', cwd, file, stagedOnly) as Promise<{
+        original: string
+        modified: string
+      }>,
+    add: (cwd: string, file: string) =>
+      ipcRenderer.invoke('git:add', cwd, file) as Promise<boolean>,
+    unstage: (cwd: string, file: string) =>
+      ipcRenderer.invoke('git:unstage', cwd, file) as Promise<boolean>,
     diff: (cwd: string, stagedOnly: boolean) =>
       ipcRenderer.invoke('git:diff', cwd, stagedOnly) as Promise<string | null>,
     commit: (cwd: string, message: string, addAll: boolean) =>

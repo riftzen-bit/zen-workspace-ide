@@ -31,6 +31,10 @@ interface UIState {
   isChatOpen: boolean
   isSidebarOpen: boolean
 
+  // Git Diff state
+  activeDiffFile: { file: string; staged: boolean } | null
+  setActiveDiffFile: (file: { file: string; staged: boolean } | null) => void
+
   // Toast system
   toasts: Toast[]
   addToast: (message: string, type?: ToastType) => void
@@ -77,6 +81,10 @@ export const useUIStore = create<UIState>((set, get) => ({
   isVibePlayerOpen: false,
   isChatOpen: true,
   isSidebarOpen: true,
+
+  // Git Diff State
+  activeDiffFile: null,
+  setActiveDiffFile: (file) => set({ activeDiffFile: file }),
 
   // Toast system
   toasts: [],

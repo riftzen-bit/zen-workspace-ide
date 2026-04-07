@@ -21,6 +21,7 @@ import { StatusBar } from './StatusBar'
 import { useActivityStore } from '../../store/useActivityStore'
 import { useCostStore } from '../../store/useCostStore'
 import { PromptLibrary } from '../ui/PromptLibrary'
+import { GitDiffEditor } from '../git/GitDiffEditor'
 
 export const AppLayout = () => {
   const { workspaceDir, fileTree, setFileTree, reloadFileFromDisk, markFileDeleted } =
@@ -241,7 +242,13 @@ export const AppLayout = () => {
                   }
             }
           >
-            {activeView === 'terminal' || isWorkspaceActive ? <FocusTerminal /> : <MonacoEditor />}
+            {activeView === 'terminal' || isWorkspaceActive ? (
+              <FocusTerminal />
+            ) : activeView === 'git' && useUIStore.getState().activeDiffFile ? (
+              <GitDiffEditor />
+            ) : (
+              <MonacoEditor />
+            )}
           </div>
 
           {/* Chat Panel with smooth animation */}

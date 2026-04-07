@@ -1,13 +1,13 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
-import { GitBranch, Sparkles, Check, RefreshCw } from 'lucide-react'
+import { GitBranch, Wand2, Check, RefreshCw, Plus, Minus } from 'lucide-react'
 import { useFileStore } from '../../store/useFileStore'
 import { useUIStore } from '../../store/useUIStore'
 import { useSettingsStore } from '../../store/useSettingsStore'
 
 export const GitDashboard = () => {
   const { workspaceDir } = useFileStore()
-  const { addToast } = useUIStore()
+  const { addToast, activeDiffFile, setActiveDiffFile } = useUIStore()
   const {
     activeProvider,
     modelPerProvider,
@@ -31,10 +31,8 @@ export const GitDashboard = () => {
   const useGeminiOAuth = geminiOAuthActive
 
   const [branch, setBranch] = useState<string | null>(null)
-  const [status, setStatus] = useState<{ staged: boolean; unstaged: boolean }>({
-    staged: false,
-    unstaged: false
-  })
+  const [stagedFiles, setStagedFiles] = useState<{ file: string; status: string }[]>([])
+  const [unstagedFiles, setUnstagedFiles] = useState<{ file: string; status: string }[]>([])
   const [message, setMessage] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
   const [isCommitting, setIsCommitting] = useState(false)
@@ -44,30 +42,31 @@ export const GitDashboard = () => {
     const b = await window.api.git.branch(workspaceDir)
     setBranch(b)
     if (b) {
-      const s = await window.api.git.status(workspaceDir)
-      setStatus(s)
+      const files = await window.api.git.statusFiles(workspaceDir)
+      setStagedFiles(files.staged)
+      setUnstagedFiles(files.unstaged)
     }
   }, [workspaceDir])
 
   useEffect(() => {
     loadGitState()
-    const interval = setInterval(loadGitState, 10000) // Poll every 10s
+    const interval = setInterval(loadGitState, 5000)
     return () => clearInterval(interval)
   }, [loadGitState])
 
   const handleGenerate = async () => {
     if (!workspaceDir) return
 
-    // Refresh status to be absolutely sure
-    const s = await window.api.git.status(workspaceDir)
-    setStatus(s)
+    const files = await window.api.git.statusFiles(workspaceDir)
+    setStagedFiles(files.staged)
+    setUnstagedFiles(files.unstaged)
 
-    if (!s.staged && !s.unstaged) {
+    if (files.staged.length === 0 && files.unstaged.length === 0) {
       addToast('No changes to commit.', 'info')
       return
     }
 
-    const diff = await window.api.git.diff(workspaceDir, s.staged)
+    const diff = await window.api.git.diff(workspaceDir, files.staged.length > 0)
     if (!diff) {
       addToast('Could not retrieve diff or diff is empty.', 'warning')
       return
@@ -111,7 +110,6 @@ export const GitDashboard = () => {
       addToast(msg, 'error')
       setIsGenerating(false)
     } finally {
-      // Small delay before unregistering listener just in case
       setTimeout(unsubscribe, 500)
     }
   }
@@ -120,19 +118,44 @@ export const GitDashboard = () => {
     if (!workspaceDir || !message.trim()) return
     setIsCommitting(true)
 
-    // If nothing is staged, commit will automatically "add all"
-    const addAll = !status.staged
+    const addAll = stagedFiles.length === 0
 
     const result = await window.api.git.commit(workspaceDir, message.trim(), addAll)
     if (result.success) {
       addToast('Changes committed successfully.', 'success')
       setMessage('')
+      setActiveDiffFile(null)
       await loadGitState()
     } else {
       addToast(result.error ?? 'Failed to commit', 'error')
     }
 
     setIsCommitting(false)
+  }
+
+  const handleStage = async (file: string) => {
+    if (!workspaceDir) return
+    await window.api.git.add(workspaceDir, file)
+    await loadGitState()
+  }
+
+  const handleUnstage = async (file: string) => {
+    if (!workspaceDir) return
+    await window.api.git.unstage(workspaceDir, file)
+    await loadGitState()
+  }
+
+  const handleStageAll = async () => {
+    if (!workspaceDir) return
+    await window.api.git.add(workspaceDir, '.')
+    await loadGitState()
+  }
+
+  const getStatusColor = (status: string) => {
+    if (['M', 'A'].includes(status)) return 'text-green-400'
+    if (['D'].includes(status)) return 'text-red-400'
+    if (['U', '?'].includes(status)) return 'text-sky-400'
+    return 'text-zinc-400'
   }
 
   if (!workspaceDir || !branch) {
@@ -149,80 +172,177 @@ export const GitDashboard = () => {
     )
   }
 
-  const hasChanges = status.staged || status.unstaged
+  const hasChanges = stagedFiles.length > 0 || unstagedFiles.length > 0
 
   return (
-    <div className="flex flex-col h-full p-4 gap-4">
+    <div className="flex flex-col h-full p-3 gap-3 overflow-hidden">
       {/* Branch Info */}
       <div
-        className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg border"
+        className="flex items-center gap-2 px-3 py-2 rounded-lg border shrink-0"
         style={{
           backgroundColor: 'var(--color-surface-2)',
           borderColor: 'var(--color-border-subtle)'
         }}
       >
-        <GitBranch size={16} className="text-sky-400" strokeWidth={2} />
+        <GitBranch size={15} className="text-sky-400" strokeWidth={2} />
         <div className="flex-1 min-w-0">
-          <p className="text-caption text-zinc-500 mb-0.5">Current Branch</p>
           <p className="text-body font-semibold text-zinc-200 truncate">{branch}</p>
         </div>
         <button
           onClick={loadGitState}
-          className="p-1.5 rounded-md hover:bg-white/5 text-zinc-500 hover:text-zinc-300 transition-colors"
+          className="p-1 rounded hover:bg-white/5 text-zinc-500 hover:text-zinc-300 transition-colors"
         >
-          <RefreshCw size={14} />
+          <RefreshCw size={13} />
         </button>
       </div>
 
-      {/* Changes Status */}
-      <div className="flex items-center gap-2 px-1">
-        <div className={`w-2 h-2 rounded-full ${hasChanges ? 'bg-amber-400' : 'bg-green-400'}`} />
-        <p className="text-caption text-zinc-400">
-          {hasChanges
-            ? status.staged
-              ? 'Staged changes ready'
-              : 'Unstaged changes'
-            : 'Working tree clean'}
-        </p>
+      {/* File Lists */}
+      <div className="flex-1 overflow-y-auto hide-scrollbar flex flex-col gap-4">
+        {/* Staged Files */}
+        {stagedFiles.length > 0 && (
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center justify-between px-1 mb-1">
+              <p className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">
+                Staged Changes
+              </p>
+              <span className="text-[10px] bg-zinc-800 text-zinc-400 px-1.5 rounded">
+                {stagedFiles.length}
+              </span>
+            </div>
+            {stagedFiles.map(({ file, status }) => (
+              <div
+                key={`staged-${file}`}
+                onClick={() => setActiveDiffFile({ file, staged: true })}
+                className={`group flex items-center justify-between px-2 py-1.5 rounded-md cursor-pointer transition-colors ${activeDiffFile?.file === file && activeDiffFile?.staged ? 'bg-amber-400/10 border-amber-400/20' : 'hover:bg-white/5 border-transparent'} border`}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <span
+                    className={`text-[10px] font-mono font-bold w-3 text-center ${getStatusColor(status)}`}
+                  >
+                    {status}
+                  </span>
+                  <span className="text-body text-zinc-300 truncate" title={file}>
+                    {file.split('/').pop()}
+                  </span>
+                  <span className="text-[10px] text-zinc-600 truncate">
+                    {file.split('/').slice(0, -1).join('/')}
+                  </span>
+                </div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleUnstage(file)
+                  }}
+                  className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-white/10 transition-all text-zinc-400"
+                  title="Unstage change"
+                >
+                  <Minus size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Unstaged Files */}
+        {unstagedFiles.length > 0 && (
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center justify-between px-1 mb-1">
+              <p className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">
+                Changes
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleStageAll}
+                  className="text-[10px] text-amber-500 hover:text-amber-400 font-medium"
+                >
+                  Stage All
+                </button>
+                <span className="text-[10px] bg-zinc-800 text-zinc-400 px-1.5 rounded">
+                  {unstagedFiles.length}
+                </span>
+              </div>
+            </div>
+            {unstagedFiles.map(({ file, status }) => (
+              <div
+                key={`unstaged-${file}`}
+                onClick={() => setActiveDiffFile({ file, staged: false })}
+                className={`group flex items-center justify-between px-2 py-1.5 rounded-md cursor-pointer transition-colors ${activeDiffFile?.file === file && !activeDiffFile?.staged ? 'bg-amber-400/10 border-amber-400/20' : 'hover:bg-white/5 border-transparent'} border`}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <span
+                    className={`text-[10px] font-mono font-bold w-3 text-center ${getStatusColor(status)}`}
+                  >
+                    {status}
+                  </span>
+                  <span className="text-body text-zinc-300 truncate" title={file}>
+                    {file.split('/').pop()}
+                  </span>
+                  <span className="text-[10px] text-zinc-600 truncate">
+                    {file.split('/').slice(0, -1).join('/')}
+                  </span>
+                </div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleStage(file)
+                  }}
+                  className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-white/10 transition-all text-zinc-400"
+                  title="Stage change"
+                >
+                  <Plus size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {!hasChanges && (
+          <div className="flex-1 flex flex-col items-center justify-center text-center opacity-40 pb-10">
+            <Check size={24} className="mb-2" />
+            <p className="text-caption">Working tree is clean</p>
+          </div>
+        )}
       </div>
 
-      {/* AI Generate Button */}
-      <motion.button
-        whileTap={{ scale: 0.98 }}
-        onClick={handleGenerate}
-        disabled={!hasChanges || isGenerating || isCommitting}
-        className="relative group w-full py-2.5 rounded-lg flex items-center justify-center gap-2 overflow-hidden transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-        style={{
-          background:
-            'linear-gradient(135deg, rgba(212,160,23,0.15) 0%, rgba(212,160,23,0.05) 100%)',
-          border: '1px solid rgba(212,160,23,0.3)'
-        }}
+      {/* Commit Box */}
+      <div
+        className="shrink-0 flex flex-col gap-2 mt-2 pt-2 border-t"
+        style={{ borderColor: 'var(--color-border-subtle)' }}
       >
-        <div className="absolute inset-0 bg-gradient-to-r from-amber-400/0 via-amber-400/10 to-amber-400/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 ease-in-out" />
-        {isGenerating ? (
-          <>
-            <RefreshCw size={15} className="animate-spin text-amber-400" />
-            <span className="text-[13px] font-bold text-amber-400 tracking-wide uppercase">
-              Analyzing Diff...
-            </span>
-          </>
-        ) : (
-          <>
-            <Sparkles size={15} className="text-amber-400" />
-            <span className="text-[13px] font-bold text-amber-400 tracking-wide uppercase">
-              AI Auto-Commit
-            </span>
-          </>
-        )}
-      </motion.button>
+        <motion.button
+          whileTap={{ scale: 0.98 }}
+          onClick={handleGenerate}
+          disabled={!hasChanges || isGenerating || isCommitting}
+          className="relative group w-full py-2 rounded-lg flex items-center justify-center gap-2 overflow-hidden transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+          style={{
+            background:
+              'linear-gradient(135deg, rgba(212,160,23,0.15) 0%, rgba(212,160,23,0.05) 100%)',
+            border: '1px solid rgba(212,160,23,0.3)'
+          }}
+        >
+          <div className="absolute inset-0 bg-gradient-to-r from-amber-400/0 via-amber-400/10 to-amber-400/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 ease-in-out" />
+          {isGenerating ? (
+            <>
+              <RefreshCw size={13} className="animate-spin text-amber-400" />
+              <span className="text-[12px] font-bold text-amber-400 tracking-wide uppercase">
+                Analyzing...
+              </span>
+            </>
+          ) : (
+            <>
+              <Wand2 size={13} className="text-amber-400" />
+              <span className="text-[12px] font-bold text-amber-400 tracking-wide uppercase">
+                AI Message
+              </span>
+            </>
+          )}
+        </motion.button>
 
-      {/* Message Input */}
-      <div className="flex-1 flex flex-col gap-2">
         <textarea
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           placeholder="Commit message..."
-          className="flex-1 w-full bg-transparent border rounded-lg p-3 text-[13px] leading-relaxed resize-none focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+          className="w-full h-24 bg-transparent border rounded-lg p-2.5 text-[12.5px] leading-relaxed resize-none focus:outline-none focus:ring-1 focus:ring-amber-500/50"
           style={{
             borderColor: 'var(--color-border-subtle)',
             backgroundColor: 'var(--color-surface-2)',
@@ -233,16 +353,16 @@ export const GitDashboard = () => {
         <button
           onClick={handleCommit}
           disabled={!message.trim() || isCommitting || isGenerating}
-          className="w-full py-2.5 rounded-lg flex items-center justify-center gap-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full py-2 rounded-lg flex items-center justify-center gap-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
           style={{
             backgroundColor: message.trim() ? 'var(--color-accent)' : 'var(--color-surface-3)',
             color: message.trim() ? '#000' : 'var(--color-text-muted)',
             fontWeight: '600',
-            fontSize: '13px'
+            fontSize: '12px'
           }}
         >
-          {isCommitting ? <RefreshCw size={15} className="animate-spin" /> : <Check size={15} />}
-          COMMIT {status.staged ? '' : 'ALL'}
+          {isCommitting ? <RefreshCw size={13} className="animate-spin" /> : <Check size={13} />}
+          COMMIT {stagedFiles.length === 0 ? 'ALL' : ''}
         </button>
       </div>
     </div>

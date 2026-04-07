@@ -46,6 +46,17 @@ declare global {
       git: {
         branch: (cwd: string) => Promise<string | null>
         status: (cwd: string) => Promise<{ staged: boolean; unstaged: boolean }>
+        statusFiles: (cwd: string) => Promise<{
+          staged: { file: string; status: string }[]
+          unstaged: { file: string; status: string }[]
+        }>
+        fileDiffContent: (
+          cwd: string,
+          file: string,
+          stagedOnly: boolean
+        ) => Promise<{ original: string; modified: string }>
+        add: (cwd: string, file: string) => Promise<boolean>
+        unstage: (cwd: string, file: string) => Promise<boolean>
         diff: (cwd: string, stagedOnly: boolean) => Promise<string | null>
         commit: (
           cwd: string,
