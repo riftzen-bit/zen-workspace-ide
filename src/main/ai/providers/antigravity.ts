@@ -73,14 +73,28 @@ export class AntigravityProvider implements AIProvider {
 
     if (!response.ok) {
       const err = await response.text().catch(() => '')
+      const label = isGeminiCli ? 'Gemini' : 'Antigravity'
       if (response.status === 401 || response.status === 403) {
-        const label = isGeminiCli ? 'Gemini' : 'Antigravity'
         const settingsPath = isGeminiCli ? 'Settings → Gemini' : 'Settings → Antigravity'
         throw new Error(
           `${label} auth expired — sign out and re-sign in via ${settingsPath}${err ? `: ${err.slice(0, 200)}` : ''}`
         )
       }
-      const label = isGeminiCli ? 'Gemini' : 'Antigravity'
+
+      if (response.status === 429) {
+        try {
+          const parsed = JSON.parse(err)
+          if (parsed?.error?.message) {
+            throw new Error(
+              `${label} Free Quota Exhausted: ${parsed.error.message} (Tip: Use a personal Gemini API Key in Settings to avoid this limit)`
+            )
+          }
+        } catch {
+          // ignore parse error, fallback
+        }
+        throw new Error(`${label} Free Quota Exhausted. Please wait or use a personal API Key.`)
+      }
+
       throw new Error(`${label} error ${response.status}: ${err.slice(0, 200)}`)
     }
 

@@ -1,9 +1,48 @@
+import { useRef } from 'react'
 import { motion } from 'framer-motion'
 import { Code2, FolderOpen, FilePlus, Terminal, MessageSquare, Folder } from 'lucide-react'
 import { useFileStore } from '../../store/useFileStore'
 import { useUIStore } from '../../store/useUIStore'
 import { useProjectStore } from '../../store/useProjectStore'
 import { transition, ease } from '../../lib/motion'
+import { Canvas, useFrame } from '@react-three/fiber'
+import * as THREE from 'three'
+
+const VortexTunnel = () => {
+  const meshRef = useRef<THREE.Mesh>(null)
+
+  const segments = 40
+  const segmentLength = 60 / segments
+
+  useFrame(({ clock, pointer, camera }) => {
+    if (!meshRef.current) return
+    const time = clock.getElapsedTime()
+
+    // Slowly rotate the tunnel
+    meshRef.current.rotation.y = time * 0.05
+
+    // Move tunnel towards the camera to create infinite forward effect
+    meshRef.current.position.z = (time * 2.5) % segmentLength
+
+    // Gentle mouse parallax
+    camera.position.x += (pointer.x * 1.5 - camera.position.x) * 0.05
+    camera.position.y += (pointer.y * 1.5 - camera.position.y) * 0.05
+    camera.lookAt(pointer.x * 0.5, pointer.y * 0.5, -10)
+  })
+
+  return (
+    <mesh ref={meshRef} rotation={[Math.PI / 2, 0, 0]}>
+      <cylinderGeometry args={[8, 8, 60, 24, segments, true]} />
+      <meshBasicMaterial
+        color="#fbbf24"
+        wireframe={true}
+        transparent={true}
+        opacity={0.35}
+        side={THREE.BackSide}
+      />
+    </mesh>
+  )
+}
 
 const isMac = navigator.platform.toLowerCase().includes('mac')
 const mod = isMac ? '⌘' : 'Ctrl'
@@ -33,14 +72,13 @@ export const WelcomeScreen = () => {
 
   return (
     <div className="h-full w-full relative flex flex-col items-center justify-center overflow-hidden bg-[#0c0c0e]">
-      {/* Dot-grid background */}
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.03) 1px, transparent 1px)',
-          backgroundSize: '32px 32px'
-        }}
-      />
+      {/* 3D Background - The Vortex Tunnel */}
+      <div className="absolute inset-0 z-0 pointer-events-none opacity-100">
+        <Canvas camera={{ position: [0, 0, 5], fov: 45 }}>
+          <fog attach="fog" args={['#0c0c0e', 2, 40]} />
+          <VortexTunnel />
+        </Canvas>
+      </div>
 
       {/* Main content */}
       <div
@@ -82,7 +120,7 @@ export const WelcomeScreen = () => {
           </div>
 
           {/* Greeting + title */}
-          <div className="text-center flex flex-col gap-1.5">
+          <div className="text-center flex flex-col gap-1.5 relative z-10">
             <p className="text-body font-medium" style={{ color: 'var(--color-text-muted)' }}>
               {greeting}
             </p>
@@ -96,7 +134,7 @@ export const WelcomeScreen = () => {
             >
               Zen Workspace
             </h1>
-            <p className="text-body" style={{ color: 'var(--color-text-muted)' }}>
+            <p className="text-body mt-1" style={{ color: 'var(--color-text-muted)' }}>
               Your distraction-free command center
             </p>
           </div>

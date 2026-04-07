@@ -1,7 +1,7 @@
 import { ipcMain } from 'electron'
 import { exec } from 'child_process'
 import { resolve as resolvePath } from 'path'
-import { existsSync, readFileSync } from 'fs'
+import { existsSync, readFileSync } from 'fs-extra'
 
 export function setupGitHandlers(): void {
   ipcMain.handle('git:branch', async (_, cwd: string) => {

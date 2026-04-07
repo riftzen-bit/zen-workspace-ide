@@ -15,6 +15,31 @@ export default defineConfig(
       react: {
         version: 'detect'
       }
+    },
+    rules: {
+      'react/no-unknown-property': [
+        'error',
+        {
+          ignore: [
+            'attach',
+            'args',
+            'intensity',
+            'position',
+            'rotation',
+            'wireframe',
+            'side',
+            'fov',
+            'transparent',
+            'opacity',
+            'sizeAttenuation',
+            'blending',
+            'depthWrite',
+            'itemSize',
+            'count',
+            'array'
+          ]
+        }
+      ]
     }
   },
   {

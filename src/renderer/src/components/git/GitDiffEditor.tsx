@@ -98,33 +98,32 @@ export const GitDiffEditor = () => {
 
       {/* Diff Content */}
       <div className="flex-1 relative">
-        {loading ? (
-          <div className="absolute inset-0 flex items-center justify-center">
+        <DiffEditor
+          original={original}
+          modified={modified}
+          language={language}
+          theme="zen-dark"
+          options={{
+            readOnly: true,
+            renderSideBySide: true,
+            fontSize,
+            wordWrap: wordWrap ? 'on' : 'off',
+            minimap: { enabled: false },
+            padding: { top: 16, bottom: 16 },
+            scrollBeyondLastLine: false,
+            fontFamily: '"JetBrains Mono", "Fira Code", monospace',
+            fontLigatures: true,
+            smoothScrolling: true,
+            cursorBlinking: 'smooth',
+            cursorSmoothCaretAnimation: 'on',
+            formatOnPaste: true,
+            formatOnType: true
+          }}
+        />
+        {loading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-[#0c0c0e]/50 backdrop-blur-sm z-10">
             <span className="text-caption text-zinc-500 animate-pulse">Loading diff...</span>
           </div>
-        ) : (
-          <DiffEditor
-            original={original}
-            modified={modified}
-            language={language}
-            theme="zen-dark"
-            options={{
-              readOnly: true,
-              renderSideBySide: true,
-              fontSize,
-              wordWrap: wordWrap ? 'on' : 'off',
-              minimap: { enabled: false },
-              padding: { top: 16, bottom: 16 },
-              scrollBeyondLastLine: false,
-              fontFamily: '"JetBrains Mono", "Fira Code", monospace',
-              fontLigatures: true,
-              smoothScrolling: true,
-              cursorBlinking: 'smooth',
-              cursorSmoothCaretAnimation: 'on',
-              formatOnPaste: true,
-              formatOnType: true
-            }}
-          />
         )}
       </div>
     </div>
