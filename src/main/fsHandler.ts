@@ -63,6 +63,48 @@ export function setupFSHandlers(): void {
       return false
     }
   })
+
+  ipcMain.handle('fs:createFile', async (_, filePath: string) => {
+    if (!isWithinWorkspace(filePath)) return { ok: false, error: 'Outside workspace' }
+    try {
+      await fs.promises.writeFile(filePath, '', { flag: 'wx' })
+      return { ok: true }
+    } catch (e: unknown) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) }
+    }
+  })
+
+  ipcMain.handle('fs:createDir', async (_, dirPath: string) => {
+    if (!isWithinWorkspace(dirPath)) return { ok: false, error: 'Outside workspace' }
+    try {
+      await fs.promises.mkdir(dirPath, { recursive: true })
+      return { ok: true }
+    } catch (e: unknown) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) }
+    }
+  })
+
+  ipcMain.handle('fs:rename', async (_, oldPath: string, newPath: string) => {
+    if (!isWithinWorkspace(oldPath) || !isWithinWorkspace(newPath)) {
+      return { ok: false, error: 'Outside workspace' }
+    }
+    try {
+      await fs.promises.rename(oldPath, newPath)
+      return { ok: true }
+    } catch (e: unknown) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) }
+    }
+  })
+
+  ipcMain.handle('fs:delete', async (_, targetPath: string) => {
+    if (!isWithinWorkspace(targetPath)) return { ok: false, error: 'Outside workspace' }
+    try {
+      await fs.promises.rm(targetPath, { recursive: true, force: true })
+      return { ok: true }
+    } catch (e: unknown) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) }
+    }
+  })
 }
 
 async function scanDirAsync(dir: string): Promise<FileNode[]> {

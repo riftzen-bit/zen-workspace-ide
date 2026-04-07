@@ -1,6 +1,20 @@
 import { create } from 'zustand'
 
-type ActivityView = 'explorer' | 'search' | 'settings' | 'terminal' | 'projects'
+type ActivityView = 'explorer' | 'search' | 'settings' | 'terminal' | 'projects' | 'activity'
+
+export type ToastType = 'success' | 'error' | 'info' | 'warning'
+
+export interface Toast {
+  id: string
+  message: string
+  type: ToastType
+}
+
+interface ZenSnapshot {
+  isSidebarOpen: boolean
+  isChatOpen: boolean
+  isVibePlayerOpen: boolean
+}
 
 interface UIState {
   activeView: ActivityView
@@ -9,6 +23,34 @@ interface UIState {
   isVibePlayerOpen: boolean
   isChatOpen: boolean
   isSidebarOpen: boolean
+
+  // Toast system
+  toasts: Toast[]
+  addToast: (message: string, type?: ToastType) => void
+  removeToast: (id: string) => void
+
+  // Zen Mode
+  isZenMode: boolean
+  zenSnapshot: ZenSnapshot | null
+  enterZenMode: () => void
+  exitZenMode: () => void
+
+  // Music Generator
+  isMusicGeneratorOpen: boolean
+  setMusicGeneratorOpen: (open: boolean) => void
+
+  // Command Palette
+  isCommandPaletteOpen: boolean
+  setCommandPaletteOpen: (open: boolean) => void
+
+  // Prompt Library
+  isPromptLibraryOpen: boolean
+  setPromptLibraryOpen: (open: boolean) => void
+
+  // Editor cursor position (for status bar)
+  cursorLine: number
+  cursorCol: number
+  setCursorPosition: (line: number, col: number) => void
 
   setActiveView: (view: ActivityView) => void
   setSidebarWidth: (width: number) => void
@@ -21,13 +63,63 @@ interface UIState {
   setSidebarOpen: (isOpen: boolean) => void
 }
 
-export const useUIStore = create<UIState>((set) => ({
+export const useUIStore = create<UIState>((set, get) => ({
   activeView: 'explorer',
   sidebarWidth: 250,
   chatWidth: 350,
   isVibePlayerOpen: false,
   isChatOpen: true,
   isSidebarOpen: true,
+
+  // Toast system
+  toasts: [],
+  addToast: (message, type = 'info') => {
+    const id = Math.random().toString(36).slice(2)
+    set((state) => ({ toasts: [...state.toasts, { id, message, type }] }))
+    setTimeout(() => get().removeToast(id), 3000)
+  },
+  removeToast: (id) => set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) })),
+
+  // Zen Mode
+  isZenMode: false,
+  zenSnapshot: null,
+  enterZenMode: () => {
+    const { isSidebarOpen, isChatOpen, isVibePlayerOpen } = get()
+    set({
+      isZenMode: true,
+      zenSnapshot: { isSidebarOpen, isChatOpen, isVibePlayerOpen },
+      isSidebarOpen: false,
+      isChatOpen: false,
+      isVibePlayerOpen: false
+    })
+  },
+  exitZenMode: () => {
+    const { zenSnapshot } = get()
+    set({
+      isZenMode: false,
+      isSidebarOpen: zenSnapshot?.isSidebarOpen ?? true,
+      isChatOpen: zenSnapshot?.isChatOpen ?? true,
+      isVibePlayerOpen: zenSnapshot?.isVibePlayerOpen ?? false,
+      zenSnapshot: null
+    })
+  },
+
+  // Music Generator
+  isMusicGeneratorOpen: false,
+  setMusicGeneratorOpen: (open) => set({ isMusicGeneratorOpen: open }),
+
+  // Command Palette
+  isCommandPaletteOpen: false,
+  setCommandPaletteOpen: (open) => set({ isCommandPaletteOpen: open }),
+
+  // Prompt Library
+  isPromptLibraryOpen: false,
+  setPromptLibraryOpen: (open) => set({ isPromptLibraryOpen: open }),
+
+  // Editor cursor position
+  cursorLine: 1,
+  cursorCol: 1,
+  setCursorPosition: (line, col) => set({ cursorLine: line, cursorCol: col }),
 
   setActiveView: (view) => set({ activeView: view }),
   setSidebarWidth: (width) => set({ sidebarWidth: width }),

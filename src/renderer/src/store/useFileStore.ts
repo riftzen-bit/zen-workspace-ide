@@ -11,7 +11,6 @@ interface FileState {
   activeSearchQuery: string | null
   fileContents: Record<string, string>
   isSaving: boolean
-  isLoadingDir: boolean
 
   // Actions
   setWorkspaceDir: (dir: string) => void
@@ -22,8 +21,9 @@ interface FileState {
   updateFileContent: (path: string, content: string) => void
   setActiveSearchQuery: (query: string | null) => void
   setIsSaving: (isSaving: boolean) => void
-  setIsLoadingDir: (isLoading: boolean) => void
   resetForProjectSwitch: () => void
+  reloadFileFromDisk: (path: string, content: string) => void
+  markFileDeleted: (path: string) => void
 }
 
 export const useFileStore = create<FileState>()(
@@ -36,7 +36,6 @@ export const useFileStore = create<FileState>()(
       activeSearchQuery: null,
       fileContents: {},
       isSaving: false,
-      isLoadingDir: false,
 
       setWorkspaceDir: (dir) => set({ workspaceDir: dir }),
       setFileTree: (tree) => set({ fileTree: tree }),
@@ -83,7 +82,30 @@ export const useFileStore = create<FileState>()(
           }
         })),
       setIsSaving: (isSaving) => set({ isSaving }),
-      setIsLoadingDir: (isLoadingDir) => set({ isLoadingDir }),
+
+      reloadFileFromDisk: (path, content) =>
+        set((state) => ({
+          fileContents: { ...state.fileContents, [path]: content }
+        })),
+
+      markFileDeleted: (path) => {
+        set((state) => {
+          const newOpenFiles = state.openFiles.filter((f) => f.path !== path)
+          let newActiveFile = state.activeFile
+          if (state.activeFile === path) {
+            newActiveFile =
+              newOpenFiles.length > 0 ? newOpenFiles[newOpenFiles.length - 1].path : null
+          }
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { [path]: _removed, ...remainingContents } = state.fileContents
+          return {
+            openFiles: newOpenFiles,
+            activeFile: newActiveFile,
+            fileContents: remainingContents
+          }
+        })
+      },
+
       resetForProjectSwitch: () =>
         set({
           fileTree: [],

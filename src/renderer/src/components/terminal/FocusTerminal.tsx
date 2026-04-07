@@ -9,9 +9,56 @@ import {
   LayoutGrid,
   ChevronRight,
   Plus,
-  ArrowLeft
+  ArrowLeft,
+  Monitor,
+  Columns2,
+  LayoutDashboard,
+  GitCompare,
+  type LucideIcon
 } from 'lucide-react'
 import { transition } from '../../lib/motion'
+
+const WORKSPACE_TEMPLATES: {
+  id: string
+  label: string
+  description: string
+  Icon: LucideIcon
+  layout: number
+  cliTypes: string[]
+}[] = [
+  {
+    id: 'solo',
+    label: 'Solo Focus',
+    description: '1 pane · Claude',
+    Icon: Monitor,
+    layout: 1,
+    cliTypes: ['Claude CLI']
+  },
+  {
+    id: 'duo',
+    label: 'Duo',
+    description: '2 panes · Claude + Terminal',
+    Icon: Columns2,
+    layout: 2,
+    cliTypes: ['Claude CLI', 'Terminal']
+  },
+  {
+    id: 'fullstack',
+    label: 'Full Stack',
+    description: '4 panes · 2×Claude + Codex + Terminal',
+    Icon: LayoutDashboard,
+    layout: 4,
+    cliTypes: ['Claude CLI', 'Claude CLI', 'Codex CLI', 'Terminal']
+  },
+  {
+    id: 'review',
+    label: 'Code Review',
+    description: '2 panes · Claude + Gemini',
+    Icon: GitCompare,
+    layout: 2,
+    cliTypes: ['Claude CLI', 'Gemini CLI']
+  }
+]
 
 export const FocusTerminal = () => {
   const {
@@ -29,8 +76,26 @@ export const FocusTerminal = () => {
   } = useTerminalStore()
 
   const [name, setName] = useState('')
-  const [cli, setCli] = useState('Terminal')
+  const [cliTypes, setCliTypes] = useState<string[]>(['Terminal'])
   const [layout, setLayout] = useState(1)
+
+  const CLI_OPTIONS = ['Terminal', 'Claude CLI', 'Codex CLI', 'Gemini CLI', 'Opencode CLI']
+
+  const handleLayoutChange = (num: number) => {
+    setLayout(num)
+    setCliTypes((prev) => {
+      const last = prev[prev.length - 1] ?? 'Terminal'
+      return Array.from({ length: num }, (_, i) => prev[i] ?? last)
+    })
+  }
+
+  const handleCliTypeChange = (paneIndex: number, value: string) => {
+    setCliTypes((prev) => prev.map((t, i) => (i === paneIndex ? value : t)))
+  }
+
+  const handleSetAllCli = (value: string) => {
+    setCliTypes(Array.from({ length: layout }, () => value))
+  }
 
   const [editingTabId, setEditingTabId] = useState<string | null>(null)
   const [editTabName, setEditTabName] = useState('')
@@ -48,7 +113,7 @@ export const FocusTerminal = () => {
 
   const handleCreate = () => {
     if (!name.trim()) return
-    createWorkspace(name, layout, cli)
+    createWorkspace(name, layout, cliTypes)
   }
 
   const handleTabRenameSubmit = (id: string) => {
@@ -125,6 +190,64 @@ export const FocusTerminal = () => {
           </div>
 
           <div className="p-5 flex flex-col gap-5">
+            {/* Templates */}
+            <div className="flex flex-col gap-2">
+              <label className="text-label" style={{ color: 'var(--color-text-muted)' }}>
+                Quick Templates
+              </label>
+              <div className="grid grid-cols-2 gap-1.5">
+                {WORKSPACE_TEMPLATES.map((tpl) => (
+                  <button
+                    key={tpl.id}
+                    onClick={() => {
+                      setName(tpl.label)
+                      setLayout(tpl.layout)
+                      setCliTypes(tpl.cliTypes)
+                    }}
+                    className="flex items-start gap-2 p-2.5 rounded-lg border text-left transition-colors"
+                    style={{
+                      backgroundColor: 'var(--color-surface-2)',
+                      borderColor: 'var(--color-border-subtle)',
+                      color: 'var(--color-text-secondary)'
+                    }}
+                    onMouseEnter={(e) => {
+                      ;(e.currentTarget as HTMLButtonElement).style.borderColor =
+                        'var(--color-border-hover)'
+                      ;(e.currentTarget as HTMLButtonElement).style.backgroundColor =
+                        'var(--color-surface-4)'
+                    }}
+                    onMouseLeave={(e) => {
+                      ;(e.currentTarget as HTMLButtonElement).style.borderColor =
+                        'var(--color-border-subtle)'
+                      ;(e.currentTarget as HTMLButtonElement).style.backgroundColor =
+                        'var(--color-surface-2)'
+                    }}
+                  >
+                    <tpl.Icon
+                      size={14}
+                      style={{ color: 'var(--color-accent)', flexShrink: 0, marginTop: 2 }}
+                    />
+                    <div className="min-w-0">
+                      <p
+                        className="text-body font-medium truncate"
+                        style={{ color: 'var(--color-text-primary)' }}
+                      >
+                        {tpl.label}
+                      </p>
+                      <p
+                        className="text-label truncate"
+                        style={{ color: 'var(--color-text-muted)' }}
+                      >
+                        {tpl.description}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="h-px" style={{ backgroundColor: 'var(--color-border-subtle)' }} />
+
             <div className="flex flex-col gap-2">
               <label className="text-label" style={{ color: 'var(--color-text-muted)' }}>
                 Workspace Name
@@ -144,38 +267,13 @@ export const FocusTerminal = () => {
 
             <div className="flex flex-col gap-2">
               <label className="text-label" style={{ color: 'var(--color-text-muted)' }}>
-                CLI Environment
-              </label>
-              <div className="relative">
-                <select
-                  value={cli}
-                  onChange={(e) => setCli(e.target.value)}
-                  className="input-field w-full appearance-none cursor-pointer pr-8"
-                >
-                  <option value="Terminal">Standard Terminal</option>
-                  <option value="Claude CLI">Claude CLI</option>
-                  <option value="Codex CLI">Codex CLI</option>
-                  <option value="Gemini CLI">Gemini CLI</option>
-                  <option value="Opencode CLI">Opencode CLI</option>
-                </select>
-                <div
-                  className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"
-                  style={{ color: 'var(--color-text-muted)' }}
-                >
-                  <ChevronRight size={13} className="rotate-90" />
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <label className="text-label" style={{ color: 'var(--color-text-muted)' }}>
                 Grid Layout
               </label>
               <div className="flex gap-2">
                 {[1, 2, 4, 6, 8].map((num) => (
                   <button
                     key={num}
-                    onClick={() => setLayout(num)}
+                    onClick={() => handleLayoutChange(num)}
                     className="flex-1 py-2 rounded-lg border text-caption font-medium transition-colors"
                     style={{
                       backgroundColor:
@@ -190,6 +288,97 @@ export const FocusTerminal = () => {
                   </button>
                 ))}
               </div>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <label className="text-label" style={{ color: 'var(--color-text-muted)' }}>
+                  {layout === 1 ? 'CLI Environment' : 'CLI Per Pane'}
+                </label>
+                {layout > 1 && (
+                  <div className="relative">
+                    <select
+                      onChange={(e) => {
+                        if (e.target.value) handleSetAllCli(e.target.value)
+                      }}
+                      className="text-label appearance-none cursor-pointer pr-5 pl-2 py-1 rounded-md"
+                      style={{
+                        backgroundColor: 'var(--color-surface-4)',
+                        color: 'var(--color-text-tertiary)',
+                        border: '1px solid var(--color-border-subtle)'
+                      }}
+                      defaultValue=""
+                    >
+                      <option value="" disabled>
+                        Set all…
+                      </option>
+                      {CLI_OPTIONS.map((opt) => (
+                        <option key={opt} value={opt}>
+                          {opt}
+                        </option>
+                      ))}
+                    </select>
+                    <div
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none"
+                      style={{ color: 'var(--color-text-muted)' }}
+                    >
+                      <ChevronRight size={11} className="rotate-90" />
+                    </div>
+                  </div>
+                )}
+              </div>
+              {layout === 1 ? (
+                <div className="relative">
+                  <select
+                    value={cliTypes[0] ?? 'Terminal'}
+                    onChange={(e) => handleCliTypeChange(0, e.target.value)}
+                    className="input-field w-full appearance-none cursor-pointer pr-8"
+                  >
+                    {CLI_OPTIONS.map((opt) => (
+                      <option key={opt} value={opt}>
+                        {opt === 'Terminal' ? 'Standard Terminal' : opt}
+                      </option>
+                    ))}
+                  </select>
+                  <div
+                    className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"
+                    style={{ color: 'var(--color-text-muted)' }}
+                  >
+                    <ChevronRight size={13} className="rotate-90" />
+                  </div>
+                </div>
+              ) : (
+                <div
+                  className="grid gap-1.5"
+                  style={{ gridTemplateColumns: layout <= 2 ? '1fr 1fr' : 'repeat(2, 1fr)' }}
+                >
+                  {cliTypes.map((type, i) => (
+                    <div key={i} className="relative">
+                      <div className="text-label mb-1" style={{ color: 'var(--color-text-muted)' }}>
+                        Pane {i + 1}
+                      </div>
+                      <select
+                        value={type}
+                        onChange={(e) => handleCliTypeChange(i, e.target.value)}
+                        className="input-field w-full appearance-none cursor-pointer pr-7 text-caption"
+                        style={{ paddingTop: '6px', paddingBottom: '6px' }}
+                      >
+                        {CLI_OPTIONS.map((opt) => (
+                          <option key={opt} value={opt}>
+                            {opt === 'Terminal' ? 'Terminal' : opt}
+                          </option>
+                        ))}
+                      </select>
+                      <div
+                        className="absolute right-2 top-[26px] pointer-events-none"
+                        style={{ color: 'var(--color-text-muted)' }}
+                      >
+                        <ChevronRight size={11} className="rotate-90" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 

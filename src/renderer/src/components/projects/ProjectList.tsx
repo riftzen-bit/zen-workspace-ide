@@ -2,6 +2,8 @@ import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Folder, FolderOpen, Pin, PinOff, X, Plus } from 'lucide-react'
 import { useProjectStore } from '../../store/useProjectStore'
+import { useFileStore } from '../../store/useFileStore'
+import { useUIStore } from '../../store/useUIStore'
 
 import type { Project } from '../../store/useProjectStore'
 
@@ -52,9 +54,14 @@ const ProjectItem = ({ project, isActive }: ProjectItemProps) => {
         setIsHovered(false)
         if (!isActive) e.currentTarget.style.backgroundColor = 'transparent'
       }}
-      onClick={() => {
+      onClick={async () => {
         if (!editing && !confirmDelete) {
           setActiveProject(project.id)
+          useFileStore.getState().setWorkspaceDir(project.path)
+          const tree = await window.api.readDirectory(project.path)
+          useFileStore.getState().setFileTree(tree)
+          useUIStore.getState().setSidebarOpen(true)
+          useUIStore.getState().setActiveView('explorer')
         }
       }}
     >
@@ -151,8 +158,8 @@ const ProjectItem = ({ project, isActive }: ProjectItemProps) => {
               </button>
             </motion.div>
           ) : (
-            (isHovered || editing === false) &&
-            isHovered && (
+            isHovered &&
+            !editing && (
               <motion.div
                 key="actions"
                 initial={{ opacity: 0 }}
@@ -199,16 +206,21 @@ export const ProjectList = () => {
   const { projects, activeProjectId, addProject, setActiveProject } = useProjectStore()
 
   const handleAddProject = async () => {
-    // Check if window.api exists (in case it's run outside of electron)
     if (!window.api?.openDirectory) return
 
     const dirPath = await window.api.openDirectory()
     if (dirPath) {
       addProject(dirPath)
-      // Find the newly added project and activate it
       const { projects: updated } = useProjectStore.getState()
       const newProj = updated.find((p) => p.path === dirPath)
-      if (newProj) setActiveProject(newProj.id)
+      if (newProj) {
+        setActiveProject(newProj.id)
+        useFileStore.getState().setWorkspaceDir(dirPath)
+        const tree = await window.api.readDirectory(dirPath)
+        useFileStore.getState().setFileTree(tree)
+        useUIStore.getState().setSidebarOpen(true)
+        useUIStore.getState().setActiveView('explorer')
+      }
     }
   }
 

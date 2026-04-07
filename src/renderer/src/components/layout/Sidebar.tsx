@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   ChevronRight,
@@ -10,13 +10,18 @@ import {
   FileCode,
   FileJson,
   FileImage,
-  File
+  File,
+  FilePlus,
+  FolderPlus,
+  Pencil,
+  Trash2
 } from 'lucide-react'
 import { useFileStore } from '../../store/useFileStore'
 import { FileNode } from '../../types'
 import { useResizable } from '../../hooks/useResizable'
 import { useUIStore } from '../../store/useUIStore'
 import { transition } from '../../lib/motion'
+import { ActivityFeed } from '../activity/ActivityFeed'
 
 const getFileIcon = (name: string) => {
   const ext = name.split('.').pop()?.toLowerCase()
@@ -47,7 +52,178 @@ const getFileIcon = (name: string) => {
   }
 }
 
-const FileTreeNode = ({ node, depth = 0 }: { node: FileNode; depth?: number }) => {
+function parentDir(filePath: string): string {
+  const parts = filePath.replace(/\\/g, '/').split('/')
+  parts.pop()
+  return parts.join('/')
+}
+
+// ── File context menu ────────────────────────────────────────────────────────
+
+const MenuItem = ({
+  Icon,
+  label,
+  color,
+  onClick
+}: {
+  Icon: React.ElementType
+  label: string
+  color?: string
+  onClick: () => void
+}) => (
+  <button
+    onClick={onClick}
+    className="w-full flex items-center gap-2.5 px-3 py-2 text-body transition-colors text-left"
+    style={{ color: color ?? 'var(--color-text-secondary)' }}
+    onMouseEnter={(e) =>
+      ((e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--color-surface-5)')
+    }
+    onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = '')}
+  >
+    <Icon size={13} style={{ color: color ?? 'var(--color-text-muted)' }} />
+    {label}
+  </button>
+)
+
+interface FileContextMenuProps {
+  x: number
+  y: number
+  node: FileNode
+  onClose: () => void
+  onRefresh: () => Promise<void>
+}
+
+const FileContextMenu = ({ x, y, node, onClose, onRefresh }: FileContextMenuProps) => {
+  const menuRef = useRef<HTMLDivElement>(null)
+  const { openFile, markFileDeleted } = useFileStore()
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) onClose()
+    }
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleEsc)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleEsc)
+    }
+  }, [onClose])
+
+  const menuWidth = 200
+  const adjustedX = x + menuWidth > window.innerWidth ? x - menuWidth : x
+  const adjustedY = Math.min(y, window.innerHeight - 220)
+
+  const handleNewFile = async () => {
+    onClose()
+    const dir = node.isDirectory ? node.path : parentDir(node.path)
+    const name = window.prompt('New file name:')
+    if (!name?.trim()) return
+    const newPath = `${dir}/${name.trim()}`
+    const result = await window.api.createFile(newPath)
+    if (result.ok) {
+      await onRefresh()
+      const content = await window.api.readFile(newPath)
+      if (content !== null) openFile(newPath, name.trim(), content)
+    } else {
+      useUIStore.getState().addToast(result.error ?? 'Failed to create file', 'error')
+    }
+  }
+
+  const handleNewFolder = async () => {
+    onClose()
+    const dir = node.isDirectory ? node.path : parentDir(node.path)
+    const name = window.prompt('New folder name:')
+    if (!name?.trim()) return
+    const newPath = `${dir}/${name.trim()}`
+    const result = await window.api.createDir(newPath)
+    if (result.ok) {
+      await onRefresh()
+    } else {
+      useUIStore.getState().addToast(result.error ?? 'Failed to create folder', 'error')
+    }
+  }
+
+  const handleRename = async () => {
+    onClose()
+    const currentName = node.path.replace(/\\/g, '/').split('/').pop() ?? ''
+    const newName = window.prompt('Rename to:', currentName)
+    if (!newName?.trim() || newName.trim() === currentName) return
+    const dir = parentDir(node.path)
+    const newPath = `${dir}/${newName.trim()}`
+    const result = await window.api.rename(node.path, newPath)
+    if (result.ok) {
+      if (!node.isDirectory) markFileDeleted(node.path)
+      await onRefresh()
+    } else {
+      useUIStore.getState().addToast(result.error ?? 'Failed to rename', 'error')
+    }
+  }
+
+  const handleDelete = async () => {
+    onClose()
+    const label = node.isDirectory ? 'folder and all its contents' : 'file'
+    const confirmed = window.confirm(`Delete ${label} "${node.name}"?`)
+    if (!confirmed) return
+    const result = await window.api.deleteItem(node.path)
+    if (result.ok) {
+      if (!node.isDirectory) markFileDeleted(node.path)
+      await onRefresh()
+    } else {
+      useUIStore.getState().addToast(result.error ?? 'Failed to delete', 'error')
+    }
+  }
+
+  return (
+    <motion.div
+      ref={menuRef}
+      initial={{ opacity: 0, scale: 0.97, y: -4 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.97 }}
+      transition={transition.tooltip}
+      className="fixed z-[9999] rounded-xl overflow-hidden shadow-2xl"
+      style={{
+        left: adjustedX,
+        top: adjustedY,
+        width: menuWidth,
+        backgroundColor: 'var(--color-surface-4)',
+        border: '1px solid var(--color-border-default)',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.5)'
+      }}
+    >
+      <div
+        className="px-3 py-1.5 border-b"
+        style={{
+          borderColor: 'var(--color-border-subtle)',
+          backgroundColor: 'var(--color-surface-3)'
+        }}
+      >
+        <p className="text-label truncate" style={{ color: 'var(--color-text-muted)' }}>
+          {node.name}
+        </p>
+      </div>
+      <div className="py-1">
+        <MenuItem Icon={FilePlus} label="New File" onClick={handleNewFile} />
+        <MenuItem Icon={FolderPlus} label="New Folder" onClick={handleNewFolder} />
+        <div className="mx-3 my-1 h-px" style={{ backgroundColor: 'var(--color-border-subtle)' }} />
+        <MenuItem Icon={Pencil} label="Rename" onClick={handleRename} />
+        <MenuItem Icon={Trash2} label="Delete" color="#f87171" onClick={handleDelete} />
+      </div>
+    </motion.div>
+  )
+}
+
+// ── File tree node ────────────────────────────────────────────────────────────
+
+interface FileTreeNodeProps {
+  node: FileNode
+  depth?: number
+  onContextMenu: (e: React.MouseEvent, node: FileNode) => void
+}
+
+const FileTreeNode = ({ node, depth = 0, onContextMenu }: FileTreeNodeProps) => {
   const [isOpen, setIsOpen] = useState(false)
   const { openFile, activeFile } = useFileStore()
   const isSelected = activeFile === node.path
@@ -68,7 +244,7 @@ const FileTreeNode = ({ node, depth = 0 }: { node: FileNode; depth?: number }) =
   return (
     <div>
       <div
-        className="flex items-center py-[5px] mx-1.5 mb-px rounded-md cursor-pointer select-none transition-colors duration-100 relative"
+        className="flex items-center py-[7px] mx-1.5 mb-0.5 rounded-md cursor-pointer select-none transition-colors duration-100 relative"
         style={{
           paddingLeft: `${indent}px`,
           backgroundColor: isSelected ? 'var(--color-surface-4)' : undefined,
@@ -87,6 +263,10 @@ const FileTreeNode = ({ node, depth = 0 }: { node: FileNode; depth?: number }) =
           }
         }}
         onClick={handleClick}
+        onContextMenu={(e) => {
+          e.preventDefault()
+          onContextMenu(e, node)
+        }}
       >
         {/* Selected: 2px accent left border */}
         {isSelected && (
@@ -133,7 +313,7 @@ const FileTreeNode = ({ node, depth = 0 }: { node: FileNode; depth?: number }) =
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: i * 0.02, duration: 0.12 }}
               >
-                <FileTreeNode node={child} depth={depth + 1} />
+                <FileTreeNode node={child} depth={depth + 1} onContextMenu={onContextMenu} />
               </motion.div>
             ))}
           </motion.div>
@@ -142,6 +322,8 @@ const FileTreeNode = ({ node, depth = 0 }: { node: FileNode; depth?: number }) =
     </div>
   )
 }
+
+// ── Sidebar ───────────────────────────────────────────────────────────────────
 
 export const Sidebar = () => {
   const { fileTree, setWorkspaceDir, setFileTree, workspaceDir, openFile, setActiveSearchQuery } =
@@ -152,6 +334,15 @@ export const Sidebar = () => {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<{ path: string; name: string }[]>([])
   const [isSearching, setIsSearching] = useState(false)
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; node: FileNode } | null>(
+    null
+  )
+
+  const refreshTree = useCallback(async () => {
+    if (!workspaceDir) return
+    const tree = await window.api.readDirectory(workspaceDir)
+    setFileTree(tree)
+  }, [workspaceDir, setFileTree])
 
   useEffect(() => {
     if (!searchQuery || !workspaceDir) {
@@ -159,19 +350,24 @@ export const Sidebar = () => {
       return
     }
 
+    let cancelled = false
+
     const timer = setTimeout(async () => {
       setIsSearching(true)
       try {
         const results = await window.api.searchFiles(searchQuery, workspaceDir)
-        setSearchResults(results || [])
+        if (!cancelled) setSearchResults(results || [])
       } catch (err) {
-        console.error(err)
+        if (!cancelled) console.error(err)
       } finally {
-        setIsSearching(false)
+        if (!cancelled) setIsSearching(false)
       }
     }, 500)
 
-    return () => clearTimeout(timer)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
   }, [searchQuery, workspaceDir])
 
   const handleOpenFolder = async () => {
@@ -181,6 +377,11 @@ export const Sidebar = () => {
       const tree = await window.api.readDirectory(dirPath)
       setFileTree(tree)
     }
+  }
+
+  const handleNodeContextMenu = (e: React.MouseEvent, node: FileNode) => {
+    e.preventDefault()
+    setContextMenu({ x: e.clientX, y: e.clientY, node })
   }
 
   return (
@@ -193,26 +394,47 @@ export const Sidebar = () => {
       }}
     >
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header — static label, no breathing dot */}
+        {/* Header */}
         <div
           className="h-11 px-4 flex items-center border-b shrink-0"
           style={{ borderColor: 'var(--color-border-subtle)' }}
         >
           <span className="text-label" style={{ color: 'var(--color-text-muted)' }}>
-            {activeView === 'explorer' ? 'Explorer' : 'Search'}
+            {activeView === 'explorer'
+              ? 'Explorer'
+              : activeView === 'search'
+                ? 'Search'
+                : activeView === 'activity'
+                  ? ''
+                  : 'Search'}
           </span>
         </div>
 
         <div className="flex-1 flex flex-col overflow-hidden">
-          {activeView === 'explorer' ? (
+          {activeView === 'activity' ? (
+            <ActivityFeed />
+          ) : activeView === 'explorer' ? (
             fileTree.length > 0 ? (
-              <div className="flex-1 overflow-y-auto hide-scrollbar pt-1 pb-4">
+              <div
+                className="flex-1 overflow-y-auto hide-scrollbar pt-1 pb-4"
+                onContextMenu={(e) => {
+                  // Right-click on empty space → context menu for workspace root
+                  if (e.target === e.currentTarget && workspaceDir) {
+                    e.preventDefault()
+                    const rootNode: FileNode = {
+                      path: workspaceDir,
+                      name: workspaceDir.split('/').pop() ?? 'workspace',
+                      isDirectory: true
+                    }
+                    setContextMenu({ x: e.clientX, y: e.clientY, node: rootNode })
+                  }
+                }}
+              >
                 {fileTree.map((node) => (
-                  <FileTreeNode key={node.path} node={node} />
+                  <FileTreeNode key={node.path} node={node} onContextMenu={handleNodeContextMenu} />
                 ))}
               </div>
             ) : (
-              /* Empty state — no pulsing icon */
               <div className="flex-1 overflow-y-auto hide-scrollbar">
                 <div className="p-6 text-center flex flex-col items-center gap-4 mt-10">
                   <div
@@ -316,6 +538,19 @@ export const Sidebar = () => {
         }}
         onMouseDown={startResizing}
       />
+
+      {/* File context menu */}
+      <AnimatePresence>
+        {contextMenu && (
+          <FileContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            node={contextMenu.node}
+            onClose={() => setContextMenu(null)}
+            onRefresh={refreshTree}
+          />
+        )}
+      </AnimatePresence>
     </div>
   )
 }

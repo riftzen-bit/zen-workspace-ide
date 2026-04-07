@@ -1,7 +1,8 @@
-import { ipcMain } from 'electron'
+import { ipcMain, BrowserWindow } from 'electron'
 import * as pty from 'node-pty'
 import * as os from 'os'
 import * as fs from 'fs'
+import { processChunk, clearBuffer } from './activityParser'
 
 const ptys: Record<string, pty.IPty> = {}
 const ptyStatus: Record<string, 'running' | 'paused'> = {}
@@ -56,11 +57,27 @@ export function setupPtyHandlers() {
       ptyStatus[id] = 'running'
 
       ptyProcess.onData((data) => {
-        event.sender.send('terminal:onData', id, data)
+        if (!event.sender.isDestroyed()) {
+          event.sender.send('terminal:onData', id, data)
+        }
+
+        // Secondary listener: parse for activity events
+        const activities = processChunk(id, data)
+        if (activities.length > 0) {
+          const win = BrowserWindow.getAllWindows()[0]
+          if (win && !win.isDestroyed()) {
+            for (const act of activities) {
+              win.webContents.send('terminal:activity', act)
+            }
+          }
+        }
       })
 
       ptyProcess.onExit(() => {
-        event.sender.send('terminal:onExit', id)
+        if (!event.sender.isDestroyed()) {
+          event.sender.send('terminal:onExit', id)
+        }
+        clearBuffer(id)
         delete ptys[id]
         delete ptyStatus[id]
       })

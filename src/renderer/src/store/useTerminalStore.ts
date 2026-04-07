@@ -5,13 +5,14 @@ import { electronZustandStorage } from './electronZustandStorage'
 export interface TerminalConfig {
   id: string
   command: string
+  cliType: string
 }
 
 export interface Workspace {
   id: string
   name: string
   layout: number
-  cliType: string
+  cliType: string // Primary display type (for backward compat / WorkspaceCard)
   terminals: TerminalConfig[]
   status: 'active' | 'paused'
   createdAt: number
@@ -23,9 +24,8 @@ interface TerminalState {
   isModalOpen: boolean
 
   setModalOpen: (open: boolean) => void
-  createWorkspace: (name: string, layout: number, cliType: string) => void
+  createWorkspace: (name: string, layout: number, cliTypes: string[]) => void
   deleteWorkspace: (id: string) => void
-  closeWorkspace: (id: string) => void
   setActiveWorkspace: (id: string | null) => void
   renameWorkspace: (id: string, newName: string) => void
   pauseWorkspace: (id: string) => Promise<void>
@@ -33,12 +33,21 @@ interface TerminalState {
   reorderWorkspaces: (workspaceIds: string[]) => void
 }
 
-const commandMap: Record<string, string> = {
+export const commandMap: Record<string, string> = {
   Terminal: 'Terminal',
   'Claude CLI': 'claude',
   'Codex CLI': 'codex',
   'Gemini CLI': 'gemini',
   'Opencode CLI': 'opencode'
+}
+
+// Determine the primary display CLI type from an array of per-pane types
+function primaryCliType(cliTypes: string[]): string {
+  const counts: Record<string, number> = {}
+  for (const t of cliTypes) {
+    counts[t] = (counts[t] || 0) + 1
+  }
+  return Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'Terminal'
 }
 
 export const useTerminalStore = create<TerminalState>()(
@@ -50,18 +59,24 @@ export const useTerminalStore = create<TerminalState>()(
 
       setModalOpen: (open) => set({ isModalOpen: open }),
 
-      createWorkspace: (name, layout, cliType) => {
-        const cmd = commandMap[cliType] || 'Terminal'
-        const newTerminals: TerminalConfig[] = Array.from({ length: layout }).map((_, i) => ({
+      createWorkspace: (name, layout, cliTypes) => {
+        // Ensure cliTypes array matches layout length (pad/trim as needed)
+        const resolvedTypes = Array.from(
+          { length: layout },
+          (_, i) => cliTypes[i] ?? cliTypes[0] ?? 'Terminal'
+        )
+
+        const newTerminals: TerminalConfig[] = resolvedTypes.map((type, i) => ({
           id: `term-${Date.now()}-${i}`,
-          command: cmd
+          command: commandMap[type] || 'Terminal',
+          cliType: type
         }))
 
         const newWorkspace: Workspace = {
           id: `ws-${Date.now()}`,
           name,
           layout,
-          cliType,
+          cliType: primaryCliType(resolvedTypes),
           terminals: newTerminals,
           status: 'active',
           createdAt: Date.now()
@@ -91,11 +106,6 @@ export const useTerminalStore = create<TerminalState>()(
               : state.activeWorkspaceId
           return { workspaces: updatedWorkspaces, activeWorkspaceId: newActiveId }
         })
-      },
-
-      // Keep closeWorkspace as alias for backward compatibility
-      closeWorkspace: (id) => {
-        get().deleteWorkspace(id)
       },
 
       setActiveWorkspace: (id) => set({ activeWorkspaceId: id }),
@@ -153,11 +163,15 @@ export const useTerminalStore = create<TerminalState>()(
         return {
           ...current,
           ...p,
-          // Migrate old workspaces that lack status/createdAt
+          // Migrate old workspaces: add missing fields and per-terminal cliType
           workspaces: (p.workspaces || []).map((w) => ({
             ...w,
             status: w.status ?? 'active',
-            createdAt: w.createdAt ?? Date.now()
+            createdAt: w.createdAt ?? Date.now(),
+            terminals: w.terminals.map((t) => ({
+              ...t,
+              cliType: (t as TerminalConfig).cliType ?? w.cliType ?? 'Terminal'
+            }))
           }))
         }
       }

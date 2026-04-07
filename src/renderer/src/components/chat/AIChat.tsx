@@ -1,14 +1,207 @@
-import { useState, useRef, useEffect, useMemo } from 'react'
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { TerminalSquare, Trash2, KeyRound, Plus, History, ChevronDown } from 'lucide-react'
-import { GoogleGenerativeAI } from '@google/generative-ai'
+import {
+  TerminalSquare,
+  Trash2,
+  Plus,
+  History,
+  ChevronDown,
+  Settings,
+  Copy,
+  Check
+} from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import type { Components } from 'react-markdown'
 import { useChatStore } from '../../store/useChatStore'
 import { useUIStore } from '../../store/useUIStore'
 import { useResizable } from '../../hooks/useResizable'
 import { useFileStore } from '../../store/useFileStore'
 import { useMediaStore } from '../../store/useMediaStore'
-import { useSettingsStore } from '../../store/useSettingsStore'
+import { useSettingsStore, AIProviderType } from '../../store/useSettingsStore'
+import { useMusicStore } from '../../store/useMusicStore'
 import { transition } from '../../lib/motion'
+
+const PROVIDER_LABELS: Record<AIProviderType, string> = {
+  gemini: 'Gemini',
+  openai: 'OpenAI',
+  anthropic: 'Claude',
+  groq: 'Groq',
+  ollama: 'Ollama',
+  antigravity: 'Antigravity'
+}
+
+const CodeBlock = ({ children, className }: { children?: React.ReactNode; className?: string }) => {
+  const [copied, setCopied] = useState(false)
+  const codeText = typeof children === 'string' ? children : String(children ?? '')
+
+  const handleCopy = useCallback(() => {
+    navigator.clipboard.writeText(codeText).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }, [codeText])
+
+  return (
+    <div
+      className="relative group my-2 rounded-xl overflow-hidden"
+      style={{
+        backgroundColor: 'var(--color-surface-3)',
+        border: '1px solid var(--color-border-subtle)'
+      }}
+    >
+      <button
+        onClick={handleCopy}
+        className="absolute right-2 top-2 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+        style={{ backgroundColor: 'var(--color-surface-5)', color: 'var(--color-text-tertiary)' }}
+        title="Copy code"
+      >
+        {copied ? <Check size={12} /> : <Copy size={12} />}
+      </button>
+      <code
+        className={className}
+        style={{
+          display: 'block',
+          padding: '14px 16px',
+          overflowX: 'auto',
+          fontSize: '12px',
+          fontFamily: 'JetBrains Mono, monospace',
+          lineHeight: '1.6',
+          color: 'var(--color-text-secondary)'
+        }}
+      >
+        {children}
+      </code>
+    </div>
+  )
+}
+
+const markdownComponents: Components = {
+  code({ className, children, ...props }) {
+    const isBlock = className?.startsWith('language-')
+    if (isBlock) {
+      return <CodeBlock className={className}>{children}</CodeBlock>
+    }
+    return (
+      <code
+        {...props}
+        className={className}
+        style={{
+          backgroundColor: 'var(--color-surface-4)',
+          padding: '1px 6px',
+          borderRadius: '4px',
+          fontSize: '11.5px',
+          fontFamily: 'JetBrains Mono, monospace',
+          color: 'var(--color-accent)'
+        }}
+      >
+        {children}
+      </code>
+    )
+  },
+  pre({ children }) {
+    return <>{children}</>
+  },
+  p({ children }) {
+    return <p style={{ marginBottom: '6px', lineHeight: '1.6' }}>{children}</p>
+  },
+  ul({ children }) {
+    return (
+      <ul style={{ paddingLeft: '18px', marginBottom: '6px', listStyleType: 'disc' }}>
+        {children}
+      </ul>
+    )
+  },
+  ol({ children }) {
+    return (
+      <ol style={{ paddingLeft: '18px', marginBottom: '6px', listStyleType: 'decimal' }}>
+        {children}
+      </ol>
+    )
+  },
+  li({ children }) {
+    return <li style={{ marginBottom: '2px', lineHeight: '1.6' }}>{children}</li>
+  },
+  h1({ children }) {
+    return (
+      <h1
+        style={{
+          fontSize: '16px',
+          fontWeight: 700,
+          marginBottom: '8px',
+          color: 'var(--color-text-primary)'
+        }}
+      >
+        {children}
+      </h1>
+    )
+  },
+  h2({ children }) {
+    return (
+      <h2
+        style={{
+          fontSize: '14px',
+          fontWeight: 650,
+          marginBottom: '6px',
+          color: 'var(--color-text-primary)'
+        }}
+      >
+        {children}
+      </h2>
+    )
+  },
+  h3({ children }) {
+    return (
+      <h3
+        style={{
+          fontSize: '13px',
+          fontWeight: 600,
+          marginBottom: '4px',
+          color: 'var(--color-text-primary)'
+        }}
+      >
+        {children}
+      </h3>
+    )
+  },
+  blockquote({ children }) {
+    return (
+      <blockquote
+        style={{
+          borderLeft: '2px solid var(--color-border-secondary)',
+          paddingLeft: '12px',
+          margin: '6px 0',
+          color: 'var(--color-text-tertiary)',
+          fontStyle: 'italic'
+        }}
+      >
+        {children}
+      </blockquote>
+    )
+  },
+  strong({ children }) {
+    return (
+      <strong style={{ fontWeight: 650, color: 'var(--color-text-primary)' }}>{children}</strong>
+    )
+  },
+  hr() {
+    return (
+      <hr
+        style={{
+          border: 'none',
+          borderTop: '1px solid var(--color-border-subtle)',
+          margin: '10px 0'
+        }}
+      />
+    )
+  }
+}
+
+const MarkdownMessage = ({ text }: { text: string }) => (
+  <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+    {text}
+  </ReactMarkdown>
+)
 
 const ThinkingIndicator = () => {
   const [seconds, setSeconds] = useState(0)
@@ -38,12 +231,22 @@ const ThinkingIndicator = () => {
   )
 }
 
-export const GeminiChat = () => {
+export const AIChat = () => {
   const [input, setInput] = useState('')
-  const { geminiApiKey, setGeminiApiKey } = useSettingsStore()
-  const [isEditingKey, setIsEditingKey] = useState(!geminiApiKey)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const [viewMode, setViewMode] = useState<'chat' | 'history'>('chat')
+
+  const settings = useSettingsStore()
+  const {
+    activeProvider,
+    geminiApiKey,
+    openaiApiKey,
+    anthropicApiKey,
+    groqApiKey,
+    ollamaUrl,
+    modelPerProvider,
+    geminiOAuthActive
+  } = settings
 
   const {
     sessions,
@@ -53,7 +256,6 @@ export const GeminiChat = () => {
     isStreaming,
     setIsStreaming,
     clearChat,
-    model,
     createNewSession,
     deleteSession,
     setActiveSession
@@ -64,7 +266,7 @@ export const GeminiChat = () => {
   }, [sessions, activeSessionId])
 
   const { activeFile, fileContents } = useFileStore()
-  const { chatWidth, setChatWidth } = useUIStore()
+  const { chatWidth, setChatWidth, setActiveView } = useUIStore()
   const { width, startResizing, isResizing } = useResizable(
     chatWidth,
     250,
@@ -77,75 +279,81 @@ export const GeminiChat = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  const handleSaveKey = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    const formData = new FormData(e.currentTarget)
-    const key = formData.get('apiKey') as string
-    if (key.trim()) {
-      setGeminiApiKey(key.trim())
-      setIsEditingKey(false)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const text = (e as CustomEvent<string>).detail
+      if (typeof text === 'string') setInput(text)
     }
-  }
-
-  const genAI = useMemo(
-    () => (geminiApiKey ? new GoogleGenerativeAI(geminiApiKey) : null),
-    [geminiApiKey]
-  )
-
-  const generativeModel = useMemo(
-    () => (genAI ? genAI.getGenerativeModel({ model }) : null),
-    [genAI, model]
-  )
+    window.addEventListener('zen:set-chat-input', handler)
+    return () => window.removeEventListener('zen:set-chat-input', handler)
+  }, [])
 
   const handleSend = async () => {
-    if (!input.trim() || isStreaming || !geminiApiKey || !generativeModel) return
+    if (!input.trim() || isStreaming) return
     const userText = input.trim()
     setInput('')
 
-    addMessage({ id: crypto.randomUUID(), role: 'user', text: userText })
-    setIsStreaming(true)
-
-    let contextText = ''
+    // Add file context to the message if a file is open
+    const MAX_CONTEXT_CHARS = 30_000
+    let messageText = userText
     if (activeFile && fileContents[activeFile]) {
-      contextText = `\nCurrent active file (${activeFile}):\n\`\`\`\n${fileContents[activeFile]}\n\`\`\`\n`
+      let contextContent = fileContents[activeFile]
+      // Strip music command patterns to prevent prompt injection from file contents
+      contextContent = contextContent.replace(/\[PLAY_MUSIC:[^\]]*\]/g, '[PLAY_MUSIC:REDACTED]')
+      contextContent = contextContent.replace(
+        /\[GENERATE_MUSIC:[^\]]*\]/g,
+        '[GENERATE_MUSIC:REDACTED]'
+      )
+      // Truncate very large files to avoid excessive token usage and API errors
+      if (contextContent.length > MAX_CONTEXT_CHARS) {
+        contextContent = contextContent.slice(0, MAX_CONTEXT_CHARS) + '\n... (truncated)'
+      }
+      messageText = `[Context: ${activeFile}]\n\`\`\`\n${contextContent}\n\`\`\`\n\n${userText}`
     }
 
-    const SYSTEM_PROMPT = `You are "Zen AI", an elite coding assistant and a chill vibe companion built into the Zen Workspace IDE.
+    // Build API messages BEFORE mutating store (avoid stale closure bug)
+    const currentMessages = sessions.find((s) => s.id === activeSessionId)?.messages ?? []
+    const historyMessages = currentMessages.map((m) => ({
+      role: m.role as 'user' | 'assistant',
+      content: m.text
+    }))
+    const apiMessages = [...historyMessages, { role: 'user' as const, content: messageText }]
 
-YOUR CAPABILITIES:
-1. You are a world-class software engineer. You can write, refactor, debug, and explain code efficiently.
-2. You act as a general AI, capable of answering any question, brainstorming, or chatting casually about any topic.
-3. You control the workspace's built-in Vibe Player (Music Player).
+    addMessage({ id: crypto.randomUUID(), role: 'user', text: userText })
+    addMessage({ id: crypto.randomUUID(), role: 'assistant', text: '' })
+    setIsStreaming(true)
 
-MUSIC COMMAND INSTRUCTIONS:
-If the user asks you to play music, play a song, switch the vibe, or listen to an artist/playlist, you MUST trigger the music player by using this exact string format anywhere in your response:
-[PLAY_MUSIC: <detailed youtube search query>]
+    // Determine credential
+    let apiKey: string | undefined
+    let useGeminiOAuth = false
 
-Examples:
-- User: "Play some The Weeknd" -> You: "Sure thing! Setting the vibe with The Weeknd. [PLAY_MUSIC: The Weeknd full album playlist]"
-- User: "I need focus music" -> You: "Focus mode activated. [PLAY_MUSIC: deep focus coding lofi mix]"
-- User: "Mở bài nhạc chill" -> You: "Bật nhạc chill cho bạn ngay! [PLAY_MUSIC: nhạc chill tiktok playlist]"
-
-CRITICAL RULES FOR MUSIC:
-- ALWAYS append words like 'playlist', 'mix', or 'full album' to the search query so the music plays uninterrupted for hours.
-- Keep your conversational response friendly, concise, and professional.`
-
-    const fullPrompt = `${SYSTEM_PROMPT}\n\n${contextText}\nUser question: ${userText}`
-    addMessage({ id: crypto.randomUUID(), role: 'model', text: '' })
+    if (activeProvider === 'gemini') {
+      if (geminiOAuthActive) {
+        useGeminiOAuth = true
+      } else {
+        apiKey = geminiApiKey
+      }
+    } else if (activeProvider === 'openai') {
+      apiKey = openaiApiKey
+    } else if (activeProvider === 'anthropic') {
+      apiKey = anthropicApiKey
+    } else if (activeProvider === 'groq') {
+      apiKey = groqApiKey
+    }
 
     let accumulatedText = ''
     let musicTriggered = false
-
-    try {
-      const result = await generativeModel.generateContentStream(fullPrompt)
-
-      for await (const chunk of result.stream) {
-        const chunkText = chunk.text()
-        accumulatedText += chunkText
+    let musicMatch: RegExpMatchArray | null = null
+    let genMusicTriggered = false
+    // Listen for streaming chunks
+    const unsubscribe = window.api.ai.onChunk((chunk) => {
+      if (chunk.type === 'text' && chunk.text) {
+        accumulatedText += chunk.text
 
         const match = accumulatedText.match(/\[PLAY_MUSIC:(.+?)\]/)
         if (match && !musicTriggered) {
           musicTriggered = true
+          musicMatch = match
           const query = match[1].trim()
           window.api
             .searchYoutube(query)
@@ -155,27 +363,64 @@ CRITICAL RULES FOR MUSIC:
                 useMediaStore.getState().setIsPlaying(true)
               }
             })
-            .catch((err: unknown) => console.error('Failed to search youtube:', err))
+            .catch(() => {})
+        }
+
+        // Detect [GENERATE_MUSIC:...] tag and trigger Lyria generation
+        const genMusicMatch = accumulatedText.match(/\[GENERATE_MUSIC:(.+?)\]/)
+        if (genMusicMatch && !genMusicTriggered) {
+          genMusicTriggered = true
+          const genPrompt = genMusicMatch[1].trim()
+          const { lyriaApiKey } = useSettingsStore.getState()
+          useMusicStore.getState().setPendingPrompt(genPrompt)
+          useUIStore.getState().setMusicGeneratorOpen(true)
+          if (lyriaApiKey) {
+            window.api.music
+              .generate({
+                model: 'lyria-3-clip-preview',
+                prompt: genPrompt,
+                instrumental: false,
+                apiKey: lyriaApiKey
+              })
+              .catch(() => {})
+          }
         }
 
         let displayText = accumulatedText.replace(
           /\[PLAY_MUSIC:[^\]]*\]?/g,
           '🎵 Searching for music...'
         )
-        if (musicTriggered && match) {
-          displayText = accumulatedText.replace(match[0], `🎵 Playing music: ${match[1].trim()}`)
+        displayText = displayText.replace(/\[GENERATE_MUSIC:[^\]]*\]?/g, '🎵 Generating music...')
+        if (musicTriggered && musicMatch) {
+          displayText = accumulatedText
+            .replace(/\[GENERATE_MUSIC:[^\]]*\]?/g, '🎵 Generating music...')
+            .replace(musicMatch[0], `🎵 Playing: ${musicMatch[1].trim()}`)
         }
         updateLastMessage(displayText)
+      } else if (chunk.type === 'done') {
+        setIsStreaming(false)
+        unsubscribe()
+      } else if (chunk.type === 'error') {
+        updateLastMessage(accumulatedText + `\n\nError: ${chunk.error}`)
+        setIsStreaming(false)
+        unsubscribe()
       }
+    })
+
+    try {
+      await window.api.ai.chat({
+        provider: activeProvider,
+        model: modelPerProvider[activeProvider],
+        apiKey,
+        ollamaUrl: activeProvider === 'ollama' ? ollamaUrl : undefined,
+        useGeminiOAuth,
+        messages: apiMessages
+      })
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Unknown error'
-      console.error(error)
       updateLastMessage(accumulatedText + `\n\nError: ${message}`)
-      if (message?.includes('API key not valid')) {
-        setIsEditingKey(true)
-      }
-    } finally {
       setIsStreaming(false)
+      unsubscribe()
     }
   }
 
@@ -216,7 +461,6 @@ CRITICAL RULES FOR MUSIC:
         style={{ borderColor: 'var(--color-border-subtle)' }}
       >
         <div className="flex items-center gap-2">
-          {/* Static sage indicator — no breathing animation */}
           <div
             className="w-1.5 h-1.5 rounded-full transition-colors"
             style={{
@@ -226,6 +470,18 @@ CRITICAL RULES FOR MUSIC:
           <span className="text-label" style={{ color: 'var(--color-text-muted)' }}>
             {viewMode === 'history' ? 'History' : 'Assistant'}
           </span>
+          {viewMode === 'chat' && (
+            <span
+              className="text-label px-1.5 py-0.5 rounded-md"
+              style={{
+                color: 'var(--color-secondary)',
+                backgroundColor: 'var(--color-secondary-glow)',
+                fontSize: '10px'
+              }}
+            >
+              {PROVIDER_LABELS[activeProvider]}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-0.5">
           <button
@@ -254,11 +510,11 @@ CRITICAL RULES FOR MUSIC:
             <History size={14} />
           </button>
           <button
-            onClick={() => setIsEditingKey(!isEditingKey)}
+            onClick={() => setActiveView('settings')}
             className="btn-ghost"
-            title="API key"
+            title="AI settings"
           >
-            <KeyRound size={14} />
+            <Settings size={14} />
           </button>
           <button
             onClick={() => {
@@ -272,55 +528,7 @@ CRITICAL RULES FOR MUSIC:
         </div>
       </div>
 
-      {isEditingKey ? (
-        /* API Key setup */
-        <div className="flex-1 p-6 flex flex-col items-center justify-center">
-          <div
-            className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
-            style={{
-              backgroundColor: 'var(--color-surface-3)',
-              border: '1px solid var(--color-border-subtle)'
-            }}
-          >
-            <KeyRound size={24} strokeWidth={1.5} style={{ color: 'var(--color-secondary)' }} />
-          </div>
-          <h2
-            className="text-subhead mb-1.5 text-center"
-            style={{ color: 'var(--color-text-primary)' }}
-          >
-            API Key Setup
-          </h2>
-          <p
-            className="text-caption mb-6 text-center max-w-[200px] leading-relaxed"
-            style={{ color: 'var(--color-text-muted)' }}
-          >
-            Enter your Google Gemini API key to start chatting.
-          </p>
-          <form onSubmit={handleSaveKey} className="w-full max-w-[240px] flex flex-col gap-3">
-            <input
-              name="apiKey"
-              type="password"
-              placeholder="AIzaSy..."
-              defaultValue={geminiApiKey}
-              className="input-field w-full"
-              autoFocus
-            />
-            <button type="submit" className="btn-primary w-full text-center">
-              Save Key
-            </button>
-            {geminiApiKey && (
-              <button
-                type="button"
-                onClick={() => setIsEditingKey(false)}
-                className="btn-ghost w-full text-center text-caption py-2"
-                style={{ color: 'var(--color-text-secondary)' }}
-              >
-                Cancel
-              </button>
-            )}
-          </form>
-        </div>
-      ) : viewMode === 'history' ? (
+      {viewMode === 'history' ? (
         /* History list */
         <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-2.5 hide-scrollbar">
           {sessions.length === 0 && (
@@ -421,7 +629,7 @@ CRITICAL RULES FOR MUSIC:
                     transition={transition.micro}
                     className={`flex gap-2.5 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
-                    {msg.role === 'model' && (
+                    {msg.role === 'assistant' && (
                       <div
                         className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-1"
                         style={{
@@ -435,7 +643,7 @@ CRITICAL RULES FOR MUSIC:
                     )}
 
                     <div
-                      className="max-w-[85%] rounded-2xl px-4 py-3 text-body leading-relaxed whitespace-pre-wrap"
+                      className={`max-w-[85%] rounded-2xl px-4 py-3 text-body leading-relaxed ${msg.role === 'user' ? 'whitespace-pre-wrap' : ''}`}
                       style={
                         msg.role === 'user'
                           ? {
@@ -453,7 +661,13 @@ CRITICAL RULES FOR MUSIC:
                             }
                       }
                     >
-                      {msg.text ? msg.text : isStreaming ? <ThinkingIndicator /> : null}
+                      {msg.role === 'user' ? (
+                        msg.text || null
+                      ) : msg.text ? (
+                        <MarkdownMessage text={msg.text} />
+                      ) : isStreaming ? (
+                        <ThinkingIndicator />
+                      ) : null}
                     </div>
                   </motion.div>
                 )
@@ -508,7 +722,7 @@ CRITICAL RULES FOR MUSIC:
               />
               <motion.button
                 onClick={handleSend}
-                disabled={!input.trim() || isStreaming || !geminiApiKey}
+                disabled={!input.trim() || isStreaming}
                 className="absolute right-2 bottom-2 p-2 rounded-lg transition-colors disabled:opacity-25"
                 style={{ color: 'var(--color-secondary)' }}
                 whileTap={{ scale: 0.9 }}

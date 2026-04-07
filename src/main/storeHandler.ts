@@ -9,7 +9,10 @@ const ALLOWED_STORE_KEYS = new Set([
   'vibe-ide-settings',
   'vibe-ide-chat-history',
   'vibe-ide-terminal-workspaces',
-  'file-storage'
+  'file-storage',
+  'zen-projects',
+  'media-storage',
+  'zen-custom-prompts'
 ])
 
 export function setupStoreHandlers() {
@@ -30,6 +33,8 @@ export function setupStoreHandlers() {
   })
 
   ipcMain.handle('store:clear', () => {
-    store.clear()
+    for (const key of ALLOWED_STORE_KEYS) {
+      store.delete(key)
+    }
   })
 }

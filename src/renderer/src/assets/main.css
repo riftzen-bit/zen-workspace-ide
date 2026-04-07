@@ -8,13 +8,13 @@
     Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
 
   /* Surface layers — non-linear (void / panel / float clusters) */
-  --color-surface-0: #050506;   /* void – deepest background */
-  --color-surface-1: #0a0a0c;   /* void – main frame */
-  --color-surface-2: #111114;   /* panel – sidebar/chat bg */
-  --color-surface-3: #17171b;   /* panel – cards, inputs  (bigger jump) */
-  --color-surface-4: #1e1e23;   /* float – hover states */
-  --color-surface-5: #26262c;   /* float – active states */
-  --color-surface-6: #333339;   /* popover – tooltips, dropdowns (big jump) */
+  --color-surface-0: #050506; /* void – deepest background */
+  --color-surface-1: #0a0a0c; /* void – main frame */
+  --color-surface-2: #111114; /* panel – sidebar/chat bg */
+  --color-surface-3: #17171b; /* panel – cards, inputs  (bigger jump) */
+  --color-surface-4: #1e1e23; /* float – hover states */
+  --color-surface-5: #26262c; /* float – active states */
+  --color-surface-6: #333339; /* popover – tooltips, dropdowns (big jump) */
 
   /* Primary accent — warm amber/gold */
   --color-accent-dim: #b8860b;
@@ -185,7 +185,9 @@ body {
   border-radius: 9px;
   padding: 9px 18px;
   font-size: 13px;
-  transition: background-color 130ms, transform 100ms;
+  transition:
+    background-color 130ms,
+    transform 100ms;
   cursor: pointer;
 
   &:hover {
@@ -208,7 +210,9 @@ body {
   border-radius: 9px;
   padding: 9px 18px;
   font-size: 13px;
-  transition: background-color 130ms, transform 100ms;
+  transition:
+    background-color 130ms,
+    transform 100ms;
   cursor: pointer;
 
   &:hover {

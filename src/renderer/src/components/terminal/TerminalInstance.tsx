@@ -1,8 +1,9 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
 import { useFileStore } from '../../store/useFileStore'
+import { TerminalContextMenu } from './TerminalContextMenu'
 
 interface TerminalInstanceProps {
   id: string
@@ -14,6 +15,11 @@ export const TerminalInstance = ({ id, command }: TerminalInstanceProps) => {
   const term = useRef<Terminal | null>(null)
   const fitAddon = useRef<FitAddon | null>(null)
   const workspaceDir = useFileStore.getState().workspaceDir
+  const [contextMenu, setContextMenu] = useState<{
+    x: number
+    y: number
+    selection: string
+  } | null>(null)
 
   useEffect(() => {
     if (!terminalRef.current) return
@@ -77,6 +83,13 @@ export const TerminalInstance = ({ id, command }: TerminalInstanceProps) => {
     }
   }, [id, command, workspaceDir])
 
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault()
+    const selection = term.current?.getSelection() ?? ''
+    if (!selection.trim()) return
+    setContextMenu({ x: e.clientX, y: e.clientY, selection })
+  }
+
   return (
     <div
       className="w-full h-full overflow-hidden p-2 rounded-lg"
@@ -84,8 +97,18 @@ export const TerminalInstance = ({ id, command }: TerminalInstanceProps) => {
         backgroundColor: 'var(--color-surface-0)',
         border: '1px solid var(--color-border-subtle)'
       }}
+      onContextMenu={handleContextMenu}
     >
       <div ref={terminalRef} className="w-full h-full" />
+      {contextMenu && (
+        <TerminalContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          selection={contextMenu.selection}
+          sourceTerminalId={id}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
     </div>
   )
 }

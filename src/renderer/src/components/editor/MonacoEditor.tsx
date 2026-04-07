@@ -3,6 +3,7 @@ import Editor, { useMonaco, type OnMount } from '@monaco-editor/react'
 import type { editor } from 'monaco-editor'
 import { useFileStore } from '../../store/useFileStore'
 import { useSettingsStore } from '../../store/useSettingsStore'
+import { useUIStore } from '../../store/useUIStore'
 import { X } from 'lucide-react'
 import { WelcomeScreen } from './WelcomeScreen'
 
@@ -54,9 +55,20 @@ export const MonacoEditor = () => {
       if (activeFile) {
         setIsSaving(true)
         const content = editor.getValue()
-        await window.api.saveFile(activeFile, content)
-        setIsSaving(false)
+        try {
+          await window.api.saveFile(activeFile, content)
+          const fileName = activeFile.split('/').pop() || activeFile
+          useUIStore.getState().addToast(`Saved ${fileName}`, 'success')
+        } catch {
+          useUIStore.getState().addToast('Failed to save file', 'error')
+        } finally {
+          setIsSaving(false)
+        }
       }
+    })
+
+    editor.onDidChangeCursorPosition((e) => {
+      useUIStore.getState().setCursorPosition(e.position.lineNumber, e.position.column)
     })
 
     if (activeSearchQuery) {

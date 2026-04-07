@@ -174,10 +174,18 @@ export const WorkspaceCard = ({
         </div>
 
         {/* Meta info */}
-        <div className="flex items-center gap-3 text-[11px] text-zinc-500">
-          <span className={`font-medium ${cliColors[workspace.cliType] || 'text-zinc-400'}`}>
-            {workspace.cliType}
-          </span>
+        <div className="flex items-center gap-2 text-[11px] text-zinc-500 flex-wrap">
+          {(() => {
+            const types = workspace.terminals.map(
+              (t) => (t as { cliType?: string }).cliType ?? workspace.cliType
+            )
+            const uniqueTypes = [...new Set(types)]
+            return uniqueTypes.map((type) => (
+              <span key={type} className={`font-medium ${cliColors[type] || 'text-zinc-400'}`}>
+                {type}
+              </span>
+            ))
+          })()}
           <span className="text-zinc-700">·</span>
           <span className="flex items-center gap-1">
             <LayoutGrid size={10} className="shrink-0" />

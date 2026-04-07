@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
-import { electronZustandStorage } from './electronZustandStorage'
 import { useFileStore } from './useFileStore'
+import { electronZustandStorage } from './electronZustandStorage'
 
 export interface Project {
   id: string
@@ -59,7 +59,9 @@ export const useProjectStore = create<ProjectState>()(
             p.id === id ? { ...p, lastOpenedAt: Date.now() } : p
           )
         }))
-        window.api.setWorkspace(project.path)
+        window.api.setWorkspace(project.path).catch((err) => {
+          console.error('Failed to set workspace:', err)
+        })
         useFileStore.getState().resetForProjectSwitch()
       },
 
@@ -86,7 +88,15 @@ export const useProjectStore = create<ProjectState>()(
       partialize: (state) => ({
         projects: state.projects,
         activeProjectId: state.activeProjectId
-      })
+      }),
+      merge: (persisted, current) => {
+        const p = persisted as Partial<ProjectState>
+        return {
+          ...current,
+          projects: p.projects ?? [],
+          activeProjectId: p.activeProjectId ?? null
+        }
+      }
     }
   )
 )

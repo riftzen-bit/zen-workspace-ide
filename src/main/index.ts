@@ -15,7 +15,13 @@ import icon from '../../resources/icon.png?asset'
 import { setupFSHandlers } from './fsHandler'
 import { setupYoutubeHandlers } from './youtubeHandler'
 import { setupStoreHandlers } from './storeHandler'
+import { setupSafeStoreHandlers } from './safeStore'
 import { setupPtyHandlers } from './ptyHandler'
+import { setupAIHandlers } from './ai/aiHandler'
+import { setupOAuthHandlers } from './oauth/googleOAuth'
+import { setupFileWatcher } from './fileWatcher'
+import { setupGitHandlers } from './gitHandler'
+import { setupLyriaHandlers } from './music/lyriaHandler'
 
 function createWindow(): void {
   // Create the browser window.
@@ -92,6 +98,7 @@ app.whenReady().then(() => {
   // Production CSP via response headers (dev keeps the loose meta tag for HMR)
   if (!is.dev) {
     session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+      // AI API calls now go through main process — renderer CSP is tighter
       callback({
         responseHeaders: {
           ...details.responseHeaders,
@@ -101,7 +108,7 @@ app.whenReady().then(() => {
             "style-src 'self' 'unsafe-inline';",
             "img-src 'self' data: https:;",
             "font-src 'self' data:;",
-            "connect-src 'self' https://generativelanguage.googleapis.com https://*.youtube.com;",
+            "connect-src 'self' https://*.youtube.com;",
             'frame-src https://www.youtube.com https://youtube.com;',
             "media-src 'self' blob:;",
             "worker-src 'self' blob:;"
@@ -125,8 +132,13 @@ app.whenReady().then(() => {
   setupFSHandlers()
   setupYoutubeHandlers()
   setupStoreHandlers()
+  setupSafeStoreHandlers()
   setupPtyHandlers()
-
+  setupAIHandlers()
+  setupOAuthHandlers()
+  setupFileWatcher()
+  setupGitHandlers()
+  setupLyriaHandlers()
   createWindow()
 
   app.on('activate', function () {

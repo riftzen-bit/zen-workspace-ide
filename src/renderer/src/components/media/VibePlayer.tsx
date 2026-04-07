@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Play, Pause, CloudRain, Disc, X } from 'lucide-react'
+import { Play, Pause, CloudRain, Disc, X, Music2 } from 'lucide-react'
 import { useMediaStore } from '../../store/useMediaStore'
 import { useUIStore } from '../../store/useUIStore'
 import { transition } from '../../lib/motion'
@@ -11,7 +11,7 @@ const VIBES = {
 }
 
 export const VibePlayer = () => {
-  const { isVibePlayerOpen, setVibePlayerOpen } = useUIStore()
+  const { isVibePlayerOpen, setVibePlayerOpen, setMusicGeneratorOpen } = useUIStore()
   const { currentVibe, customVibe, isPlaying, volume, setCurrentVibe, setIsPlaying, setVolume } =
     useMediaStore()
   const iframeRef = useRef<HTMLIFrameElement>(null)
@@ -58,16 +58,15 @@ export const VibePlayer = () => {
             ref={iframeRef}
             width="200"
             height="200"
-            src={`https://www.youtube.com/embed/${getVideoId()}?autoplay=${
-              isPlaying ? 1 : 0
-            }&origin=${window.location.origin}&enablejsapi=1&controls=0&loop=1&playlist=${getVideoId()}`}
+            src={`https://www.youtube.com/embed/${getVideoId()}?autoplay=0&origin=${window.location.origin}&enablejsapi=1&controls=0&loop=1&playlist=${getVideoId()}`}
             allow="autoplay"
             title="YouTube Video Player"
             onLoad={() => {
               setTimeout(() => {
                 postCommand('setVolume', [volume])
-                if (isPlaying) postCommand('playVideo')
-              }, 1500)
+                const { isPlaying: playing } = useMediaStore.getState()
+                if (playing) postCommand('playVideo')
+              }, 800)
             }}
           />
         )}
@@ -218,6 +217,15 @@ export const VibePlayer = () => {
               className="w-px h-6 mx-0.5"
               style={{ backgroundColor: 'var(--color-border-subtle)' }}
             />
+
+            {/* Generate music */}
+            <button
+              onClick={() => setMusicGeneratorOpen(true)}
+              className="btn-ghost rounded-full p-2"
+              title="Generate music with Lyria"
+            >
+              <Music2 size={14} />
+            </button>
 
             {/* Close */}
             <button onClick={() => setVibePlayerOpen(false)} className="btn-ghost rounded-full p-2">

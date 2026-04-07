@@ -7,12 +7,6 @@ export type FileNode = {
 
 export type ChatMessage = {
   id: string
-  role: 'user' | 'model'
+  role: 'user' | 'assistant'
   text: string
-}
-
-export type YoutubeSearchResult = {
-  videoId: string
-  title: string
-  url: string
 }

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useUIStore } from '../../store/useUIStore'
+import { useActivityStore } from '../../store/useActivityStore'
 import { transition } from '../../lib/motion'
 import {
   Folder,
@@ -10,19 +11,25 @@ import {
   Settings,
   Disc,
   Terminal,
+  Maximize2,
+  Command,
+  Activity,
   type LucideIcon
 } from 'lucide-react'
 
-type ActivityView = 'explorer' | 'search' | 'settings' | 'terminal' | 'projects'
+type ActivityView = 'explorer' | 'search' | 'settings' | 'terminal' | 'projects' | 'activity'
 
-const TOOLTIPS: Partial<Record<ActivityView | 'chat' | 'vibe', string>> = {
+const TOOLTIPS: Partial<Record<ActivityView | 'chat' | 'vibe' | 'zen' | 'palette', string>> = {
   projects: 'Projects',
   explorer: 'Explorer',
   search: 'Search',
   terminal: 'Terminal',
+  activity: 'Agent Activity',
   settings: 'Settings',
   chat: 'Assistant',
-  vibe: 'Vibe Player'
+  vibe: 'Vibe Player',
+  zen: 'Zen Mode  Ctrl+Shift+Z',
+  palette: 'Command Palette  Ctrl+K'
 }
 
 const IconWrapper = ({
@@ -32,7 +39,8 @@ const IconWrapper = ({
   onClick,
   isActiveOverride,
   activeView,
-  setActiveView
+  setActiveView,
+  badge
 }: {
   view?: ActivityView
   tooltip: string
@@ -41,6 +49,7 @@ const IconWrapper = ({
   isActiveOverride?: boolean
   activeView: string
   setActiveView: (v: ActivityView) => void
+  badge?: number
 }) => {
   const [hovered, setHovered] = useState(false)
   const isActive = isActiveOverride !== undefined ? isActiveOverride : view === activeView
@@ -79,6 +88,15 @@ const IconWrapper = ({
             color: hovered && !isActive ? 'var(--color-text-secondary)' : undefined
           }}
         />
+        {/* Unread badge */}
+        {badge != null && badge > 0 && (
+          <span
+            className="absolute -top-1 -right-1 min-w-[14px] h-[14px] rounded-full flex items-center justify-center text-[9px] font-bold"
+            style={{ backgroundColor: 'var(--color-accent)', color: '#000', padding: '0 2px' }}
+          >
+            {badge > 99 ? '99+' : badge}
+          </span>
+        )}
         {/* Hover bg via pseudo-element via style tag */}
         {hovered && !isActive && (
           <span
@@ -118,8 +136,18 @@ const IconWrapper = ({
 }
 
 export const ActivityBar = () => {
-  const { activeView, setActiveView, toggleVibePlayer, isVibePlayerOpen, isChatOpen, toggleChat } =
-    useUIStore()
+  const {
+    activeView,
+    setActiveView,
+    toggleVibePlayer,
+    isVibePlayerOpen,
+    isChatOpen,
+    toggleChat,
+    isZenMode,
+    enterZenMode,
+    setCommandPaletteOpen
+  } = useUIStore()
+  const { unreadCount } = useActivityStore()
 
   return (
     <div
@@ -159,9 +187,25 @@ export const ActivityBar = () => {
           activeView={activeView}
           setActiveView={setActiveView}
         />
+        <IconWrapper
+          view="activity"
+          tooltip={TOOLTIPS.activity!}
+          Icon={Activity}
+          activeView={activeView}
+          setActiveView={setActiveView}
+          badge={unreadCount}
+        />
       </div>
 
       <div className="flex flex-col w-full items-center gap-1.5 px-[10px]">
+        <IconWrapper
+          tooltip={TOOLTIPS.palette!}
+          Icon={Command}
+          onClick={() => setCommandPaletteOpen(true)}
+          isActiveOverride={false}
+          activeView={activeView}
+          setActiveView={setActiveView}
+        />
         <IconWrapper
           tooltip={TOOLTIPS.chat!}
           Icon={TerminalSquare}
@@ -181,6 +225,14 @@ export const ActivityBar = () => {
         <div
           className="w-6 h-px my-1 rounded-full"
           style={{ backgroundColor: 'var(--color-border-subtle)' }}
+        />
+        <IconWrapper
+          tooltip={TOOLTIPS.zen!}
+          Icon={Maximize2}
+          onClick={() => enterZenMode()}
+          isActiveOverride={isZenMode}
+          activeView={activeView}
+          setActiveView={setActiveView}
         />
         <IconWrapper
           view="settings"
