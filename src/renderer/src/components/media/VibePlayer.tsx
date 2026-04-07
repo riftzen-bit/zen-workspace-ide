@@ -4,6 +4,7 @@ import { Play, Pause, CloudRain, Disc, X, Music2 } from 'lucide-react'
 import { useMediaStore } from '../../store/useMediaStore'
 import { useUIStore } from '../../store/useUIStore'
 import { transition } from '../../lib/motion'
+import { AudioVisualizer3D } from './AudioVisualizer3D'
 
 const VIBES = {
   lofi: { id: 'jfKfPfyJRdk', name: 'Lofi', icon: Disc },
@@ -160,6 +161,11 @@ export const VibePlayer = () => {
                   />
                 </div>
               </div>
+            </div>
+
+            {/* 3D Audio Visualizer */}
+            <div className="flex items-center justify-center -ml-1 -mr-1">
+              <AudioVisualizer3D />
             </div>
 
             {/* Vibe selector */}

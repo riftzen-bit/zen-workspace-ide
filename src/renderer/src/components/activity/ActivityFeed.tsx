@@ -9,7 +9,8 @@ import {
   CheckCircle2,
   ShieldQuestion,
   Trash2,
-  FolderOpen
+  FolderOpen,
+  LucideIcon
 } from 'lucide-react'
 import { useActivityStore, ActivityEvent, ActivityEventType } from '../../store/useActivityStore'
 import { useTerminalStore } from '../../store/useTerminalStore'
@@ -17,18 +18,16 @@ import { useFileStore } from '../../store/useFileStore'
 import { useUIStore } from '../../store/useUIStore'
 import { transition } from '../../lib/motion'
 
-const EVENT_CONFIG: Record<
-  ActivityEventType,
-  { label: string; color: string; Icon: React.ElementType }
-> = {
-  file_write: { label: 'Wrote', color: 'var(--color-accent)', Icon: FileEdit },
-  file_create: { label: 'Created', color: '#34d399', Icon: FilePlus },
-  file_delete: { label: 'Deleted', color: '#f87171', Icon: FileX },
-  error: { label: 'Error', color: '#f87171', Icon: AlertCircle },
-  cost: { label: 'Cost', color: '#a78bfa', Icon: DollarSign },
-  task_done: { label: 'Done', color: '#34d399', Icon: CheckCircle2 },
-  permission: { label: 'Waiting', color: '#fbbf24', Icon: ShieldQuestion }
-}
+const EVENT_CONFIG: Record<ActivityEventType, { label: string; color: string; Icon: LucideIcon }> =
+  {
+    file_write: { label: 'Wrote', color: 'var(--color-accent)', Icon: FileEdit },
+    file_create: { label: 'Created', color: '#34d399', Icon: FilePlus },
+    file_delete: { label: 'Deleted', color: '#f87171', Icon: FileX },
+    error: { label: 'Error', color: '#f87171', Icon: AlertCircle },
+    cost: { label: 'Cost', color: '#a78bfa', Icon: DollarSign },
+    task_done: { label: 'Done', color: '#34d399', Icon: CheckCircle2 },
+    permission: { label: 'Waiting', color: '#fbbf24', Icon: ShieldQuestion }
+  }
 
 function formatTime(ts: number): string {
   const d = new Date(ts)

@@ -14,7 +14,8 @@ import {
   FilePlus,
   FolderPlus,
   Pencil,
-  Trash2
+  Trash2,
+  LucideIcon
 } from 'lucide-react'
 import { useFileStore } from '../../store/useFileStore'
 import { FileNode } from '../../types'
@@ -66,7 +67,7 @@ const MenuItem = ({
   color,
   onClick
 }: {
-  Icon: React.ElementType
+  Icon: LucideIcon
   label: string
   color?: string
   onClick: () => void
