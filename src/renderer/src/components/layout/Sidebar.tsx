@@ -23,6 +23,7 @@ import { useResizable } from '../../hooks/useResizable'
 import { useUIStore } from '../../store/useUIStore'
 import { transition } from '../../lib/motion'
 import { ActivityFeed } from '../activity/ActivityFeed'
+import { GitDashboard } from '../git/GitDashboard'
 
 const getFileIcon = (name: string) => {
   const ext = name.split('.').pop()?.toLowerCase()
@@ -405,15 +406,19 @@ export const Sidebar = () => {
               ? 'Explorer'
               : activeView === 'search'
                 ? 'Search'
-                : activeView === 'activity'
-                  ? ''
-                  : 'Search'}
+                : activeView === 'git'
+                  ? 'Source Control'
+                  : activeView === 'activity'
+                    ? ''
+                    : 'Search'}
           </span>
         </div>
 
         <div className="flex-1 flex flex-col overflow-hidden">
           {activeView === 'activity' ? (
             <ActivityFeed />
+          ) : activeView === 'git' ? (
+            <GitDashboard />
           ) : activeView === 'explorer' ? (
             fileTree.length > 0 ? (
               <div

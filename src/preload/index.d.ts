@@ -45,6 +45,13 @@ declare global {
       onDirDeleted: (callback: (dirPath: string) => void) => () => void
       git: {
         branch: (cwd: string) => Promise<string | null>
+        status: (cwd: string) => Promise<{ staged: boolean; unstaged: boolean }>
+        diff: (cwd: string, stagedOnly: boolean) => Promise<string | null>
+        commit: (
+          cwd: string,
+          message: string,
+          addAll: boolean
+        ) => Promise<{ success: boolean; error?: string }>
       }
       store: {
         get: (key: string) => Promise<unknown>

@@ -45,7 +45,16 @@ const api = {
     return () => ipcRenderer.removeListener('fs:dirDeleted', handler)
   },
   git: {
-    branch: (cwd: string) => ipcRenderer.invoke('git:branch', cwd) as Promise<string | null>
+    branch: (cwd: string) => ipcRenderer.invoke('git:branch', cwd) as Promise<string | null>,
+    status: (cwd: string) =>
+      ipcRenderer.invoke('git:status', cwd) as Promise<{ staged: boolean; unstaged: boolean }>,
+    diff: (cwd: string, stagedOnly: boolean) =>
+      ipcRenderer.invoke('git:diff', cwd, stagedOnly) as Promise<string | null>,
+    commit: (cwd: string, message: string, addAll: boolean) =>
+      ipcRenderer.invoke('git:commit', cwd, message, addAll) as Promise<{
+        success: boolean
+        error?: string
+      }>
   },
   store: {
     get: (key: string) => ipcRenderer.invoke('store:get', key),

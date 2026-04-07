@@ -1,6 +1,13 @@
 import { create } from 'zustand'
 
-type ActivityView = 'explorer' | 'search' | 'settings' | 'terminal' | 'projects' | 'activity'
+type ActivityView =
+  | 'explorer'
+  | 'search'
+  | 'settings'
+  | 'terminal'
+  | 'projects'
+  | 'activity'
+  | 'git'
 
 export type ToastType = 'success' | 'error' | 'info' | 'warning'
 

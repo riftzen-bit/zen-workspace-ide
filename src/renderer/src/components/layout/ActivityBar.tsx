@@ -14,15 +14,24 @@ import {
   Maximize2,
   Command,
   Activity,
+  GitBranch,
   type LucideIcon
 } from 'lucide-react'
 
-type ActivityView = 'explorer' | 'search' | 'settings' | 'terminal' | 'projects' | 'activity'
+type ActivityView =
+  | 'explorer'
+  | 'search'
+  | 'settings'
+  | 'terminal'
+  | 'projects'
+  | 'activity'
+  | 'git'
 
 const TOOLTIPS: Partial<Record<ActivityView | 'chat' | 'vibe' | 'zen' | 'palette', string>> = {
   projects: 'Projects',
   explorer: 'Explorer',
   search: 'Search',
+  git: 'Source Control',
   terminal: 'Terminal',
   activity: 'Agent Activity',
   settings: 'Settings',
@@ -177,6 +186,13 @@ export const ActivityBar = () => {
           view="search"
           tooltip={TOOLTIPS.search!}
           Icon={Search}
+          activeView={activeView}
+          setActiveView={setActiveView}
+        />
+        <IconWrapper
+          view="git"
+          tooltip={TOOLTIPS.git!}
+          Icon={GitBranch}
           activeView={activeView}
           setActiveView={setActiveView}
         />
