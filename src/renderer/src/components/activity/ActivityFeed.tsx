@@ -9,7 +9,7 @@ import {
   CheckCircle2,
   ShieldQuestion,
   Trash2,
-  FolderOpen,
+  Folder,
   LucideIcon
 } from 'lucide-react'
 import { useActivityStore, ActivityEvent, ActivityEventType } from '../../store/useActivityStore'
@@ -156,8 +156,8 @@ export const ActivityFeed = () => {
       {/* Events list */}
       <div className="flex-1 overflow-y-auto hide-scrollbar p-2 flex flex-col gap-1.5">
         {events.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-3 mt-16 opacity-50">
-            <FolderOpen size={24} strokeWidth={1.4} style={{ color: 'var(--color-text-muted)' }} />
+          <div className="flex-1 flex flex-col items-center justify-center gap-4 opacity-40 pb-20">
+            <Folder size={32} strokeWidth={1.2} style={{ color: 'var(--color-text-muted)' }} />
             <p className="text-caption text-center" style={{ color: 'var(--color-text-muted)' }}>
               Agent activity will appear here
             </p>
