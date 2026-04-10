@@ -11,6 +11,13 @@ window.addEventListener('unhandledrejection', (event) => {
   }
 })
 
+// Suppress THREE.js Context Lost info messages when unmounting 3D backgrounds
+const origInfo = console.info
+console.info = (...args) => {
+  if (typeof args[0] === 'string' && args[0].includes('THREE.WebGLRenderer: Context Lost')) return
+  origInfo(...args)
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />

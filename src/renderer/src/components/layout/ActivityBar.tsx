@@ -69,8 +69,7 @@ const IconWrapper = ({
       {isActive && (
         <motion.div
           layoutId="activity-indicator"
-          className="absolute -left-[12px] w-[2px] h-4 rounded-r-full"
-          style={{ backgroundColor: 'var(--color-accent)' }}
+          className="absolute -left-[12px] w-[2px] h-5 rounded-r-full bg-[#EAB308] shadow-[0_0_8px_rgba(234,179,8,0.5)]"
           transition={{ duration: 0.18, ease: [0.32, 0.72, 0, 1] }}
         />
       )}
@@ -82,36 +81,22 @@ const IconWrapper = ({
         }}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
-        className="relative w-10 h-10 rounded-xl flex items-center justify-center cursor-pointer transition-colors duration-100"
-        style={{
-          backgroundColor: isActive ? 'var(--color-surface-4)' : undefined,
-          color: isActive ? 'var(--color-accent)' : 'var(--color-text-muted)'
-        }}
+        className={`relative w-9 h-9 rounded-[10px] flex items-center justify-center cursor-pointer transition-all duration-200 ${
+          isActive
+            ? 'bg-white/[0.06] text-white shadow-sm border border-white/[0.04]'
+            : 'text-zinc-500 hover:bg-white/[0.03] hover:text-zinc-300'
+        }`}
       >
         <Icon
           size={18}
-          strokeWidth={isActive ? 2 : 1.7}
-          style={{
-            transition: 'color 130ms, opacity 130ms',
-            opacity: hovered && !isActive ? 0.85 : 1,
-            color: hovered && !isActive ? 'var(--color-text-secondary)' : undefined
-          }}
+          strokeWidth={isActive ? 2 : 1.5}
+          className={`transition-all duration-200 ${hovered && !isActive ? 'scale-110' : ''}`}
         />
         {/* Unread badge */}
         {badge != null && badge > 0 && (
-          <span
-            className="absolute -top-1 -right-1 min-w-[14px] h-[14px] rounded-full flex items-center justify-center text-[9px] font-bold"
-            style={{ backgroundColor: 'var(--color-accent)', color: '#000', padding: '0 2px' }}
-          >
+          <span className="absolute -top-1 -right-1 min-w-[14px] h-[14px] rounded-full flex items-center justify-center text-[9px] font-bold bg-[#EAB308] text-black px-1 shadow-[0_0_8px_rgba(234,179,8,0.5)]">
             {badge > 99 ? '99+' : badge}
           </span>
-        )}
-        {/* Hover bg via pseudo-element via style tag */}
-        {hovered && !isActive && (
-          <span
-            className="absolute inset-0 rounded-xl"
-            style={{ backgroundColor: 'var(--color-surface-4)', opacity: 0.7 }}
-          />
         )}
       </button>
 
@@ -123,18 +108,9 @@ const IconWrapper = ({
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -6 }}
             transition={transition.tooltip}
-            className="absolute left-[calc(100%+10px)] z-50 pointer-events-none whitespace-nowrap"
+            className="absolute left-[calc(100%+14px)] z-50 pointer-events-none whitespace-nowrap"
           >
-            <div
-              className="text-mono px-2.5 py-1 rounded-lg"
-              style={{
-                backgroundColor: 'var(--color-surface-6)',
-                color: 'var(--color-text-secondary)',
-                border: '1px solid var(--color-border-default)',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
-                fontSize: '11.5px'
-              }}
-            >
+            <div className="px-2.5 py-1.5 rounded-lg bg-[#0A0A0A] border border-white/[0.06] shadow-xl text-zinc-300 text-[11.5px] font-medium tracking-wide">
               {tooltip}
             </div>
           </motion.div>
@@ -159,14 +135,7 @@ export const ActivityBar = () => {
   const { unreadCount } = useActivityStore()
 
   return (
-    <div
-      className="w-14 h-full rounded-2xl flex flex-col justify-between shrink-0 py-4 items-center overflow-visible"
-      style={{
-        backgroundColor: 'var(--color-surface-2)',
-        border: '1px solid var(--color-border-subtle)',
-        boxShadow: '0 4px 24px rgba(0,0,0,0.35)'
-      }}
-    >
+    <div className="w-[52px] h-full rounded-2xl flex flex-col justify-between shrink-0 py-4 items-center bg-[#050505] border border-white/[0.06] shadow-xl shadow-black/50">
       <div className="flex flex-col w-full items-center gap-1.5 px-[10px]">
         <IconWrapper
           view="projects"

@@ -31,15 +31,34 @@ export function setupPtyHandlers() {
       }
 
       const isWin = os.platform() === 'win32'
-      const shell = isWin
-        ? 'powershell.exe'
-        : process.env.SHELL || (fs.existsSync('/bin/bash') ? 'bash' : 'sh')
+
+      // Determine best shell. Prefer pwsh (PowerShell 7+) over Windows PowerShell 5.1 for speed
+      let shell = process.env.SHELL || (fs.existsSync('/bin/bash') ? 'bash' : 'sh')
+      if (isWin) {
+        shell = 'powershell.exe'
+        try {
+          if (fs.existsSync('C:\\Program Files\\PowerShell\\7\\pwsh.exe')) {
+            shell = 'C:\\Program Files\\PowerShell\\7\\pwsh.exe'
+          } else if (fs.existsSync('C:\\Program Files\\PowerShell\\6\\pwsh.exe')) {
+            shell = 'C:\\Program Files\\PowerShell\\6\\pwsh.exe'
+          }
+        } catch {
+          // fallback
+        }
+      }
+
       let args: string[] = []
 
-      if (commandStr && commandStr !== 'Terminal') {
-        if (isWin) {
-          args = ['-NoExit', '-Command', commandStr]
+      if (isWin) {
+        // Skip profile loading completely on Windows for instant startup
+        // Also skip the annoying copyright banner
+        if (commandStr && commandStr !== 'Terminal') {
+          args = ['-NoProfile', '-NoLogo', '-NoExit', '-Command', commandStr]
         } else {
+          args = ['-NoProfile', '-NoLogo']
+        }
+      } else {
+        if (commandStr && commandStr !== 'Terminal') {
           const execShell = shell.includes('zsh') ? 'zsh' : shell.includes('fish') ? 'fish' : shell
           args = ['-c', `${commandStr}; exec ${execShell}`]
         }
@@ -50,7 +69,8 @@ export function setupPtyHandlers() {
         cols: cols || 80,
         rows: rows || 24,
         cwd: cwd || process.env.HOME || process.env.USERPROFILE || process.cwd(),
-        env: getSanitizedEnv()
+        env: getSanitizedEnv(),
+        useConpty: isWin // Uses faster modern ConPTY backend on Windows 10+
       })
 
       ptys[id] = ptyProcess

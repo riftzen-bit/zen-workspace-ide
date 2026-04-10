@@ -79,7 +79,7 @@ export class GeminiProvider implements AIProvider {
 
     const body: Record<string, unknown> = { contents }
     if (systemMessage) {
-      body.systemInstruction = { parts: [{ text: systemMessage.content }] }
+      body.systemInstruction = { role: 'user', parts: [{ text: systemMessage.content }] }
     }
 
     const headers: Record<string, string> = {
@@ -103,6 +103,25 @@ export class GeminiProvider implements AIProvider {
     if (!response.ok) {
       const errText = await response.text().catch(() => '')
       if (response.status === 403) {
+        let isScopeError = false
+        try {
+          const parsed = JSON.parse(errText)
+          if (
+            errText.includes('ACCESS_TOKEN_SCOPE_INSUFFICIENT') ||
+            parsed.error?.message?.includes('insufficient authentication scopes')
+          ) {
+            isScopeError = true
+          }
+        } catch {
+          // ignore
+        }
+
+        if (isScopeError) {
+          throw new Error(
+            'Gemini auth error: Your current login is missing required permissions. Please go to Settings → Gemini, click "Sign Out", and then "Sign In" again to upgrade your access.'
+          )
+        }
+
         throw new Error(
           `Gemini auth error (403): ${errText || 'Sign out and re-sign in with Google in Settings to grant AI access'}`
         )

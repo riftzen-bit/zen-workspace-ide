@@ -4,7 +4,7 @@ import {
   X,
   Type,
   WrapText,
-  PlayCircle,
+  Disc,
   KeyRound,
   Eye,
   EyeOff,
@@ -520,25 +520,17 @@ export const SettingsOverlay = () => {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.97, y: 8 }}
             transition={transition.overlay}
-            className="w-full max-w-xl flex flex-col overflow-hidden rounded-2xl"
-            style={{
-              backgroundColor: 'var(--color-surface-2)',
-              border: '1px solid var(--color-border-default)',
-              boxShadow: '0 24px 60px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.04)'
-            }}
+            className="w-full max-w-xl flex flex-col overflow-hidden rounded-2xl bg-[#0A0A0A] border border-white/[0.06] shadow-2xl shadow-black/80"
           >
             {/* Header */}
-            <div
-              className="flex items-center justify-between px-6 py-4 border-b"
-              style={{
-                borderColor: 'var(--color-border-subtle)',
-                backgroundColor: 'var(--color-surface-1)'
-              }}
-            >
-              <h2 className="text-subhead" style={{ color: 'var(--color-text-primary)' }}>
+            <div className="flex items-center justify-between px-6 py-5 border-b border-white/[0.04] bg-white/[0.01]">
+              <h2 className="text-[14px] font-medium tracking-wide text-zinc-200">
                 Workspace Settings
               </h2>
-              <button onClick={() => setActiveView('explorer')} className="btn-ghost">
+              <button
+                onClick={() => setActiveView('explorer')}
+                className="btn-ghost rounded-lg p-1.5 text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.04] transition-colors"
+              >
                 <X size={16} />
               </button>
             </div>
@@ -548,20 +540,14 @@ export const SettingsOverlay = () => {
               {/* AI Provider section */}
               <section className="flex flex-col gap-4">
                 <div className="flex items-center gap-3">
-                  <h3
-                    className="text-label flex items-center gap-2"
-                    style={{ color: 'var(--color-accent)' }}
-                  >
-                    <KeyRound size={12} /> AI Provider
+                  <h3 className="text-[11px] font-semibold tracking-wider uppercase text-zinc-500 flex items-center gap-2">
+                    <KeyRound size={13} /> AI Provider
                   </h3>
-                  <div
-                    className="flex-1 h-px"
-                    style={{ backgroundColor: 'var(--color-border-subtle)' }}
-                  />
+                  <div className="flex-1 h-px bg-white/[0.04]" />
                 </div>
 
                 {/* Provider selector tabs */}
-                <div className="flex gap-1.5 flex-wrap">
+                <div className="flex gap-2 flex-wrap">
                   {PROVIDERS.map((p) => {
                     const isActive = activeProvider === p.id
                     const isSelected = selectedTab === p.id
@@ -572,20 +558,15 @@ export const SettingsOverlay = () => {
                           setSelectedTab(p.id)
                           setActiveProvider(p.id)
                         }}
-                        className="px-3 py-1.5 rounded-lg text-label font-medium transition-all flex items-center gap-1.5"
-                        style={{
-                          backgroundColor: isSelected
-                            ? 'var(--color-surface-4)'
-                            : 'var(--color-surface-3)',
-                          border: `1px solid ${isSelected ? 'var(--color-border-default)' : 'var(--color-border-subtle)'}`,
-                          color: isSelected
-                            ? 'var(--color-text-primary)'
-                            : 'var(--color-text-muted)'
-                        }}
+                        className={`px-3.5 py-1.5 rounded-lg text-[12px] font-medium tracking-wide transition-all duration-200 flex items-center gap-2 ${
+                          isSelected
+                            ? 'bg-white/[0.06] border-white/[0.12] text-white shadow-sm'
+                            : 'bg-white/[0.02] border-white/[0.04] text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.04]'
+                        } border`}
                       >
                         {isActive && (
                           <span
-                            className="w-1.5 h-1.5 rounded-full"
+                            className="w-1.5 h-1.5 rounded-full shadow-[0_0_8px_rgba(255,255,255,0.5)]"
                             style={{ backgroundColor: p.color }}
                           />
                         )}
@@ -644,16 +625,10 @@ export const SettingsOverlay = () => {
               {/* Editor Settings */}
               <section className="flex flex-col gap-4">
                 <div className="flex items-center gap-3">
-                  <h3
-                    className="text-label flex items-center gap-2"
-                    style={{ color: 'var(--color-secondary)' }}
-                  >
-                    <Type size={12} /> Editor
+                  <h3 className="text-[11px] font-semibold tracking-wider uppercase text-zinc-500 flex items-center gap-2">
+                    <Type size={13} /> Editor
                   </h3>
-                  <div
-                    className="flex-1 h-px"
-                    style={{ backgroundColor: 'var(--color-border-subtle)' }}
-                  />
+                  <div className="flex-1 h-px bg-white/[0.04]" />
                 </div>
 
                 <div
@@ -701,16 +676,10 @@ export const SettingsOverlay = () => {
               {/* Vibe Player */}
               <section className="flex flex-col gap-4">
                 <div className="flex items-center gap-3">
-                  <h3
-                    className="text-label flex items-center gap-2"
-                    style={{ color: 'var(--color-text-tertiary)' }}
-                  >
-                    <PlayCircle size={12} /> Vibe Player
+                  <h3 className="text-[11px] font-semibold tracking-wider uppercase text-zinc-500 flex items-center gap-2">
+                    <Disc size={13} /> Vibe Player
                   </h3>
-                  <div
-                    className="flex-1 h-px"
-                    style={{ backgroundColor: 'var(--color-border-subtle)' }}
-                  />
+                  <div className="flex-1 h-px bg-white/[0.04]" />
                 </div>
 
                 <div

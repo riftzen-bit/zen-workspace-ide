@@ -137,28 +137,34 @@ export const ActivityFeed = () => {
   }, [unreadCount, markAllRead])
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full bg-[#050505]">
       {/* Header */}
       <div
-        className="h-11 px-4 flex items-center justify-between border-b shrink-0"
+        className="h-12 px-4 flex items-center justify-between border-b shrink-0 bg-[#0A0A0A]/50 backdrop-blur-sm"
         style={{ borderColor: 'var(--color-border-subtle)' }}
       >
-        <span className="text-label" style={{ color: 'var(--color-text-muted)' }}>
+        <span className="text-[11px] font-semibold tracking-wider uppercase text-zinc-500">
           Activity
         </span>
         {events.length > 0 && (
-          <button onClick={clearEvents} className="btn-ghost p-1" title="Clear all">
-            <Trash2 size={12} />
+          <button
+            onClick={clearEvents}
+            className="btn-ghost p-1.5 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.04] transition-colors"
+            title="Clear all"
+          >
+            <Trash2 size={13} />
           </button>
         )}
       </div>
 
       {/* Events list */}
-      <div className="flex-1 overflow-y-auto hide-scrollbar p-2 flex flex-col gap-1.5">
+      <div className="flex-1 overflow-y-auto hide-scrollbar p-3 flex flex-col gap-2">
         {events.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center gap-4 opacity-40 pb-20">
-            <Folder size={32} strokeWidth={1.2} style={{ color: 'var(--color-text-muted)' }} />
-            <p className="text-caption text-center" style={{ color: 'var(--color-text-muted)' }}>
+          <div className="flex-1 flex flex-col items-center justify-center gap-4 opacity-50 pb-20">
+            <div className="w-12 h-12 rounded-2xl bg-white/[0.02] border border-white/[0.04] shadow-inner flex items-center justify-center mb-1">
+              <Folder size={20} strokeWidth={1.2} className="text-zinc-500" />
+            </div>
+            <p className="text-[13px] font-medium tracking-wide text-zinc-500 text-center">
               Agent activity will appear here
             </p>
           </div>

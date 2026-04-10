@@ -14,11 +14,13 @@ import {
   PanelLeftOpen,
   Plus,
   BookOpen,
+  TestTube,
   type LucideIcon
 } from 'lucide-react'
 import { useUIStore } from '../../store/useUIStore'
 import { useFileStore } from '../../store/useFileStore'
 import { useTerminalStore } from '../../store/useTerminalStore'
+import { useSettingsStore } from '../../store/useSettingsStore'
 import { transition } from '../../lib/motion'
 
 interface Command {
@@ -168,6 +170,51 @@ const useCommands = (): Command[] => {
       }
     },
     {
+      id: 'generate-test',
+      label: 'AI: Generate Test for Current File',
+      description: 'Automatically generate a test file using AI',
+      icon: TestTube,
+      category: 'AI',
+      action: async () => {
+        close()
+        const activeFile = useFileStore.getState().activeFile
+        if (!activeFile) {
+          useUIStore.getState().addToast('No active file to generate a test for.', 'error')
+          return
+        }
+
+        const { activeProvider, modelPerProvider } = useSettingsStore.getState()
+        const currentProvider = activeProvider
+        const currentModel = currentProvider ? modelPerProvider[currentProvider] : undefined
+        if (!currentProvider || !currentModel) {
+          useUIStore.getState().addToast('AI provider or model not configured.', 'error')
+          return
+        }
+
+        useUIStore.getState().addToast('Generating test...', 'info')
+        try {
+          const res = await window.api.ai.generateTest({
+            filePath: activeFile,
+            provider: currentProvider,
+            model: currentModel,
+            apiKey:
+              currentProvider === 'gemini' ? useSettingsStore.getState().geminiApiKey : undefined,
+            useGeminiOAuth:
+              currentProvider === 'gemini'
+                ? useSettingsStore.getState().geminiOAuthActive
+                : undefined
+          })
+          if (res.success && res.targetPath) {
+            useUIStore.getState().addToast(`Test generated at ${res.targetPath}`, 'success')
+          } else {
+            useUIStore.getState().addToast(res.error || 'Failed to generate test', 'error')
+          }
+        } catch (err: any) {
+          useUIStore.getState().addToast(err.message || 'Error generating test', 'error')
+        }
+      }
+    },
+    {
       id: 'new-workspace',
       label: 'New Terminal Workspace',
       description: 'Create a new terminal workspace',
@@ -296,39 +343,25 @@ export const CommandPalette = () => {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.97, y: -8 }}
             transition={transition.overlay}
-            className="w-full max-w-lg flex flex-col overflow-hidden rounded-2xl"
+            className="w-full max-w-lg flex flex-col overflow-hidden rounded-2xl bg-[#0A0A0A] border border-white/[0.06] shadow-2xl shadow-black/80"
             style={{
-              backgroundColor: 'var(--color-surface-3)',
-              border: '1px solid var(--color-border-default)',
-              boxShadow: '0 24px 60px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.04)',
               maxHeight: '60vh'
             }}
             onKeyDown={handleKeyDown}
           >
             {/* Search input */}
-            <div
-              className="flex items-center gap-3 px-4 py-3.5 border-b"
-              style={{ borderColor: 'var(--color-border-subtle)' }}
-            >
-              <Search size={15} style={{ color: 'var(--color-text-muted)', flexShrink: 0 }} />
+            <div className="flex items-center gap-3 px-4 py-3.5 border-b border-white/[0.04] bg-white/[0.01]">
+              <Search size={15} className="text-zinc-500 shrink-0" strokeWidth={2} />
               <input
                 ref={inputRef}
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search commands..."
-                className="flex-1 bg-transparent outline-none text-body"
-                style={{ color: 'var(--color-text-primary)' }}
+                className="flex-1 bg-transparent border-none outline-none text-[14px] text-zinc-200 placeholder:text-zinc-600 font-medium tracking-wide"
+                autoFocus
               />
-              <kbd
-                className="text-caption px-1.5 py-0.5 rounded"
-                style={{
-                  backgroundColor: 'var(--color-surface-5)',
-                  color: 'var(--color-text-muted)',
-                  border: '1px solid var(--color-border-subtle)',
-                  fontSize: '10px'
-                }}
-              >
+              <kbd className="text-[10px] px-1.5 py-0.5 rounded bg-white/[0.03] text-zinc-500 border border-white/[0.04] tracking-wide">
                 ESC
               </kbd>
             </div>
@@ -336,20 +369,14 @@ export const CommandPalette = () => {
             {/* Results */}
             <div ref={listRef} className="overflow-y-auto flex-1 hide-scrollbar">
               {filtered.length === 0 ? (
-                <div
-                  className="px-4 py-8 text-center text-body"
-                  style={{ color: 'var(--color-text-muted)' }}
-                >
+                <div className="px-4 py-8 text-center text-[13px] text-zinc-500 font-medium tracking-wide">
                   No commands found
                 </div>
               ) : (
-                <div className="py-1.5">
+                <div className="py-2">
                   {Object.entries(grouped).map(([category, cmds]) => (
-                    <div key={category}>
-                      <div
-                        className="px-4 py-1.5 text-label uppercase tracking-widest"
-                        style={{ color: 'var(--color-text-muted)', fontSize: '10px' }}
-                      >
+                    <div key={category} className="mb-2 last:mb-0 px-2">
+                      <div className="px-3 py-1.5 text-[10px] font-bold tracking-widest uppercase text-zinc-600">
                         {category}
                       </div>
                       {cmds.map((cmd) => {
@@ -359,48 +386,27 @@ export const CommandPalette = () => {
                         return (
                           <button
                             key={cmd.id}
-                            className="w-full flex items-center gap-3 px-4 py-2.5 transition-colors text-left"
-                            style={{
-                              backgroundColor: isSelected
-                                ? 'var(--color-surface-5)'
-                                : 'transparent',
-                              color: isSelected
-                                ? 'var(--color-text-primary)'
-                                : 'var(--color-text-secondary)'
-                            }}
+                            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-left ${isSelected ? 'bg-white/[0.06] text-white' : 'text-zinc-400 hover:bg-white/[0.02] hover:text-zinc-300'}`}
                             onMouseEnter={() => setSelectedIndex(currentIndex)}
                             onClick={cmd.action}
                           >
                             <Icon
                               size={15}
-                              style={{
-                                color: isSelected
-                                  ? 'var(--color-accent)'
-                                  : 'var(--color-text-muted)',
-                                flexShrink: 0
-                              }}
+                              className={isSelected ? 'text-zinc-200' : 'text-zinc-500'}
+                              strokeWidth={isSelected ? 2 : 1.5}
                             />
                             <div className="flex-1 min-w-0">
-                              <div className="text-body font-medium truncate">{cmd.label}</div>
+                              <div className="text-[13px] tracking-wide font-medium truncate">
+                                {cmd.label}
+                              </div>
                               {cmd.description && (
-                                <div
-                                  className="text-caption truncate"
-                                  style={{ color: 'var(--color-text-muted)' }}
-                                >
+                                <div className="text-[11px] text-zinc-500 truncate mt-0.5">
                                   {cmd.description}
                                 </div>
                               )}
                             </div>
                             {cmd.shortcut && (
-                              <kbd
-                                className="text-caption px-1.5 py-0.5 rounded shrink-0"
-                                style={{
-                                  backgroundColor: 'var(--color-surface-5)',
-                                  color: 'var(--color-text-muted)',
-                                  border: '1px solid var(--color-border-subtle)',
-                                  fontSize: '10px'
-                                }}
-                              >
+                              <kbd className="text-[10px] px-1.5 py-0.5 rounded shrink-0 bg-white/[0.03] text-zinc-500 border border-white/[0.04] tracking-wide">
                                 {cmd.shortcut}
                               </kbd>
                             )}
@@ -414,17 +420,8 @@ export const CommandPalette = () => {
             </div>
 
             {/* Footer */}
-            <div
-              className="flex items-center gap-3 px-4 py-2 border-t"
-              style={{
-                borderColor: 'var(--color-border-subtle)',
-                backgroundColor: 'var(--color-surface-2)'
-              }}
-            >
-              <span
-                className="text-caption"
-                style={{ color: 'var(--color-text-muted)', fontSize: '10px' }}
-              >
+            <div className="px-4 py-2 border-t border-white/[0.04] bg-[#0A0A0A]/50 backdrop-blur-sm flex items-center justify-center shrink-0">
+              <span className="text-[10px] text-zinc-600 tracking-widest uppercase font-semibold">
                 ↑↓ navigate · Enter select · Esc close
               </span>
             </div>

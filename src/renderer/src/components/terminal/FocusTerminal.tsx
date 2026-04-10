@@ -406,10 +406,7 @@ export const FocusTerminal = () => {
   }
 
   return (
-    <div
-      className="w-full h-full relative overflow-hidden text-white"
-      style={{ backgroundColor: 'var(--color-surface-1)' }}
-    >
+    <div className="w-full h-full relative overflow-hidden text-white bg-[#000000]">
       {/* Workspace terminal view */}
       <div
         className={`absolute inset-0 flex flex-col transition-opacity duration-150 ${
@@ -504,10 +501,7 @@ export const FocusTerminal = () => {
         </div>
 
         {/* Terminal grids */}
-        <div
-          className="flex-1 relative overflow-hidden"
-          style={{ backgroundColor: 'var(--color-surface-2)' }}
-        >
+        <div className="flex-1 relative overflow-hidden bg-[#000000]">
           {workspaces.map((ws) => (
             <div
               key={ws.id}

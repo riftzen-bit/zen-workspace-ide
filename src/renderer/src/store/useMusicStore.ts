@@ -21,6 +21,7 @@ interface MusicState {
   lyriaVolume: number
   trackHistory: GeneratedTrack[]
   pendingPrompt: string | null
+  vibe: 'focus' | 'upbeat'
 
   setIsGenerating: (v: boolean) => void
   setGenerationError: (e: string | null) => void
@@ -30,6 +31,7 @@ interface MusicState {
   clearCurrentTrack: () => void
   removeFromHistory: (id: string) => void
   setPendingPrompt: (prompt: string | null) => void
+  setVibe: (vibe: 'focus' | 'upbeat') => void
 }
 
 const MAX_HISTORY = 10
@@ -44,6 +46,7 @@ export const useMusicStore = create<MusicState>()(
       lyriaVolume: 70,
       trackHistory: [],
       pendingPrompt: null,
+      vibe: 'focus',
 
       setIsGenerating: (v) => set({ isGenerating: v }),
       setGenerationError: (e) => set({ generationError: e }),
@@ -95,13 +98,15 @@ export const useMusicStore = create<MusicState>()(
         }),
       removeFromHistory: (id) =>
         set((state) => ({ trackHistory: state.trackHistory.filter((t) => t.id !== id) })),
-      setPendingPrompt: (prompt) => set({ pendingPrompt: prompt })
+      setPendingPrompt: (prompt) => set({ pendingPrompt: prompt }),
+      setVibe: (vibe) => set({ vibe })
     }),
     {
       name: 'music-storage',
       storage: createJSONStorage(() => electronZustandStorage),
       partialize: (state) => ({
         lyriaVolume: state.lyriaVolume,
+        vibe: state.vibe,
         // Persist history without blob URLs (they're runtime-only)
         trackHistory: state.trackHistory.map((t) => ({ ...t, blobUrl: null }))
       })

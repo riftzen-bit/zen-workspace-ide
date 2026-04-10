@@ -2,7 +2,6 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   ChevronRight,
-  ChevronDown,
   FolderOpen,
   Folder,
   FileText,
@@ -121,7 +120,7 @@ const FileContextMenu = ({ x, y, node, onClose, onRefresh }: FileContextMenuProp
   const handleNewFile = async () => {
     onClose()
     const dir = node.isDirectory ? node.path : parentDir(node.path)
-    const name = window.prompt('New file name:')
+    const name = await useUIStore.getState().showPrompt('New file name:')
     if (!name?.trim()) return
     const newPath = `${dir}/${name.trim()}`
     const result = await window.api.createFile(newPath)
@@ -137,7 +136,7 @@ const FileContextMenu = ({ x, y, node, onClose, onRefresh }: FileContextMenuProp
   const handleNewFolder = async () => {
     onClose()
     const dir = node.isDirectory ? node.path : parentDir(node.path)
-    const name = window.prompt('New folder name:')
+    const name = await useUIStore.getState().showPrompt('New folder name:')
     if (!name?.trim()) return
     const newPath = `${dir}/${name.trim()}`
     const result = await window.api.createDir(newPath)
@@ -151,7 +150,7 @@ const FileContextMenu = ({ x, y, node, onClose, onRefresh }: FileContextMenuProp
   const handleRename = async () => {
     onClose()
     const currentName = node.path.replace(/\\/g, '/').split('/').pop() ?? ''
-    const newName = window.prompt('Rename to:', currentName)
+    const newName = await useUIStore.getState().showPrompt('Rename to:', currentName)
     if (!newName?.trim() || newName.trim() === currentName) return
     const dir = parentDir(node.path)
     const newPath = `${dir}/${newName.trim()}`
@@ -167,7 +166,7 @@ const FileContextMenu = ({ x, y, node, onClose, onRefresh }: FileContextMenuProp
   const handleDelete = async () => {
     onClose()
     const label = node.isDirectory ? 'folder and all its contents' : 'file'
-    const confirmed = window.confirm(`Delete ${label} "${node.name}"?`)
+    const confirmed = await useUIStore.getState().showConfirm(`Delete ${label} "${node.name}"?`)
     if (!confirmed) return
     const result = await window.api.deleteItem(node.path)
     if (result.ok) {
@@ -246,58 +245,44 @@ const FileTreeNode = ({ node, depth = 0, onContextMenu }: FileTreeNodeProps) => 
   return (
     <div>
       <div
-        className="flex items-center py-[7px] mx-1.5 mb-0.5 rounded-md cursor-pointer select-none transition-colors duration-100 relative"
-        style={{
-          paddingLeft: `${indent}px`,
-          backgroundColor: isSelected ? 'var(--color-surface-4)' : undefined,
-          color: isSelected ? 'var(--color-text-primary)' : 'var(--color-text-tertiary)'
-        }}
-        onMouseEnter={(e) => {
-          if (!isSelected) {
-            ;(e.currentTarget as HTMLDivElement).style.backgroundColor = 'var(--color-surface-4)'
-            ;(e.currentTarget as HTMLDivElement).style.color = 'var(--color-text-secondary)'
-          }
-        }}
-        onMouseLeave={(e) => {
-          if (!isSelected) {
-            ;(e.currentTarget as HTMLDivElement).style.backgroundColor = ''
-            ;(e.currentTarget as HTMLDivElement).style.color = 'var(--color-text-tertiary)'
-          }
-        }}
+        className={`flex items-center py-[6px] mx-2 mb-[2px] rounded-lg cursor-pointer select-none transition-all duration-200 group ${
+          isSelected
+            ? 'bg-white/[0.04] text-zinc-200'
+            : 'text-zinc-500 hover:bg-white/[0.02] hover:text-zinc-300'
+        }`}
+        style={{ paddingLeft: `${indent}px` }}
         onClick={handleClick}
         onContextMenu={(e) => {
           e.preventDefault()
           onContextMenu(e, node)
         }}
       >
-        {/* Selected: 2px accent left border */}
-        {isSelected && (
-          <div
-            className="absolute left-0 top-1 bottom-1 w-[2px] rounded-r-full"
-            style={{ backgroundColor: 'var(--color-accent)' }}
-          />
-        )}
-        <div className="flex items-center gap-1 mr-1.5 opacity-80 shrink-0">
+        <div
+          className={`flex items-center gap-2 mr-2 opacity-80 shrink-0 transition-transform duration-200 ${isSelected ? 'scale-105' : ''}`}
+        >
           {node.isDirectory ? (
             <>
-              <span className="text-zinc-600 shrink-0">
-                {isOpen ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+              <span
+                className={`text-zinc-600 shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}`}
+              >
+                <ChevronRight size={12} strokeWidth={2} />
               </span>
               <span
-                className="shrink-0"
-                style={{ color: isSelected ? 'var(--color-accent)' : 'var(--color-text-muted)' }}
+                className={`shrink-0 ${isOpen ? 'text-zinc-400' : 'text-zinc-600'} transition-colors duration-200`}
               >
-                {isOpen ? <FolderOpen size={13} /> : <Folder size={13} />}
+                <Folder size={14} strokeWidth={1.5} />
               </span>
             </>
           ) : (
             <>
-              <span className="w-[11px] shrink-0"></span>
-              <span className="shrink-0">{getFileIcon(node.name)}</span>
+              <span className="w-[12px] shrink-0"></span>
+              <span className="shrink-0 scale-90">{getFileIcon(node.name)}</span>
             </>
           )}
         </div>
-        <span className="truncate text-body text-[12.5px] leading-tight">{node.name}</span>
+        <span className="truncate text-[13px] font-medium tracking-wide leading-tight mt-px">
+          {node.name}
+        </span>
       </div>
       <AnimatePresence>
         {node.isDirectory && isOpen && node.children && (
@@ -305,15 +290,16 @@ const FileTreeNode = ({ node, depth = 0, onContextMenu }: FileTreeNodeProps) => 
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.16, ease: transition.panel.ease }}
+            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
             className="relative overflow-hidden"
           >
+            <div className="absolute left-[22px] top-0 bottom-0 w-px bg-white/[0.02]" />
             {node.children.map((child, i) => (
               <motion.div
                 key={child.path}
-                initial={{ opacity: 0, x: -5 }}
+                initial={{ opacity: 0, x: -4 }}
                 animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: i * 0.02, duration: 0.12 }}
+                transition={{ delay: i * 0.015, duration: 0.2 }}
               >
                 <FileTreeNode node={child} depth={depth + 1} onContextMenu={onContextMenu} />
               </motion.div>
@@ -391,17 +377,17 @@ export const Sidebar = () => {
       className="h-full flex shrink-0 relative border-r"
       style={{
         width: `${width}px`,
-        backgroundColor: 'var(--color-surface-2)',
+        backgroundColor: '#050505',
         borderColor: 'var(--color-border-subtle)'
       }}
     >
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
         <div
-          className="h-11 px-4 flex items-center border-b shrink-0"
+          className="h-12 px-4 flex items-center justify-between border-b shrink-0 bg-[#0A0A0A]/50 backdrop-blur-sm"
           style={{ borderColor: 'var(--color-border-subtle)' }}
         >
-          <span className="text-label" style={{ color: 'var(--color-text-muted)' }}>
+          <span className="text-[11px] font-semibold tracking-wider uppercase text-zinc-500">
             {activeView === 'explorer'
               ? 'Explorer'
               : activeView === 'search'
@@ -409,7 +395,7 @@ export const Sidebar = () => {
                 : activeView === 'git'
                   ? 'Source Control'
                   : activeView === 'activity'
-                    ? ''
+                    ? 'Activity'
                     : 'Search'}
           </span>
         </div>
@@ -443,56 +429,46 @@ export const Sidebar = () => {
             ) : (
               <div className="flex-1 overflow-y-auto hide-scrollbar">
                 <div className="p-6 text-center flex flex-col items-center gap-4 mt-10">
-                  <div
-                    className="w-14 h-14 rounded-2xl flex items-center justify-center mb-1"
-                    style={{
-                      backgroundColor: 'var(--color-surface-3)',
-                      border: '1px solid var(--color-border-subtle)'
-                    }}
-                  >
-                    <FolderOpen
-                      size={24}
-                      strokeWidth={1.4}
-                      style={{ color: 'var(--color-text-muted)' }}
-                    />
+                  <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-1 bg-white/[0.03] border border-white/[0.05] shadow-inner">
+                    <FolderOpen size={24} strokeWidth={1.4} className="text-zinc-500" />
                   </div>
-                  <p className="text-body" style={{ color: 'var(--color-text-tertiary)' }}>
+                  <p className="text-[13px] text-zinc-500 font-medium tracking-wide">
                     No workspace open
                   </p>
-                  <button onClick={handleOpenFolder} className="btn-primary">
+                  <button
+                    onClick={handleOpenFolder}
+                    className="mt-2 px-4 py-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.05] text-[13px] text-zinc-300 font-medium transition-all duration-200 hover:scale-105 active:scale-95"
+                  >
                     Open Folder
                   </button>
                 </div>
               </div>
             )
           ) : (
-            <div className="p-3 flex flex-col flex-1 overflow-hidden">
-              <div className="relative shrink-0 mb-3">
+            <div className="p-4 flex flex-col flex-1 overflow-hidden">
+              <div className="relative shrink-0 mb-4">
                 <Search
-                  className="absolute left-3 top-1/2 -translate-y-1/2"
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500"
                   size={14}
-                  style={{ color: 'var(--color-text-muted)' }}
+                  strokeWidth={2}
                 />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search in files…"
-                  className="input-field w-full"
+                  className="w-full bg-[#0A0A0A] border border-white/[0.06] rounded-xl text-[13px] text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-white/[0.12] transition-colors py-2"
                   style={{ paddingLeft: '2.25rem' }}
                 />
               </div>
 
               <div className="flex-1 overflow-y-auto hide-scrollbar text-sm">
                 {isSearching ? (
-                  <div
-                    className="text-caption text-center mt-6 animate-pulse"
-                    style={{ color: 'var(--color-text-muted)' }}
-                  >
+                  <div className="text-[12px] font-medium tracking-wide text-center mt-6 animate-pulse text-zinc-500">
                     Searching…
                   </div>
                 ) : searchResults.length > 0 ? (
-                  <div className="space-y-0.5">
+                  <div className="space-y-1">
                     {searchResults.map((res, idx) => (
                       <div
                         key={idx}
@@ -501,19 +477,17 @@ export const Sidebar = () => {
                           const content = await window.api.readFile(res.path)
                           if (content !== null) openFile(res.path, res.name, content)
                         }}
-                        className="surface-interactive p-2 rounded-lg flex items-center gap-2.5 group"
-                        style={{ color: 'var(--color-text-secondary)' }}
+                        className="p-2 rounded-lg flex items-center gap-3 cursor-pointer group text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.03] transition-all duration-200"
                       >
-                        <div className="shrink-0 opacity-80">{getFileIcon(res.name)}</div>
-                        <span className="truncate text-body">{res.name}</span>
+                        <div className="shrink-0 opacity-80 group-hover:scale-110 transition-transform duration-200">
+                          {getFileIcon(res.name)}
+                        </div>
+                        <span className="truncate text-[13px] font-medium mt-px">{res.name}</span>
                       </div>
                     ))}
                   </div>
                 ) : searchQuery ? (
-                  <div
-                    className="text-caption text-center mt-6"
-                    style={{ color: 'var(--color-text-muted)' }}
-                  >
+                  <div className="text-[12px] font-medium tracking-wide text-center mt-6 text-zinc-500">
                     No results found
                   </div>
                 ) : null}

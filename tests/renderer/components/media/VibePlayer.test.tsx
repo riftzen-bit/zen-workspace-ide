@@ -22,7 +22,7 @@ describe('VibePlayer', () => {
     vi.clearAllMocks()
   })
 
-  it('does not render the player overlay when isVibePlayerOpen is false', () => {
+  it('hides the player overlay when isVibePlayerOpen is false', () => {
     vi.mocked(useUIStore).mockReturnValue({
       isVibePlayerOpen: false,
       setVibePlayerOpen: vi.fn(),
@@ -40,7 +40,10 @@ describe('VibePlayer', () => {
     } as any)
 
     render(<VibePlayer />)
-    expect(screen.queryByText('Select Vibe')).not.toBeInTheDocument()
+    // The player should have opacity 0 and pointerEvents none
+    const overlay = screen.getByText('Select Vibe').closest('.fixed.bottom-8')
+    expect(overlay).toHaveStyle('opacity: 0')
+    expect(overlay).toHaveStyle('pointer-events: none')
   })
 
   it('renders and displays the correct vibe name', () => {

@@ -21,7 +21,10 @@ import { StatusBar } from './StatusBar'
 import { useActivityStore } from '../../store/useActivityStore'
 import { useCostStore } from '../../store/useCostStore'
 import { PromptLibrary } from '../ui/PromptLibrary'
+import { GlobalDialogs } from '../ui/GlobalDialogs'
 import { GitDiffEditor } from '../git/GitDiffEditor'
+import { useZenStore } from '../../store/useZenStore'
+import { ZenOrchestrator } from '../activity/ZenOrchestrator'
 
 export const AppLayout = () => {
   const { workspaceDir, fileTree, setFileTree, reloadFileFromDisk, markFileDeleted } =
@@ -32,7 +35,6 @@ export const AppLayout = () => {
     sidebarWidth,
     chatWidth,
     isChatOpen,
-    isZenMode,
     enterZenMode,
     exitZenMode,
     setCommandPaletteOpen
@@ -40,6 +42,7 @@ export const AppLayout = () => {
   const { activeWorkspaceId } = useTerminalStore()
   const { autoPlayVibe } = useSettingsStore()
   const isWorkspaceActive = activeWorkspaceId !== null
+  const { errorCount, isZenMode } = useZenStore()
 
   useEffect(() => {
     if (autoPlayVibe) {
@@ -168,15 +171,24 @@ export const AppLayout = () => {
       // Ctrl+Shift+Z — Toggle Zen Mode
       if (ctrl && e.shiftKey && e.key.toLowerCase() === 'z') {
         e.preventDefault()
-        const { isZenMode: zen } = useUIStore.getState()
-        zen ? exitZenMode() : enterZenMode()
+        const { isZenMode: uiZen } = useUIStore.getState()
+        const { isZenMode: zen } = useZenStore.getState()
+        if (uiZen || zen) {
+          useZenStore.getState().setZenMode(false)
+          exitZenMode()
+        } else {
+          useZenStore.getState().setZenMode(true)
+          enterZenMode()
+        }
         return
       }
 
       // ESC — Exit Zen Mode (only when palette is closed)
       if (e.key === 'Escape') {
-        const { isZenMode: zen, isCommandPaletteOpen } = useUIStore.getState()
-        if (zen && !isCommandPaletteOpen) {
+        const { isCommandPaletteOpen, isZenMode: uiZen } = useUIStore.getState()
+        const { isZenMode: zen } = useZenStore.getState()
+        if ((uiZen || zen) && !isCommandPaletteOpen) {
+          useZenStore.getState().setZenMode(false)
           exitZenMode()
         }
         return
@@ -190,24 +202,55 @@ export const AppLayout = () => {
   const showSidebar = isSidebarOpen && !isZenMode && activeView !== 'settings'
   const showChat = isChatOpen && !isZenMode
 
+  const themeStyles = {
+    '--color-bg-warm': '#000000',
+    '--color-surface-warm': '#050505',
+    '--color-border-warm': 'rgba(255, 255, 255, 0.04)',
+
+    '--color-bg-cold': '#000000',
+    '--color-surface-cold': '#050505',
+    '--color-border-cold': 'rgba(255, 255, 255, 0.04)',
+
+    '--color-surface-0': errorCount > 0 ? 'var(--color-bg-cold)' : 'var(--color-bg-warm)',
+    '--color-surface-1': errorCount > 0 ? 'var(--color-surface-cold)' : 'var(--color-surface-warm)',
+    '--color-border-subtle':
+      errorCount > 0 ? 'var(--color-border-cold)' : 'var(--color-border-warm)',
+
+    '--color-text-primary': '#E4E4E7',
+    '--color-selection-bg': 'rgba(255, 255, 255, 0.1)',
+    '--font-primary':
+      '"Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+  } as React.CSSProperties
+
   return (
     <div
-      className="flex h-screen w-screen overflow-hidden text-zinc-300 font-sans p-3 gap-3 selection:bg-amber-500/25"
-      style={{ backgroundColor: 'var(--color-surface-0)' }}
+      className="flex h-screen w-screen overflow-hidden transition-colors duration-700 custom-selection"
+      style={{
+        ...themeStyles,
+        backgroundColor: 'var(--color-surface-0)',
+        color: 'var(--color-text-primary)',
+        fontFamily: 'var(--font-primary)'
+      }}
     >
+      <style>{`
+        .custom-selection *::selection,
+        .custom-selection::selection {
+          background-color: var(--color-selection-bg);
+        }
+      `}</style>
+      <ZenOrchestrator />
+
       {/* Left Navigation Dock */}
       {!isWorkspaceActive && !isZenMode && <ActivityBar />}
 
       {/* Main Workspace Frame */}
       <div
-        className="flex-1 flex flex-col overflow-hidden rounded-2xl relative"
+        className="flex-1 flex flex-col overflow-hidden relative transition-colors duration-700"
         style={{
-          backgroundColor: 'var(--color-surface-1)',
-          border: '1px solid var(--color-border-subtle)',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.45), 0 2px 8px rgba(0,0,0,0.25)'
+          backgroundColor: 'var(--color-surface-1)'
         }}
       >
-        {!isWorkspaceActive && <SettingsOverlay />}
+        {!isWorkspaceActive && !isZenMode && <SettingsOverlay />}
 
         {/* Three-column area (sidebar + content + chat) */}
         <div className="flex flex-1 overflow-hidden">
@@ -216,11 +259,14 @@ export const AppLayout = () => {
             <motion.div
               initial={false}
               animate={{
-                width: showSidebar ? sidebarWidth : 0,
-                opacity: showSidebar ? 1 : 0
+                width: showSidebar ? sidebarWidth : 0
               }}
               transition={transition.panel}
-              style={{ overflow: 'hidden', flexShrink: 0 }}
+              style={{
+                overflow: 'hidden',
+                flexShrink: 0,
+                borderRight: showSidebar ? '1px solid var(--color-border-subtle)' : 'none'
+              }}
             >
               <div style={{ width: sidebarWidth, minWidth: sidebarWidth, height: '100%' }}>
                 {activeView === 'projects' ? <ProjectList /> : <Sidebar />}
@@ -230,17 +276,7 @@ export const AppLayout = () => {
 
           {/* Main Content Area */}
           <div
-            className={`flex-1 min-w-0 flex flex-col relative z-0 overflow-hidden shadow-inner ${
-              isWorkspaceActive ? 'bg-transparent' : 'rounded-xl border m-2'
-            }`}
-            style={
-              isWorkspaceActive
-                ? undefined
-                : {
-                    backgroundColor: 'var(--color-surface-0)',
-                    borderColor: 'var(--color-border-subtle)'
-                  }
-            }
+            className={`flex-1 min-w-0 flex flex-col relative z-0 overflow-hidden shadow-[inset_0_0_20px_rgba(0,0,0,0.8)] transition-colors duration-700 bg-[#000000]`}
           >
             {activeView === 'terminal' || isWorkspaceActive ? (
               <FocusTerminal />
@@ -256,11 +292,14 @@ export const AppLayout = () => {
             <motion.div
               initial={false}
               animate={{
-                width: showChat ? chatWidth : 0,
-                opacity: showChat ? 1 : 0
+                width: showChat ? chatWidth : 0
               }}
               transition={transition.panel}
-              style={{ overflow: 'hidden', flexShrink: 0 }}
+              style={{
+                overflow: 'hidden',
+                flexShrink: 0,
+                borderLeft: showChat ? '1px solid var(--color-border-subtle)' : 'none'
+              }}
             >
               <div style={{ width: chatWidth, minWidth: chatWidth, height: '100%' }}>
                 <AIChat />
@@ -270,7 +309,7 @@ export const AppLayout = () => {
         </div>
 
         {/* Status Bar */}
-        {!isWorkspaceActive && <StatusBar />}
+        {!isWorkspaceActive && !isZenMode && <StatusBar />}
       </div>
 
       {/* Floating Pill Player */}
@@ -282,6 +321,7 @@ export const AppLayout = () => {
       {/* Global UI overlays */}
       <CommandPalette />
       <PromptLibrary />
+      <GlobalDialogs />
       <ToastContainer />
     </div>
   )

@@ -42,17 +42,16 @@ const ProjectItem = ({ project, isActive }: ProjectItemProps) => {
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.96 }}
-      className="relative flex items-center group cursor-pointer px-3 py-2.5 my-0.5 mx-2 rounded-lg transition-colors"
-      style={{
-        backgroundColor: isActive ? 'var(--color-surface-3)' : 'transparent'
-      }}
-      onMouseEnter={(e) => {
+      className={`relative flex items-center group cursor-pointer px-3 py-2.5 my-[2px] mx-2 rounded-lg transition-all duration-200 ${
+        isActive
+          ? 'bg-white/[0.06] text-white shadow-sm border border-white/[0.04]'
+          : 'text-zinc-500 hover:bg-white/[0.02] hover:text-zinc-300 border border-transparent'
+      }`}
+      onMouseEnter={() => {
         setIsHovered(true)
-        if (!isActive) e.currentTarget.style.backgroundColor = 'var(--color-surface-2)'
       }}
-      onMouseLeave={(e) => {
+      onMouseLeave={() => {
         setIsHovered(false)
-        if (!isActive) e.currentTarget.style.backgroundColor = 'transparent'
       }}
       onClick={async () => {
         if (!editing && !confirmDelete) {
@@ -66,15 +65,18 @@ const ProjectItem = ({ project, isActive }: ProjectItemProps) => {
       }}
     >
       {isActive && (
-        <div
-          className="absolute left-0 top-2 bottom-2 w-[2px] rounded-r-full"
-          style={{ backgroundColor: 'var(--color-accent)' }}
-        />
+        <div className="absolute left-0 top-2 bottom-2 w-[2px] rounded-r-full bg-[#EAB308] shadow-[0_0_8px_rgba(234,179,8,0.5)]" />
       )}
 
-      <div className="flex-1 flex items-center min-w-0 gap-3">
+      <div
+        className={`flex-1 flex items-center min-w-0 gap-3 transition-transform duration-200 ${isActive ? 'scale-105 ml-1' : ''}`}
+      >
         <div className="shrink-0">
-          <Folder size={16} className={isActive ? 'text-amber-500/90' : 'text-zinc-500'} />
+          <Folder
+            size={16}
+            className={isActive ? 'text-amber-500' : 'text-zinc-500 group-hover:text-zinc-400'}
+            strokeWidth={1.5}
+          />
         </div>
 
         <div className="flex-1 min-w-0 flex flex-col justify-center">
@@ -92,19 +94,11 @@ const ProjectItem = ({ project, isActive }: ProjectItemProps) => {
                 }
               }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full border text-[13px] font-semibold px-1.5 py-0.5 rounded outline-none"
-              style={{
-                backgroundColor: 'var(--color-surface-4)',
-                borderColor: 'var(--color-border-hover)',
-                color: 'var(--color-text-primary)'
-              }}
+              className="w-full bg-[#000000] border border-white/[0.12] text-[13px] font-medium tracking-wide px-2 py-1 rounded-md outline-none text-white shadow-inner"
             />
           ) : (
             <span
-              className="text-body font-semibold truncate leading-tight mb-0.5"
-              style={{
-                color: isActive ? 'var(--color-text-primary)' : 'var(--color-text-secondary)'
-              }}
+              className={`text-[13px] font-medium tracking-wide truncate leading-tight mb-0.5 ${isActive ? 'text-zinc-200' : 'text-zinc-400 group-hover:text-zinc-300'}`}
               onDoubleClick={(e) => {
                 e.stopPropagation()
                 setEditing(true)
@@ -114,10 +108,7 @@ const ProjectItem = ({ project, isActive }: ProjectItemProps) => {
             </span>
           )}
           {!editing && (
-            <span
-              className="text-caption truncate text-[11px] leading-none"
-              style={{ color: 'var(--color-text-muted)' }}
-            >
+            <span className="text-[10px] tracking-wide truncate leading-none text-zinc-600 group-hover:text-zinc-500 mt-0.5">
               {project.path}
             </span>
           )}
@@ -139,7 +130,7 @@ const ProjectItem = ({ project, isActive }: ProjectItemProps) => {
                   e.stopPropagation()
                   removeProject(project.id)
                 }}
-                className="px-2 py-1 text-[10px] font-medium bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-md transition-colors"
+                className="px-2 py-1 text-[10px] font-bold tracking-widest uppercase bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-md transition-colors"
               >
                 Remove?
               </button>
@@ -148,11 +139,7 @@ const ProjectItem = ({ project, isActive }: ProjectItemProps) => {
                   e.stopPropagation()
                   setConfirmDelete(false)
                 }}
-                className="px-2 py-1 text-[10px] font-medium rounded-md transition-colors hover:bg-white/10"
-                style={{
-                  backgroundColor: 'var(--color-surface-3)',
-                  color: 'var(--color-text-tertiary)'
-                }}
+                className="px-2 py-1 text-[10px] font-bold tracking-widest uppercase bg-white/[0.04] hover:bg-white/[0.08] text-zinc-400 rounded-md transition-colors"
               >
                 Cancel
               </button>
@@ -165,33 +152,31 @@ const ProjectItem = ({ project, isActive }: ProjectItemProps) => {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="flex items-center gap-0.5"
+                className="flex items-center gap-1"
               >
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
                     togglePin(project.id)
                   }}
-                  className="w-7 h-7 flex items-center justify-center rounded-md transition-colors hover:bg-white/10"
-                  style={{
-                    color: project.pinned
-                      ? 'var(--color-text-secondary)'
-                      : 'var(--color-text-muted)'
-                  }}
+                  className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors hover:bg-white/[0.06] ${project.pinned ? 'text-zinc-300' : 'text-zinc-500'}`}
                   title={project.pinned ? 'Unpin' : 'Pin'}
                 >
-                  {project.pinned ? <PinOff size={13} /> : <Pin size={13} />}
+                  {project.pinned ? (
+                    <PinOff size={13} strokeWidth={2} />
+                  ) : (
+                    <Pin size={13} strokeWidth={2} />
+                  )}
                 </button>
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
                     setConfirmDelete(true)
                   }}
-                  className="w-7 h-7 flex items-center justify-center rounded-md transition-colors hover:bg-red-500/10 hover:text-red-400"
-                  style={{ color: 'var(--color-text-muted)' }}
+                  className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors hover:bg-red-500/10 hover:text-red-400 text-zinc-500"
                   title="Remove"
                 >
-                  <X size={13} />
+                  <X size={13} strokeWidth={2} />
                 </button>
               </motion.div>
             )
@@ -232,41 +217,28 @@ export const ProjectList = () => {
     .sort((a, b) => b.lastOpenedAt - a.lastOpenedAt)
 
   return (
-    <div
-      className="h-full flex flex-col w-full"
-      style={{ backgroundColor: 'var(--color-surface-1)' }}
-    >
+    <div className="h-full flex flex-col w-full bg-[#050505] border-r border-white/[0.06]">
       {/* Header */}
       <div
-        className="h-11 px-4 flex items-center justify-between border-b shrink-0"
+        className="h-12 px-4 flex items-center justify-between border-b shrink-0 bg-[#0A0A0A]/50 backdrop-blur-sm"
         style={{ borderColor: 'var(--color-border-subtle)' }}
       >
         <div className="flex items-center gap-2">
-          <span
-            className="text-label font-semibold"
-            style={{ color: 'var(--color-text-secondary)' }}
-          >
+          <span className="text-[11px] font-semibold tracking-wider uppercase text-zinc-500">
             Projects
           </span>
           {projects.length > 0 && (
-            <span
-              className="text-caption px-1.5 py-0.5 rounded-full text-[10px]"
-              style={{
-                backgroundColor: 'var(--color-surface-3)',
-                color: 'var(--color-text-muted)'
-              }}
-            >
+            <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-white/[0.03] text-zinc-500 border border-white/[0.04]">
               {projects.length}
             </span>
           )}
         </div>
         <button
           onClick={handleAddProject}
-          className="w-6 h-6 flex items-center justify-center rounded-md transition-colors hover:bg-white/10"
-          style={{ color: 'var(--color-text-secondary)' }}
+          className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors hover:bg-white/[0.04] text-zinc-500 hover:text-zinc-300"
           title="Add Project"
         >
-          <Plus size={14} />
+          <Plus size={14} strokeWidth={2} />
         </button>
       </div>
 
@@ -278,23 +250,14 @@ export const ProjectList = () => {
             animate={{ opacity: 1 }}
             className="flex flex-col items-center justify-center h-full gap-4 px-6 text-center mt-[-10%]"
           >
-            <div
-              className="w-14 h-14 rounded-2xl flex items-center justify-center mb-1"
-              style={{
-                backgroundColor: 'var(--color-surface-2)',
-                border: '1px solid var(--color-border-subtle)'
-              }}
-            >
-              <FolderOpen
-                size={24}
-                style={{ color: 'var(--color-text-muted)' }}
-                strokeWidth={1.4}
-              />
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-1 bg-white/[0.02] border border-white/[0.04] shadow-inner">
+              <FolderOpen size={20} className="text-zinc-500" strokeWidth={1.5} />
             </div>
-            <p className="text-body" style={{ color: 'var(--color-text-tertiary)' }}>
-              No projects yet
-            </p>
-            <button onClick={handleAddProject} className="btn-primary mt-2">
+            <p className="text-[13px] text-zinc-500 font-medium tracking-wide">No projects yet</p>
+            <button
+              onClick={handleAddProject}
+              className="mt-2 px-4 py-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.05] text-[13px] text-zinc-300 font-medium transition-all duration-200 hover:scale-105 active:scale-95"
+            >
               Add your first project
             </button>
           </motion.div>

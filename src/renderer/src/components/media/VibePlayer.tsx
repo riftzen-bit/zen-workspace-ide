@@ -74,172 +74,162 @@ export const VibePlayer = () => {
       </div>
 
       {/* Floating pill */}
-      <AnimatePresence>
-        {isVibePlayerOpen && (
-          <motion.div
-            initial={{ y: 20, opacity: 0, scale: 0.95 }}
-            animate={{ y: 0, opacity: 1, scale: 1 }}
-            exit={{ y: 20, opacity: 0, scale: 0.95 }}
-            transition={transition.bounce}
-            className="fixed bottom-8 left-1/2 z-50 flex items-center px-3 py-2.5 gap-2.5"
-            style={{
-              x: '-50%',
-              backgroundColor: 'rgba(12, 12, 15, 0.97)',
-              backdropFilter: 'blur(20px) saturate(140%)',
-              borderRadius: '9999px',
-              border: '1px solid var(--color-border-default)',
-              boxShadow: '0 12px 36px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.04)'
-            }}
+      <motion.div
+        initial={false}
+        animate={{
+          y: isVibePlayerOpen ? 0 : 20,
+          opacity: isVibePlayerOpen ? 1 : 0,
+          scale: isVibePlayerOpen ? 1 : 0.95,
+          pointerEvents: isVibePlayerOpen ? 'auto' : 'none'
+        }}
+        transition={transition.bounce}
+        className="fixed bottom-8 left-1/2 z-50 flex items-center px-3 py-2.5 gap-2.5 bg-[#0A0A0A]/90 backdrop-blur-xl border border-white/[0.08] shadow-2xl shadow-black/80 rounded-full"
+        style={{ x: '-50%' }}
+      >
+        {/* Play/Pause — spring physics */}
+        <motion.button
+          onClick={togglePlay}
+          className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
+          style={{
+            backgroundColor: 'var(--color-accent)',
+            color: '#0a0a0c'
+          }}
+          whileTap={transition.bounce}
+          onMouseEnter={(e) => {
+            ;(e.currentTarget as HTMLButtonElement).style.backgroundColor =
+              'var(--color-accent-bright)'
+          }}
+          onMouseLeave={(e) => {
+            ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--color-accent)'
+          }}
+        >
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={isPlaying ? 'pause' : 'play'}
+              initial={{ scale: 0.65, rotate: -12, opacity: 0 }}
+              animate={{ scale: 1, rotate: 0, opacity: 1 }}
+              exit={{ scale: 0.65, rotate: 12, opacity: 0 }}
+              transition={transition.micro}
+            >
+              {isPlaying ? (
+                <Pause size={17} fill="currentColor" />
+              ) : (
+                <Play size={17} fill="currentColor" className="ml-0.5" />
+              )}
+            </motion.div>
+          </AnimatePresence>
+        </motion.button>
+
+        {/* Track info + volume */}
+        <div className="flex flex-col mx-2 justify-center w-28">
+          <span
+            className="text-body font-semibold truncate"
+            style={{ color: 'var(--color-text-primary)' }}
           >
-            {/* Play/Pause — spring physics */}
-            <motion.button
-              onClick={togglePlay}
-              className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
+            {getVideoName()}
+          </span>
+          <div className="flex items-center gap-2 group relative h-3 mt-1">
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={volume}
+              onChange={(e) => {
+                const v = Number(e.target.value)
+                setVolume(v)
+                postCommand('setVolume', [v])
+              }}
+              className="absolute inset-0 w-full h-1 my-auto appearance-none cursor-pointer focus:outline-none slider-thumb z-10 opacity-0 group-hover:opacity-100 transition-opacity"
               style={{
-                backgroundColor: 'var(--color-accent)',
-                color: '#0a0a0c'
+                background: `linear-gradient(to right, var(--color-accent) 0%, var(--color-accent) ${volume}%, rgba(255,255,255,0.08) ${volume}%, rgba(255,255,255,0.08) 100%)`,
+                borderRadius: '10px'
               }}
-              whileTap={transition.bounce}
-              onMouseEnter={(e) => {
-                ;(e.currentTarget as HTMLButtonElement).style.backgroundColor =
-                  'var(--color-accent-bright)'
-              }}
-              onMouseLeave={(e) => {
-                ;(e.currentTarget as HTMLButtonElement).style.backgroundColor =
-                  'var(--color-accent)'
-              }}
-            >
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={isPlaying ? 'pause' : 'play'}
-                  initial={{ scale: 0.65, rotate: -12, opacity: 0 }}
-                  animate={{ scale: 1, rotate: 0, opacity: 1 }}
-                  exit={{ scale: 0.65, rotate: 12, opacity: 0 }}
-                  transition={transition.micro}
-                >
-                  {isPlaying ? (
-                    <Pause size={17} fill="currentColor" />
-                  ) : (
-                    <Play size={17} fill="currentColor" className="ml-0.5" />
-                  )}
-                </motion.div>
-              </AnimatePresence>
-            </motion.button>
-
-            {/* Track info + volume */}
-            <div className="flex flex-col mx-2 justify-center w-28">
-              <span
-                className="text-body font-semibold truncate"
-                style={{ color: 'var(--color-text-primary)' }}
-              >
-                {getVideoName()}
-              </span>
-              <div className="flex items-center gap-2 group relative h-3 mt-1">
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={volume}
-                  onChange={(e) => {
-                    const v = Number(e.target.value)
-                    setVolume(v)
-                    postCommand('setVolume', [v])
-                  }}
-                  className="absolute inset-0 w-full h-1 my-auto appearance-none cursor-pointer focus:outline-none slider-thumb z-10 opacity-0 group-hover:opacity-100 transition-opacity"
-                  style={{
-                    background: `linear-gradient(to right, var(--color-accent) 0%, var(--color-accent) ${volume}%, rgba(255,255,255,0.08) ${volume}%, rgba(255,255,255,0.08) 100%)`,
-                    borderRadius: '10px'
-                  }}
-                />
-                <div
-                  className="absolute inset-0 w-full h-1 my-auto rounded-full overflow-hidden group-hover:opacity-0 transition-opacity"
-                  style={{ backgroundColor: 'var(--color-surface-5)' }}
-                >
-                  <div
-                    className="h-full rounded-full"
-                    style={{ width: `${volume}%`, backgroundColor: 'var(--color-accent)' }}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* 3D Audio Visualizer */}
-            <div className="flex items-center justify-center -ml-1 -mr-1">
-              <AudioVisualizer3D />
-            </div>
-
-            {/* Vibe selector */}
-            <div
-              className="flex items-center gap-0.5 rounded-full p-1"
-              style={{
-                backgroundColor: 'var(--color-surface-2)',
-                border: '1px solid var(--color-border-subtle)'
-              }}
-            >
-              {(Object.keys(VIBES) as Array<keyof typeof VIBES>).map((key) => {
-                const Vibe = VIBES[key]
-                const Icon = Vibe.icon
-                const isActive = currentVibe === key
-                return (
-                  <button
-                    key={key}
-                    onClick={() => {
-                      setCurrentVibe(key as 'lofi' | 'rain')
-                      setIsPlaying(true)
-                      setTimeout(() => postCommand('playVideo'), 100)
-                    }}
-                    className="p-2 rounded-full transition-colors"
-                    style={{
-                      backgroundColor: isActive ? 'var(--color-accent-glow)' : 'transparent',
-                      color: isActive ? 'var(--color-accent-bright)' : 'var(--color-text-muted)',
-                      border: isActive
-                        ? '1px solid var(--color-border-accent)'
-                        : '1px solid transparent'
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!isActive) {
-                        ;(e.currentTarget as HTMLButtonElement).style.color =
-                          'var(--color-text-secondary)'
-                        ;(e.currentTarget as HTMLButtonElement).style.backgroundColor =
-                          'var(--color-surface-4)'
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!isActive) {
-                        ;(e.currentTarget as HTMLButtonElement).style.color =
-                          'var(--color-text-muted)'
-                        ;(e.currentTarget as HTMLButtonElement).style.backgroundColor =
-                          'transparent'
-                      }
-                    }}
-                  >
-                    <Icon size={14} strokeWidth={1.8} />
-                  </button>
-                )
-              })}
-            </div>
-
-            <div
-              className="w-px h-6 mx-0.5"
-              style={{ backgroundColor: 'var(--color-border-subtle)' }}
             />
-
-            {/* Generate music */}
-            <button
-              onClick={() => setMusicGeneratorOpen(true)}
-              className="btn-ghost rounded-full p-2"
-              title="Generate music with Lyria"
+            <div
+              className="absolute inset-0 w-full h-1 my-auto rounded-full overflow-hidden group-hover:opacity-0 transition-opacity"
+              style={{ backgroundColor: 'var(--color-surface-5)' }}
             >
-              <Music2 size={14} />
-            </button>
+              <div
+                className="h-full rounded-full"
+                style={{ width: `${volume}%`, backgroundColor: 'var(--color-accent)' }}
+              />
+            </div>
+          </div>
+        </div>
 
-            {/* Close */}
-            <button onClick={() => setVibePlayerOpen(false)} className="btn-ghost rounded-full p-2">
-              <X size={15} />
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
+        {/* 3D Audio Visualizer */}
+        <div className="flex items-center justify-center -ml-1 -mr-1">
+          <AudioVisualizer3D />
+        </div>
+
+        {/* Vibe selector */}
+        <div
+          className="flex items-center gap-0.5 rounded-full p-1"
+          style={{
+            backgroundColor: 'var(--color-surface-2)',
+            border: '1px solid var(--color-border-subtle)'
+          }}
+        >
+          {(Object.keys(VIBES) as Array<keyof typeof VIBES>).map((key) => {
+            const Vibe = VIBES[key]
+            const Icon = Vibe.icon
+            const isActive = currentVibe === key
+            return (
+              <button
+                key={key}
+                onClick={() => {
+                  setCurrentVibe(key as 'lofi' | 'rain')
+                  setIsPlaying(true)
+                  setTimeout(() => postCommand('playVideo'), 100)
+                }}
+                className="p-2 rounded-full transition-colors"
+                style={{
+                  backgroundColor: isActive ? 'var(--color-accent-glow)' : 'transparent',
+                  color: isActive ? 'var(--color-accent-bright)' : 'var(--color-text-muted)',
+                  border: isActive
+                    ? '1px solid var(--color-border-accent)'
+                    : '1px solid transparent'
+                }}
+                onMouseEnter={(e) => {
+                  if (!isActive) {
+                    ;(e.currentTarget as HTMLButtonElement).style.color =
+                      'var(--color-text-secondary)'
+                    ;(e.currentTarget as HTMLButtonElement).style.backgroundColor =
+                      'var(--color-surface-4)'
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isActive) {
+                    ;(e.currentTarget as HTMLButtonElement).style.color = 'var(--color-text-muted)'
+                    ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent'
+                  }
+                }}
+              >
+                <Icon size={14} strokeWidth={1.8} />
+              </button>
+            )
+          })}
+        </div>
+
+        <div
+          className="w-px h-6 mx-0.5"
+          style={{ backgroundColor: 'var(--color-border-subtle)' }}
+        />
+
+        {/* Generate music */}
+        <button
+          onClick={() => setMusicGeneratorOpen(true)}
+          className="btn-ghost rounded-full p-2"
+          title="Generate music with Lyria"
+        >
+          <Music2 size={14} />
+        </button>
+
+        {/* Close */}
+        <button onClick={() => setVibePlayerOpen(false)} className="btn-ghost rounded-full p-2">
+          <X size={15} />
+        </button>
+      </motion.div>
     </>
   )
 }

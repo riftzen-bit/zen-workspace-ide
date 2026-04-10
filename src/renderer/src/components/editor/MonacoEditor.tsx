@@ -4,6 +4,7 @@ import type { editor } from 'monaco-editor'
 import { useFileStore } from '../../store/useFileStore'
 import { useSettingsStore } from '../../store/useSettingsStore'
 import { useUIStore } from '../../store/useUIStore'
+import { useZenStore } from '../../store/useZenStore'
 import { X } from 'lucide-react'
 import { WelcomeScreen } from './WelcomeScreen'
 
@@ -21,32 +22,41 @@ export const MonacoEditor = () => {
   const { fontSize, wordWrap } = useSettingsStore()
   const monaco = useMonaco()
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null)
+  const keystrokesRef = useRef<number[]>([])
 
   useEffect(() => {
-    if (monaco) {
-      monaco.editor.defineTheme('modern-dark', {
-        base: 'vs-dark',
-        inherit: true,
-        rules: [{ token: '', background: '050506' }],
-        colors: {
-          'editor.background': '#050506',
-          'editor.lineHighlightBackground': '#ffffff08',
-          'editorLineNumber.foreground': '#3f3f46',
-          'editorIndentGuide.background': '#ffffff08',
-          'editorSuggestWidget.background': '#111114',
-          'editorSuggestWidget.border': '#ffffff0d'
-        }
-      })
-      monaco.editor.setTheme('modern-dark')
-      ;(monaco.languages.typescript as any).typescriptDefaults.setDiagnosticsOptions({
-        noSemanticValidation: true,
-        noSyntaxValidation: false
-      })
-      ;(monaco.languages.typescript as any).javascriptDefaults.setDiagnosticsOptions({
-        noSemanticValidation: true,
-        noSyntaxValidation: false
-      })
-    }
+    if (!monaco) return
+
+    monaco.editor.defineTheme('modern-dark', {
+      base: 'vs-dark',
+      inherit: true,
+      rules: [{ token: '', background: '000000' }],
+      colors: {
+        'editor.background': '#000000',
+        'editor.lineHighlightBackground': '#ffffff06',
+        'editorLineNumber.foreground': '#3f3f46',
+        'editorIndentGuide.background': '#ffffff08',
+        'editorSuggestWidget.background': '#0A0A0A',
+        'editorSuggestWidget.border': '#ffffff0d'
+      }
+    })
+    monaco.editor.setTheme('modern-dark')
+    ;(monaco.languages.typescript as any).typescriptDefaults.setDiagnosticsOptions({
+      noSemanticValidation: false,
+      noSyntaxValidation: false
+    })
+    ;(monaco.languages.typescript as any).javascriptDefaults.setDiagnosticsOptions({
+      noSemanticValidation: false,
+      noSyntaxValidation: false
+    })
+
+    const disposable = monaco.editor.onDidChangeMarkers(() => {
+      const markers = monaco.editor.getModelMarkers({})
+      const errors = markers.filter((m) => m.severity === monaco.MarkerSeverity.Error)
+      useZenStore.getState().setErrorCount(errors.length)
+    })
+
+    return () => disposable.dispose()
   }, [monaco])
 
   const handleEditorDidMount: OnMount = (editor, monacoInstance) => {
@@ -69,6 +79,14 @@ export const MonacoEditor = () => {
 
     editor.onDidChangeCursorPosition((e) => {
       useUIStore.getState().setCursorPosition(e.position.lineNumber, e.position.column)
+    })
+
+    editor.onKeyDown(() => {
+      const now = Date.now()
+      keystrokesRef.current.push(now)
+      keystrokesRef.current = keystrokesRef.current.filter((time) => now - time <= 60000)
+      const wpm = Math.round(keystrokesRef.current.length / 5)
+      useZenStore.getState().setWpm(wpm)
     })
 
     if (activeSearchQuery) {

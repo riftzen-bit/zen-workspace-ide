@@ -10,7 +10,7 @@ function buildVSCodeHeaders(token: string): Record<string, string> {
     'X-Goog-Api-Client': 'google-cloud-sdk vscode/1.96.0',
     'Client-Metadata': JSON.stringify({
       ideType: 'VSCODE',
-      platform: 'MACOS',
+      platform: 'PLATFORM_UNSPECIFIED',
       pluginType: 'GEMINI',
       osVersion: '15.1',
       arch: 'arm64'
@@ -21,7 +21,32 @@ function buildVSCodeHeaders(token: string): Record<string, string> {
 function buildGeminiCliHeaders(token: string): Record<string, string> {
   return {
     Authorization: `Bearer ${token}`,
-    'Content-Type': 'application/json'
+    'Content-Type': 'application/json',
+    'User-Agent': 'gemini-cli',
+    'Client-Metadata': JSON.stringify({
+      ideType: 'IDE_UNSPECIFIED',
+      platform: 'PLATFORM_UNSPECIFIED',
+      pluginType: 'GEMINI'
+    })
+  }
+}
+
+function resolveGeminiModel(model: string, isGeminiCli: boolean): string {
+  if (!isGeminiCli) return model
+
+  // Map generic names to standard preview models since they have Ultra rate limits on CloudCode API
+  switch (model) {
+    case 'gemini-2.5-pro':
+    case 'pro':
+      return 'gemini-3-pro-preview'
+    case 'gemini-2.5-flash':
+    case 'flash':
+      return 'gemini-3-flash-preview'
+    case 'gemini-2.5-flash-lite':
+    case 'flash-lite':
+      return 'gemini-3.1-flash-lite-preview'
+    default:
+      return model
   }
 }
 
@@ -35,6 +60,17 @@ export class AntigravityProvider implements AIProvider {
     onChunk: (chunk: AIStreamChunk) => void,
     signal?: AbortSignal
   ): Promise<void> {
+    return this._streamChatWithRetry(messages, model, credential, onChunk, signal, 0)
+  }
+
+  private async _streamChatWithRetry(
+    messages: AIMessage[],
+    model: string,
+    credential: string,
+    onChunk: (chunk: AIStreamChunk) => void,
+    signal: AbortSignal | undefined,
+    retries: number
+  ): Promise<void> {
     const isGeminiCli = credential.startsWith('gemini-cli:')
     const credPart = isGeminiCli ? credential.slice(11) : credential
     const sep = credPart.indexOf('|')
@@ -43,7 +79,12 @@ export class AntigravityProvider implements AIProvider {
     }
     const token = credPart.slice(0, sep)
     const projectId = credPart.slice(sep + 1)
+
+    // Choose correct headers to bypass strict non-IDE rate limits while avoiding 403 on Gemini OAuth
     const headers = isGeminiCli ? buildGeminiCliHeaders(token) : buildVSCodeHeaders(token)
+
+    // Resolve model mappings correctly to trigger Ultra tiers for Gemini CLI
+    const resolvedModel = resolveGeminiModel(model, isGeminiCli)
 
     const systemMessage = messages.find((m) => m.role === 'system')
     const chatMessages = messages.filter((m) => m.role !== 'system')
@@ -58,10 +99,15 @@ export class AntigravityProvider implements AIProvider {
       innerRequest.systemInstruction = { parts: [{ text: systemMessage.content }] }
     }
 
-    const body = {
+    const body: Record<string, unknown> = {
       project: projectId,
-      model,
+      model: resolvedModel,
       request: innerRequest
+    }
+
+    if (isGeminiCli) {
+      // Opt-in to Google One AI Premium tier credits (bypasses standard free tier limits)
+      body.enabled_credit_types = ['GOOGLE_ONE_AI']
     }
 
     const response = await fetch(`${CLOUDCODE_ENDPOINT}/v1internal:streamGenerateContent?alt=sse`, {
@@ -76,23 +122,49 @@ export class AntigravityProvider implements AIProvider {
       const label = isGeminiCli ? 'Gemini' : 'Antigravity'
       if (response.status === 401 || response.status === 403) {
         const settingsPath = isGeminiCli ? 'Settings → Gemini' : 'Settings → Antigravity'
+        if (err.includes('PERMISSION_DENIED') && err.includes(resolvedModel)) {
+          throw new Error(
+            `${label} auth error: Your account doesn't have permission to use the ${resolvedModel} model. Try switching to a different model.`
+          )
+        }
         throw new Error(
           `${label} auth expired — sign out and re-sign in via ${settingsPath}${err ? `: ${err.slice(0, 200)}` : ''}`
         )
       }
 
       if (response.status === 429) {
+        let resetTime = 'a while'
+        let resetTimeSec = 60 // default to 60s if we can't parse
         try {
           const parsed = JSON.parse(err)
-          if (parsed?.error?.message) {
-            throw new Error(
-              `${label} Free Quota Exhausted: ${parsed.error.message} (Tip: Use a personal Gemini API Key in Settings to avoid this limit)`
-            )
+          const msg = parsed?.error?.message || ''
+          const match = msg.match(/reset after (\d+s)/)
+          if (match) {
+            resetTime = match[1]
+            resetTimeSec = parseInt(match[1].replace('s', ''), 10)
           }
         } catch {
-          // ignore parse error, fallback
+          // ignore
         }
-        throw new Error(`${label} Free Quota Exhausted. Please wait or use a personal API Key.`)
+
+        // Auto-retry for 429 limits to preserve tool-calling loops
+        // Only auto-retry if the wait is very short, otherwise fail fast.
+        if (retries < 4 && resetTimeSec <= 10) {
+          await new Promise((resolve) => setTimeout(resolve, resetTimeSec * 1000 + 1000))
+          if (signal?.aborted) return
+          return this._streamChatWithRetry(
+            messages,
+            model,
+            credential,
+            onChunk,
+            signal,
+            retries + 1
+          )
+        }
+
+        throw new Error(
+          `${label} Rate Limit Active. To prevent spam, Google limits how fast you can send requests. Please wait ${resetTime} before trying again.`
+        )
       }
 
       throw new Error(`${label} error ${response.status}: ${err.slice(0, 200)}`)

@@ -5,14 +5,17 @@ import {
   Trash2,
   Plus,
   History,
-  ChevronDown,
   Settings,
   Copy,
-  Check
+  Check,
+  ChevronRight,
+  Code2
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { Components } from 'react-markdown'
+import { PrismAsyncLight as SyntaxHighlighter } from 'react-syntax-highlighter'
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { useChatStore } from '../../store/useChatStore'
 import { useUIStore } from '../../store/useUIStore'
 import { useResizable } from '../../hooks/useResizable'
@@ -20,7 +23,6 @@ import { useFileStore } from '../../store/useFileStore'
 import { useMediaStore } from '../../store/useMediaStore'
 import { useSettingsStore, AIProviderType } from '../../store/useSettingsStore'
 import { useMusicStore } from '../../store/useMusicStore'
-import { transition } from '../../lib/motion'
 
 const PROVIDER_LABELS: Record<AIProviderType, string> = {
   gemini: 'Gemini',
@@ -31,9 +33,14 @@ const PROVIDER_LABELS: Record<AIProviderType, string> = {
   antigravity: 'Antigravity'
 }
 
+const isMac = navigator.platform.toLowerCase().includes('mac')
+const mod = isMac ? '⌘' : 'Ctrl'
+
 const CodeBlock = ({ children, className }: { children?: React.ReactNode; className?: string }) => {
   const [copied, setCopied] = useState(false)
-  const codeText = typeof children === 'string' ? children : String(children ?? '')
+  const codeText =
+    typeof children === 'string' ? children : String(children ?? '').replace(/\n$/, '')
+  const language = className ? className.replace(/language-/, '') : 'typescript'
 
   const handleCopy = useCallback(() => {
     navigator.clipboard.writeText(codeText).then(() => {
@@ -43,157 +50,111 @@ const CodeBlock = ({ children, className }: { children?: React.ReactNode; classN
   }, [codeText])
 
   return (
-    <div
-      className="relative group my-2 rounded-xl overflow-hidden"
-      style={{
-        backgroundColor: 'var(--color-surface-3)',
-        border: '1px solid var(--color-border-subtle)'
-      }}
-    >
-      <button
-        onClick={handleCopy}
-        className="absolute right-2 top-2 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
-        style={{ backgroundColor: 'var(--color-surface-5)', color: 'var(--color-text-tertiary)' }}
-        title="Copy code"
-      >
-        {copied ? <Check size={12} /> : <Copy size={12} />}
-      </button>
-      <code
-        className={className}
-        style={{
-          display: 'block',
-          padding: '14px 16px',
-          overflowX: 'auto',
-          fontSize: '12px',
-          fontFamily: 'JetBrains Mono, monospace',
+    <div className="relative group my-4 rounded-xl overflow-hidden border border-white/[0.06] bg-[#0A0A0A] shadow-sm">
+      <div className="absolute right-2 top-2 z-10 flex items-center">
+        {language && (
+          <span className="text-[10px] text-zinc-500 font-mono mr-3 opacity-0 group-hover:opacity-100 transition-opacity select-none uppercase tracking-wider">
+            {language}
+          </span>
+        )}
+        <button
+          onClick={handleCopy}
+          className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-zinc-200"
+          title="Copy code"
+        >
+          {copied ? <Check size={14} className="text-zinc-300" /> : <Copy size={14} />}
+        </button>
+      </div>
+      <SyntaxHighlighter
+        language={language}
+        style={vscDarkPlus}
+        customStyle={{
+          margin: 0,
+          padding: '16px',
+          fontSize: '12.5px',
+          fontFamily: '"JetBrains Mono", monospace',
           lineHeight: '1.6',
-          color: 'var(--color-text-secondary)'
+          backgroundColor: 'transparent'
+        }}
+        codeTagProps={{
+          style: {
+            fontFamily: '"JetBrains Mono", monospace'
+          }
         }}
       >
-        {children}
-      </code>
+        {codeText}
+      </SyntaxHighlighter>
     </div>
   )
 }
 
 const markdownComponents: Components = {
   code({ className, children, ...props }) {
-    const isBlock = className?.startsWith('language-')
-    if (isBlock) {
-      return <CodeBlock className={className}>{children}</CodeBlock>
+    const isInline = !className || !className.startsWith('language-')
+    if (isInline && typeof children === 'string' && !children.includes('\n')) {
+      return (
+        <code
+          {...props}
+          className="px-1.5 py-0.5 rounded-md bg-white/[0.03] text-zinc-200 font-mono text-[12px] border border-white/5"
+        >
+          {children}
+        </code>
+      )
     }
-    return (
-      <code
-        {...props}
-        className={className}
-        style={{
-          backgroundColor: 'var(--color-surface-4)',
-          padding: '1px 6px',
-          borderRadius: '4px',
-          fontSize: '11.5px',
-          fontFamily: 'JetBrains Mono, monospace',
-          color: 'var(--color-accent)'
-        }}
-      >
-        {children}
-      </code>
-    )
+    return <CodeBlock className={className}>{children}</CodeBlock>
   },
   pre({ children }) {
     return <>{children}</>
   },
   p({ children }) {
-    return <p style={{ marginBottom: '6px', lineHeight: '1.6' }}>{children}</p>
+    return <p className="mb-3 leading-relaxed text-[14px] text-zinc-300">{children}</p>
   },
   ul({ children }) {
     return (
-      <ul style={{ paddingLeft: '18px', marginBottom: '6px', listStyleType: 'disc' }}>
+      <ul className="pl-5 mb-4 list-disc text-[14px] text-zinc-300 marker:text-zinc-600">
         {children}
       </ul>
     )
   },
   ol({ children }) {
     return (
-      <ol style={{ paddingLeft: '18px', marginBottom: '6px', listStyleType: 'decimal' }}>
+      <ol className="pl-5 mb-4 list-decimal text-[14px] text-zinc-300 marker:text-zinc-600">
         {children}
       </ol>
     )
   },
   li({ children }) {
-    return <li style={{ marginBottom: '2px', lineHeight: '1.6' }}>{children}</li>
+    return <li className="mb-1.5 leading-relaxed">{children}</li>
   },
   h1({ children }) {
     return (
-      <h1
-        style={{
-          fontSize: '16px',
-          fontWeight: 700,
-          marginBottom: '8px',
-          color: 'var(--color-text-primary)'
-        }}
-      >
+      <h1 className="text-[18px] font-semibold mb-4 text-zinc-100 tracking-tight mt-6">
         {children}
       </h1>
     )
   },
   h2({ children }) {
     return (
-      <h2
-        style={{
-          fontSize: '14px',
-          fontWeight: 650,
-          marginBottom: '6px',
-          color: 'var(--color-text-primary)'
-        }}
-      >
-        {children}
-      </h2>
+      <h2 className="text-[16px] font-medium mb-3 text-zinc-200 tracking-tight mt-5">{children}</h2>
     )
   },
   h3({ children }) {
     return (
-      <h3
-        style={{
-          fontSize: '13px',
-          fontWeight: 600,
-          marginBottom: '4px',
-          color: 'var(--color-text-primary)'
-        }}
-      >
-        {children}
-      </h3>
+      <h3 className="text-[14px] font-medium mb-2 text-zinc-300 tracking-tight mt-4">{children}</h3>
     )
   },
   blockquote({ children }) {
     return (
-      <blockquote
-        style={{
-          borderLeft: '2px solid var(--color-border-secondary)',
-          paddingLeft: '12px',
-          margin: '6px 0',
-          color: 'var(--color-text-tertiary)',
-          fontStyle: 'italic'
-        }}
-      >
+      <blockquote className="border-l-2 border-white/10 pl-4 py-1 my-4 text-zinc-400 italic bg-white/[0.02] rounded-r-lg">
         {children}
       </blockquote>
     )
   },
   strong({ children }) {
-    return (
-      <strong style={{ fontWeight: 650, color: 'var(--color-text-primary)' }}>{children}</strong>
-    )
+    return <strong className="font-semibold text-zinc-100">{children}</strong>
   },
   hr() {
-    return (
-      <hr
-        style={{
-          border: 'none',
-          borderTop: '1px solid var(--color-border-subtle)',
-          margin: '10px 0'
-        }}
-      />
-    )
+    return <hr className="border-none border-t border-white/5 my-6" />
   }
 }
 
@@ -211,22 +172,18 @@ const ThinkingIndicator = () => {
   }, [])
 
   return (
-    <div
-      className="flex gap-2 items-center text-caption italic"
-      style={{ color: 'var(--color-text-tertiary)' }}
-    >
-      <span className="flex space-x-1 mr-0.5">
-        {[0, 0.12, 0.24].map((delay, i) => (
+    <div className="flex gap-3 items-center text-[13px] text-zinc-500 italic font-mono bg-white/[0.02] border border-white/5 px-4 py-2 rounded-xl w-fit">
+      <span className="flex space-x-1.5">
+        {[0, 0.15, 0.3].map((delay, i) => (
           <motion.span
             key={i}
-            className="w-1 h-1 rounded-full"
-            style={{ backgroundColor: 'var(--color-secondary)' }}
-            animate={{ y: [-2, 0, -2], opacity: [0.5, 1, 0.5] }}
-            transition={{ duration: 0.75, repeat: Infinity, ease: 'easeInOut', delay }}
+            className="w-1.5 h-1.5 rounded-full bg-zinc-500"
+            animate={{ y: [-2, 2, -2], opacity: [0.3, 1, 0.3] }}
+            transition={{ duration: 0.8, repeat: Infinity, ease: 'easeInOut', delay }}
           />
         ))}
       </span>
-      Thinking… {seconds}s
+      <span className="tracking-widest">THINKING {seconds}s</span>
     </div>
   )
 }
@@ -269,7 +226,7 @@ export const AIChat = () => {
   const { chatWidth, setChatWidth, setActiveView } = useUIStore()
   const { width, startResizing, isResizing } = useResizable(
     chatWidth,
-    250,
+    280,
     800,
     setChatWidth,
     'right'
@@ -345,6 +302,7 @@ export const AIChat = () => {
     let musicTriggered = false
     let musicMatch: RegExpMatchArray | null = null
     let genMusicTriggered = false
+
     // Listen for streaming chunks
     const unsubscribe = window.api.ai.onChunk((chunk) => {
       if (chunk.type === 'text' && chunk.text) {
@@ -371,16 +329,17 @@ export const AIChat = () => {
         if (genMusicMatch && !genMusicTriggered) {
           genMusicTriggered = true
           const genPrompt = genMusicMatch[1].trim()
-          const { lyriaApiKey } = useSettingsStore.getState()
+          const { lyriaApiKey, geminiOAuthActive } = useSettingsStore.getState()
           useMusicStore.getState().setPendingPrompt(genPrompt)
           useUIStore.getState().setMusicGeneratorOpen(true)
-          if (lyriaApiKey) {
+          if (lyriaApiKey || geminiOAuthActive) {
             window.api.music
               .generate({
                 model: 'lyria-3-clip-preview',
                 prompt: genPrompt,
                 instrumental: false,
-                apiKey: lyriaApiKey
+                apiKey: lyriaApiKey,
+                useGeminiOAuth: geminiOAuthActive
               })
               .catch(() => {})
           }
@@ -391,10 +350,13 @@ export const AIChat = () => {
           '🎵 Searching for music...'
         )
         displayText = displayText.replace(/\[GENERATE_MUSIC:[^\]]*\]?/g, '🎵 Generating music...')
+
+        // Hide tool calls and tool responses from the UI
+        displayText = displayText.replace(/<tool_call>[\s\S]*?(?:<\/tool_call>|$)/g, '')
+        displayText = displayText.replace(/<tool_response>[\s\S]*?(?:<\/tool_response>|$)/g, '')
+
         if (musicTriggered && musicMatch) {
-          displayText = accumulatedText
-            .replace(/\[GENERATE_MUSIC:[^\]]*\]?/g, '🎵 Generating music...')
-            .replace(musicMatch[0], `🎵 Playing: ${musicMatch[1].trim()}`)
+          displayText = displayText.replace(musicMatch[0], `🎵 Playing: ${musicMatch[1].trim()}`)
         }
         updateLastMessage(displayText)
       } else if (chunk.type === 'done') {
@@ -411,6 +373,7 @@ export const AIChat = () => {
       await window.api.ai.chat({
         provider: activeProvider,
         model: modelPerProvider[activeProvider],
+        workspaceDir: useFileStore.getState().workspaceDir || undefined,
         apiKey,
         ollamaUrl: activeProvider === 'ollama' ? ollamaUrl : undefined,
         useGeminiOAuth,
@@ -426,195 +389,148 @@ export const AIChat = () => {
 
   return (
     <div
-      className="h-full flex flex-col shrink-0 relative border-l"
-      style={{
-        width: `${width}px`,
-        backgroundColor: 'var(--color-surface-2)',
-        borderColor: 'var(--color-border-subtle)'
-      }}
+      className="h-full flex flex-col shrink-0 relative border-l border-white/5 bg-[#050505]"
+      style={{ width: `${width}px` }}
     >
       {/* Resize handle */}
       <div
-        className="absolute left-0 top-0 bottom-0 z-10 cursor-col-resize transition-colors"
-        style={{
-          width: '3px',
-          borderRadius: '2px',
-          backgroundColor: isResizing ? 'var(--color-secondary)' : 'transparent'
-        }}
-        onMouseEnter={(e) => {
-          if (!isResizing) {
-            ;(e.currentTarget as HTMLDivElement).style.backgroundColor =
-              'var(--color-secondary-glow)'
-          }
-        }}
-        onMouseLeave={(e) => {
-          if (!isResizing) {
-            ;(e.currentTarget as HTMLDivElement).style.backgroundColor = 'transparent'
-          }
-        }}
+        className="absolute left-0 top-0 bottom-0 z-10 cursor-col-resize flex items-center justify-center group"
+        style={{ width: '4px', transform: 'translateX(-50%)' }}
         onMouseDown={startResizing}
-      />
+      >
+        <div
+          className={`w-[2px] h-full transition-colors duration-300 ${isResizing ? 'bg-white/20' : 'bg-transparent group-hover:bg-white/10'}`}
+        />
+      </div>
 
       {/* Header */}
-      <div
-        className="h-11 px-4 flex justify-between items-center border-b shrink-0"
-        style={{ borderColor: 'var(--color-border-subtle)' }}
-      >
-        <div className="flex items-center gap-2">
+      <div className="h-14 px-5 flex justify-between items-center border-b border-white/5 shrink-0 bg-transparent">
+        <div className="flex items-center gap-3">
           <div
-            className="w-1.5 h-1.5 rounded-full transition-colors"
-            style={{
-              backgroundColor: isStreaming ? 'var(--color-secondary)' : 'var(--color-secondary-dim)'
-            }}
+            className={`w-1.5 h-1.5 rounded-full transition-colors duration-500 ${
+              isStreaming ? 'bg-zinc-300' : 'bg-zinc-600'
+            }`}
           />
-          <span className="text-label" style={{ color: 'var(--color-text-muted)' }}>
+          <span className="text-[12px] font-medium tracking-wide text-zinc-400">
             {viewMode === 'history' ? 'History' : 'Assistant'}
           </span>
           {viewMode === 'chat' && (
-            <span
-              className="text-label px-1.5 py-0.5 rounded-md"
-              style={{
-                color: 'var(--color-secondary)',
-                backgroundColor: 'var(--color-secondary-glow)',
-                fontSize: '10px'
-              }}
-            >
+            <span className="text-[10px] px-1.5 py-0.5 rounded font-mono text-zinc-500 bg-white/[0.03] border border-white/5">
               {PROVIDER_LABELS[activeProvider]}
             </span>
           )}
         </div>
-        <div className="flex items-center gap-0.5">
+
+        <div className="flex items-center gap-1">
           <button
             onClick={() => {
               createNewSession()
               setViewMode('chat')
             }}
-            className="btn-ghost"
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.04] transition-all"
             title="New session"
           >
-            <Plus size={14} />
+            <Plus size={15} strokeWidth={1.5} />
           </button>
           <button
             onClick={() => setViewMode(viewMode === 'history' ? 'chat' : 'history')}
-            className="btn-ghost"
-            title="History"
-            style={
+            className={`w-7 h-7 flex items-center justify-center rounded-lg transition-all ${
               viewMode === 'history'
-                ? {
-                    color: 'var(--color-secondary)',
-                    backgroundColor: 'var(--color-secondary-glow)'
-                  }
-                : undefined
-            }
+                ? 'text-zinc-200 bg-white/[0.06]'
+                : 'text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.04]'
+            }`}
+            title="History"
           >
-            <History size={14} />
+            <History size={14} strokeWidth={1.5} />
           </button>
           <button
             onClick={() => setActiveView('settings')}
-            className="btn-ghost"
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.04] transition-all"
             title="AI settings"
           >
-            <Settings size={14} />
+            <Settings size={14} strokeWidth={1.5} />
           </button>
           <button
             onClick={() => {
               if (viewMode === 'chat') clearChat()
             }}
-            className="btn-ghost-danger"
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.04] transition-all"
             title="Clear chat"
           >
-            <Trash2 size={14} />
+            <Trash2 size={14} strokeWidth={1.5} />
           </button>
         </div>
       </div>
 
       {viewMode === 'history' ? (
         /* History list */
-        <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-2.5 hide-scrollbar">
-          {sessions.length === 0 && (
-            <div
-              className="text-caption text-center mt-10"
-              style={{ color: 'var(--color-text-muted)' }}
-            >
-              No history yet
-            </div>
-          )}
-          {sessions.map((s) => (
-            <motion.div
-              key={s.id}
-              onClick={() => {
-                setActiveSession(s.id)
-                setViewMode('chat')
-              }}
-              className="p-3.5 rounded-xl flex flex-col gap-1 cursor-pointer border group transition-all"
-              style={{
-                backgroundColor:
-                  s.id === activeSessionId
-                    ? 'var(--color-secondary-glow)'
-                    : 'var(--color-surface-3)',
-                borderColor:
-                  s.id === activeSessionId
-                    ? 'var(--color-border-secondary)'
-                    : 'var(--color-border-subtle)',
-                color:
-                  s.id === activeSessionId
-                    ? 'var(--color-secondary)'
-                    : 'var(--color-text-secondary)'
-              }}
-              onMouseEnter={(e) => {
-                if (s.id !== activeSessionId) {
-                  ;(e.currentTarget as HTMLDivElement).style.borderColor =
-                    'var(--color-border-hover)'
-                  ;(e.currentTarget as HTMLDivElement).style.backgroundColor =
-                    'var(--color-surface-4)'
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (s.id !== activeSessionId) {
-                  ;(e.currentTarget as HTMLDivElement).style.borderColor =
-                    'var(--color-border-subtle)'
-                  ;(e.currentTarget as HTMLDivElement).style.backgroundColor =
-                    'var(--color-surface-3)'
-                }
-              }}
-            >
-              <div className="flex justify-between items-start gap-3">
-                <div className="text-body font-semibold truncate leading-relaxed">{s.title}</div>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    deleteSession(s.id)
-                  }}
-                  className="btn-ghost-danger opacity-0 group-hover:opacity-100 p-1 -m-1 shrink-0"
-                >
-                  <Trash2 size={12} />
-                </button>
-              </div>
-              <div
-                className="text-caption flex items-center justify-between"
-                style={{ color: 'var(--color-text-muted)' }}
+        <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-2 hide-scrollbar">
+          <AnimatePresence>
+            {sessions.length === 0 && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-[13px] text-center mt-10 text-zinc-500"
               >
-                <span>{s.messages.length} msgs</span>
-                <span>{new Date(s.updatedAt).toLocaleDateString()}</span>
-              </div>
-            </motion.div>
-          ))}
+                No history yet
+              </motion.div>
+            )}
+            {sessions.map((s) => (
+              <motion.div
+                key={s.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                onClick={() => {
+                  setActiveSession(s.id)
+                  setViewMode('chat')
+                }}
+                className={`p-4 rounded-xl flex flex-col gap-2 cursor-pointer transition-colors duration-200 group ${
+                  s.id === activeSessionId
+                    ? 'bg-white/[0.04]'
+                    : 'bg-transparent hover:bg-white/[0.02]'
+                }`}
+              >
+                <div className="flex justify-between items-start gap-3">
+                  <div
+                    className={`text-[13px] leading-snug line-clamp-2 ${
+                      s.id === activeSessionId
+                        ? 'text-zinc-200'
+                        : 'text-zinc-400 group-hover:text-zinc-300'
+                    }`}
+                  >
+                    {s.title}
+                  </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      deleteSession(s.id)
+                    }}
+                    className="opacity-0 group-hover:opacity-100 p-1.5 -m-1.5 rounded-md text-zinc-500 hover:text-zinc-300 transition-all shrink-0"
+                  >
+                    <Trash2 size={14} strokeWidth={1.5} />
+                  </button>
+                </div>
+                <div className="flex items-center justify-between text-[11px] text-zinc-600">
+                  <span>{s.messages.length} messages</span>
+                  <span>{new Date(s.updatedAt).toLocaleDateString()}</span>
+                </div>
+              </motion.div>
+            ))}
+          </AnimatePresence>
         </div>
       ) : (
         <>
           {/* Chat messages */}
-          <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4 hide-scrollbar">
+          <div className="flex-1 overflow-y-auto px-5 py-6 flex flex-col gap-6 hide-scrollbar relative">
             {messages.length === 0 && (
-              <div
-                className="h-full flex flex-col items-center justify-center gap-3 opacity-50"
-                style={{ color: 'var(--color-text-muted)' }}
-              >
-                <TerminalSquare
-                  size={24}
-                  strokeWidth={1.4}
-                  style={{ color: 'var(--color-secondary-dim)' }}
-                />
-                <p className="text-body">How can I help you?</p>
+              <div className="h-full flex flex-col items-center justify-center gap-4 opacity-80">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-b from-white/[0.08] to-white/[0.02] border border-white/10 flex items-center justify-center shadow-lg shadow-black/50">
+                  <TerminalSquare size={20} className="text-zinc-200" strokeWidth={1.5} />
+                </div>
+                <p className="text-[13px] text-zinc-500 font-medium tracking-wide">
+                  How can I help you?
+                </p>
               </div>
             )}
 
@@ -624,42 +540,23 @@ export const AIChat = () => {
                 return (
                   <motion.div
                     key={msg.id}
-                    initial={{ opacity: 0, x: msg.role === 'user' ? 10 : -10, y: 3 }}
-                    animate={{ opacity: 1, x: 0, y: 0 }}
-                    transition={transition.micro}
-                    className={`flex gap-2.5 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
+                    className={`flex gap-3 w-full ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
                     {msg.role === 'assistant' && (
-                      <div
-                        className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-1"
-                        style={{
-                          backgroundColor: 'var(--color-secondary-glow)',
-                          border: '1px solid var(--color-border-secondary)',
-                          color: 'var(--color-secondary)'
-                        }}
-                      >
-                        <TerminalSquare size={12} strokeWidth={2} />
+                      <div className="w-7 h-7 rounded-lg bg-white/[0.03] border border-white/5 flex items-center justify-center shrink-0 mt-1 shadow-sm">
+                        <Code2 size={13} className="text-zinc-400" strokeWidth={1.5} />
                       </div>
                     )}
 
                     <div
-                      className={`max-w-[85%] rounded-2xl px-4 py-3 text-body leading-relaxed ${msg.role === 'user' ? 'whitespace-pre-wrap' : ''}`}
-                      style={
+                      className={`max-w-[88%] text-[13.5px] leading-relaxed ${
                         msg.role === 'user'
-                          ? {
-                              backgroundColor: 'var(--color-surface-4)',
-                              color: 'var(--color-text-primary)',
-                              border: '1px solid var(--color-border-default)',
-                              borderTopRightRadius: '6px'
-                            }
-                          : {
-                              backgroundColor: 'var(--color-surface-1)',
-                              color: 'var(--color-text-secondary)',
-                              border: '1px solid var(--color-border-subtle)',
-                              borderLeft: '2px solid var(--color-secondary-dim)',
-                              borderTopLeftRadius: '6px'
-                            }
-                      }
+                          ? 'whitespace-pre-wrap px-4 py-2.5 rounded-2xl bg-[#111] border border-white/[0.04] shadow-sm text-zinc-200'
+                          : 'text-zinc-300 pt-1'
+                      }`}
                     >
                       {msg.role === 'user' ? (
                         msg.text || null
@@ -673,75 +570,52 @@ export const AIChat = () => {
                 )
               })}
             </AnimatePresence>
-            <div ref={messagesEndRef} className="h-4" />
+            <div ref={messagesEndRef} className="h-4 shrink-0" />
           </div>
 
           {/* Input area */}
-          <div
-            className="p-4 border-t shrink-0"
-            style={{
-              backgroundColor: 'var(--color-surface-1)',
-              borderColor: 'var(--color-border-subtle)'
-            }}
-          >
-            <div
-              className="relative flex items-end rounded-xl transition-all"
-              style={{
-                backgroundColor: 'var(--color-surface-3)',
-                border: '1px solid var(--color-border-subtle)'
-              }}
-              onFocus={(e) => {
-                ;(e.currentTarget as HTMLDivElement).style.borderColor =
-                  'var(--color-border-secondary)'
-                ;(e.currentTarget as HTMLDivElement).style.boxShadow =
-                  '0 0 0 2px var(--color-secondary-glow)'
-              }}
-              onBlur={(e) => {
-                ;(e.currentTarget as HTMLDivElement).style.borderColor =
-                  'var(--color-border-subtle)'
-                ;(e.currentTarget as HTMLDivElement).style.boxShadow = ''
-              }}
-            >
-              <textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault()
-                    handleSend()
-                  }
-                }}
-                placeholder="Message…"
-                className="w-full bg-transparent text-body pl-4 pr-12 py-3.5 resize-none focus:outline-none hide-scrollbar placeholder:text-zinc-600"
-                style={{
-                  color: 'var(--color-text-primary)',
-                  minHeight: '48px',
-                  maxHeight: '160px'
-                }}
-                rows={1}
-              />
-              <motion.button
-                onClick={handleSend}
-                disabled={!input.trim() || isStreaming}
-                className="absolute right-2 bottom-2 p-2 rounded-lg transition-colors disabled:opacity-25"
-                style={{ color: 'var(--color-secondary)' }}
-                whileTap={{ scale: 0.9 }}
-                onMouseEnter={(e) => {
-                  ;(e.currentTarget as HTMLButtonElement).style.backgroundColor =
-                    'var(--color-secondary-glow)'
-                }}
-                onMouseLeave={(e) => {
-                  ;(e.currentTarget as HTMLButtonElement).style.backgroundColor = ''
-                }}
-              >
-                <div className="rotate-[-90deg]">
-                  <ChevronDown size={18} strokeWidth={2.5} />
-                </div>
-              </motion.button>
+          <div className="p-4 pt-2 bg-[#050505] shrink-0 border-t border-white/[0.04]">
+            <div className="relative group">
+              <div className="relative flex items-end rounded-2xl bg-[#0A0A0A] border border-white/[0.06] shadow-xl shadow-black/50 transition-colors duration-300 focus-within:border-white/[0.15]">
+                <textarea
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault()
+                      handleSend()
+                    }
+                  }}
+                  placeholder="Message..."
+                  className="w-full bg-transparent text-[14px] text-zinc-200 pl-4 pr-12 py-3.5 resize-none focus:outline-none hide-scrollbar placeholder:text-zinc-600 font-medium"
+                  style={{
+                    minHeight: '48px',
+                    maxHeight: '200px'
+                  }}
+                  rows={1}
+                />
+
+                <AnimatePresence>
+                  {input.trim() && !isStreaming && (
+                    <motion.button
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.8 }}
+                      onClick={handleSend}
+                      className="absolute right-2 bottom-2 w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 text-zinc-300 hover:bg-white/20 hover:text-white transition-all duration-200"
+                    >
+                      <ChevronRight size={18} strokeWidth={2} />
+                    </motion.button>
+                  )}
+                </AnimatePresence>
+              </div>
             </div>
-            <p className="text-center mt-2 text-label" style={{ color: 'var(--color-text-muted)' }}>
-              AI can make mistakes
-            </p>
+            <div className="flex justify-between items-center mt-3 px-1">
+              <span className="text-[10px] font-mono tracking-wide text-zinc-600">
+                {mod} I to focus
+              </span>
+              <span className="text-[10px] text-zinc-600">AI can make mistakes</span>
+            </div>
           </div>
         </>
       )}

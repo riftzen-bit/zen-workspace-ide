@@ -9,7 +9,7 @@ type ActivityView =
   | 'activity'
   | 'git'
 
-export type ToastType = 'success' | 'error' | 'info' | 'warning'
+export type ToastType = 'success' | 'error' | 'info' | 'warning' | 'zen-upbeat' | 'zen-chill'
 
 export interface Toast {
   id: string
@@ -23,6 +23,19 @@ interface ZenSnapshot {
   isVibePlayerOpen: boolean
 }
 
+interface PromptState {
+  isOpen: boolean
+  title: string
+  defaultValue: string
+  resolve: ((value: string | null) => void) | null
+}
+
+interface ConfirmState {
+  isOpen: boolean
+  title: string
+  resolve: ((value: boolean) => void) | null
+}
+
 interface UIState {
   activeView: ActivityView
   sidebarWidth: number
@@ -30,6 +43,15 @@ interface UIState {
   isVibePlayerOpen: boolean
   isChatOpen: boolean
   isSidebarOpen: boolean
+
+  // Dialogs
+  promptState: PromptState
+  showPrompt: (title: string, defaultValue?: string) => Promise<string | null>
+  closePrompt: (value: string | null) => void
+
+  confirmState: ConfirmState
+  showConfirm: (title: string) => Promise<boolean>
+  closeConfirm: (value: boolean) => void
 
   // Git Diff state
   activeDiffFile: { file: string; staged: boolean } | null
@@ -39,6 +61,8 @@ interface UIState {
   toasts: Toast[]
   addToast: (message: string, type?: ToastType) => void
   removeToast: (id: string) => void
+  isNotificationsMuted: boolean
+  toggleNotificationsMuted: () => void
 
   // Zen Mode
   isZenMode: boolean
@@ -86,9 +110,35 @@ export const useUIStore = create<UIState>((set, get) => ({
   activeDiffFile: null,
   setActiveDiffFile: (file) => set({ activeDiffFile: file }),
 
+  promptState: { isOpen: false, title: '', defaultValue: '', resolve: null },
+  showPrompt: (title, defaultValue = '') =>
+    new Promise<string | null>((resolve) =>
+      set({ promptState: { isOpen: true, title, defaultValue, resolve } })
+    ),
+  closePrompt: (value) =>
+    set((state) => {
+      state.promptState.resolve?.(value)
+      return { promptState: { isOpen: false, title: '', defaultValue: '', resolve: null } }
+    }),
+
+  confirmState: { isOpen: false, title: '', resolve: null },
+  showConfirm: (title) =>
+    new Promise<boolean>((resolve) => set({ confirmState: { isOpen: true, title, resolve } })),
+  closeConfirm: (value) =>
+    set((state) => {
+      state.confirmState.resolve?.(value)
+      return { confirmState: { isOpen: false, title: '', resolve: null } }
+    }),
+
   // Toast system
   toasts: [],
+  isNotificationsMuted: false,
+  toggleNotificationsMuted: () =>
+    set((state) => ({ isNotificationsMuted: !state.isNotificationsMuted })),
   addToast: (message, type = 'info') => {
+    if (get().isNotificationsMuted && type !== 'error' && type !== 'warning') {
+      return
+    }
     const id = Math.random().toString(36).slice(2)
     set((state) => ({ toasts: [...state.toasts, { id, message, type }] }))
     setTimeout(() => get().removeToast(id), 3000)
@@ -105,7 +155,8 @@ export const useUIStore = create<UIState>((set, get) => ({
       zenSnapshot: { isSidebarOpen, isChatOpen, isVibePlayerOpen },
       isSidebarOpen: false,
       isChatOpen: false,
-      isVibePlayerOpen: false
+      isVibePlayerOpen: false,
+      isNotificationsMuted: true
     })
   },
   exitZenMode: () => {
@@ -115,6 +166,7 @@ export const useUIStore = create<UIState>((set, get) => ({
       isSidebarOpen: zenSnapshot?.isSidebarOpen ?? true,
       isChatOpen: zenSnapshot?.isChatOpen ?? true,
       isVibePlayerOpen: zenSnapshot?.isVibePlayerOpen ?? false,
+      isNotificationsMuted: false,
       zenSnapshot: null
     })
   },

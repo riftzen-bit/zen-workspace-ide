@@ -14,10 +14,20 @@ export interface AIStreamChunk {
 export interface AIChatParams {
   provider: AIProviderType
   model: string
+  workspaceDir?: string
   apiKey?: string
   ollamaUrl?: string
   useGeminiOAuth?: boolean
   messages: AIMessage[]
+}
+
+export interface AIGenerateTestParams {
+  filePath: string
+  provider: AIProviderType
+  model: string
+  apiKey?: string
+  ollamaUrl?: string
+  useGeminiOAuth?: boolean
 }
 
 export interface AIProvider {

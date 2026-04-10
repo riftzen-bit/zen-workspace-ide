@@ -1,6 +1,11 @@
 import { app, shell, BrowserWindow, ipcMain, session } from 'electron'
+import StoreModule from 'electron-store'
 
-// Suppress Chromium XDG portal noise on Linux
+const Store = ((StoreModule as { default?: typeof StoreModule }).default ||
+  StoreModule) as typeof StoreModule
+const store = new Store()
+
+// Suppress Chromium XDG portal noise on Linux and deprecation warnings from dependencies
 if (process.platform === 'linux') {
   const origWrite = process.stderr.write.bind(process.stderr)
   process.stderr.write = (chunk: unknown, ...args: unknown[]) => {
@@ -9,6 +14,8 @@ if (process.platform === 'linux') {
     return (origWrite as (...a: unknown[]) => boolean)(chunk, ...args)
   }
 }
+// process.noDeprecation is read-only in newer Node.js versions
+// process.noDeprecation = true
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -24,10 +31,19 @@ import { setupGitHandlers } from './gitHandler'
 import { setupLyriaHandlers } from './music/lyriaHandler'
 
 function createWindow(): void {
+  const bounds = store.get('window-bounds', { width: 1000, height: 750 }) as {
+    width: number
+    height: number
+    x?: number
+    y?: number
+  }
+
   // Create the browser window.
   const mainWindow = new BrowserWindow({
-    width: 900,
-    height: 670,
+    width: bounds.width,
+    height: bounds.height,
+    x: bounds.x,
+    y: bounds.y,
     show: false,
     autoHideMenuBar: true,
     ...(process.platform === 'linux' ? { icon } : {}),
@@ -36,6 +52,15 @@ function createWindow(): void {
       sandbox: true
     }
   })
+
+  const saveBounds = () => {
+    if (!mainWindow.isMaximized()) {
+      store.set('window-bounds', mainWindow.getBounds())
+    }
+  }
+
+  mainWindow.on('resized', saveBounds)
+  mainWindow.on('moved', saveBounds)
 
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()

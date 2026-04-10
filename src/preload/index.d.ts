@@ -15,10 +15,20 @@ interface AIChunk {
 interface AIChatParams {
   provider: string
   model: string
+  workspaceDir?: string
   apiKey?: string
   ollamaUrl?: string
   useGeminiOAuth?: boolean
   messages: Array<{ role: string; content: string }>
+}
+
+interface AIGenerateTestParams {
+  filePath: string
+  provider: string
+  model: string
+  apiKey?: string
+  ollamaUrl?: string
+  useGeminiOAuth?: boolean
 }
 
 declare global {
@@ -102,6 +112,9 @@ declare global {
       }
       ai: {
         chat: (params: AIChatParams) => Promise<void>
+        generateTest: (
+          params: AIGenerateTestParams
+        ) => Promise<{ success: boolean; targetPath?: string; error?: string }>
         abort: () => Promise<void>
         onChunk: (callback: (chunk: AIChunk) => void) => () => void
       }

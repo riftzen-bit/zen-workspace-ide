@@ -31,6 +31,7 @@ export const MusicGenerator = () => {
     lyriaVolume,
     trackHistory,
     pendingPrompt,
+    vibe,
     setIsGenerating,
     setGenerationError,
     setCurrentTrack,
@@ -38,7 +39,8 @@ export const MusicGenerator = () => {
     setLyriaVolume,
     clearCurrentTrack,
     removeFromHistory,
-    setPendingPrompt
+    setPendingPrompt,
+    setVibe
   } = useMusicStore()
   const { lyriaApiKey, setLyriaApiKey } = useSettingsStore()
   const { setIsPlaying: pauseYoutube } = useMediaStore()
@@ -95,14 +97,20 @@ export const MusicGenerator = () => {
 
   const handleGenerate = () => {
     if (!prompt.trim() || isGenerating) return
-    if (!lyriaApiKey.trim()) {
-      setGenerationError('Enter your Gemini API key above to generate music.')
+    const useOAuth = useSettingsStore.getState().geminiOAuthActive
+    if (!useOAuth && !lyriaApiKey.trim()) {
+      setGenerationError(
+        'Enter your Gemini API key above or connect via Gemini OAuth to generate music.'
+      )
       return
     }
 
     setGenerationError(null)
     setIsGenerating(true)
     startTimer()
+
+    const stylePrefix = vibe === 'focus' ? 'Deep Focus (ambient/lo-fi), ' : 'Upbeat, '
+    const finalPrompt = `${stylePrefix}${prompt.trim()}`
 
     if (unsubRef.current) unsubRef.current()
     unsubRef.current = window.api.music.onProgress((chunk) => {
@@ -111,7 +119,7 @@ export const MusicGenerator = () => {
         setIsGenerating(false)
         const track: GeneratedTrack = {
           id: Math.random().toString(36).slice(2),
-          prompt: prompt.trim(),
+          prompt: finalPrompt,
           model,
           lyrics: chunk.lyrics ?? null,
           audioBase64: chunk.audioBase64,
@@ -137,10 +145,11 @@ export const MusicGenerator = () => {
 
     window.api.music.generate({
       model,
-      prompt: prompt.trim(),
+      prompt: finalPrompt,
       lyrics: customLyrics.trim() || undefined,
       instrumental,
-      apiKey: lyriaApiKey.trim()
+      apiKey: lyriaApiKey.trim(),
+      useGeminiOAuth: useOAuth
     })
   }
 
@@ -334,6 +343,48 @@ export const MusicGenerator = () => {
                       e.currentTarget.style.borderColor = 'var(--color-border-subtle)'
                     }}
                   />
+                </div>
+
+                {/* Vibe toggle */}
+                <div className="space-y-1.5">
+                  <label
+                    className="text-xs font-medium"
+                    style={{ color: 'var(--color-text-secondary)' }}
+                  >
+                    Vibe
+                  </label>
+                  <div
+                    className="flex gap-1 p-1 rounded-xl"
+                    style={{ backgroundColor: 'var(--color-surface-3)' }}
+                  >
+                    {(
+                      [
+                        ['focus', 'Deep Focus', 'ambient/lo-fi'],
+                        ['upbeat', 'Upbeat', 'energetic']
+                      ] as const
+                    ).map(([value, label, hint]) => (
+                      <button
+                        key={value}
+                        onClick={() => setVibe(value)}
+                        disabled={isGenerating}
+                        className="flex-1 py-1.5 rounded-lg text-xs font-medium transition-all"
+                        style={{
+                          backgroundColor:
+                            vibe === value ? 'var(--color-accent-glow)' : 'transparent',
+                          color:
+                            vibe === value
+                              ? 'var(--color-accent-bright)'
+                              : 'var(--color-text-muted)',
+                          border:
+                            vibe === value
+                              ? '1px solid var(--color-border-accent)'
+                              : '1px solid transparent'
+                        }}
+                      >
+                        {label} <span style={{ opacity: 0.7 }}>({hint})</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 {/* Model toggle */}
@@ -690,18 +741,27 @@ export const MusicGenerator = () => {
                     )}
                     <button
                       onClick={handleGenerate}
-                      disabled={!prompt.trim() || !lyriaApiKey.trim()}
+                      disabled={
+                        !prompt.trim() ||
+                        (!useSettingsStore.getState().geminiOAuthActive && !lyriaApiKey.trim())
+                      }
                       className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-all"
                       style={{
                         backgroundColor:
-                          prompt.trim() && lyriaApiKey.trim()
+                          prompt.trim() &&
+                          (useSettingsStore.getState().geminiOAuthActive || lyriaApiKey.trim())
                             ? 'var(--color-accent)'
                             : 'var(--color-surface-4)',
                         color:
-                          prompt.trim() && lyriaApiKey.trim()
+                          prompt.trim() &&
+                          (useSettingsStore.getState().geminiOAuthActive || lyriaApiKey.trim())
                             ? '#0a0a0c'
                             : 'var(--color-text-muted)',
-                        cursor: prompt.trim() && lyriaApiKey.trim() ? 'pointer' : 'not-allowed'
+                        cursor:
+                          prompt.trim() &&
+                          (useSettingsStore.getState().geminiOAuthActive || lyriaApiKey.trim())
+                            ? 'pointer'
+                            : 'not-allowed'
                       }}
                     >
                       <Wand2 size={14} />

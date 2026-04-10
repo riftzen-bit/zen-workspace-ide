@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { CheckCircle, AlertCircle, Info, AlertTriangle, X } from 'lucide-react'
+import { CheckCircle, AlertCircle, Info, AlertTriangle, X, Zap, Coffee } from 'lucide-react'
 import { useUIStore, type Toast as ToastItem } from '../../store/useUIStore'
 import { transition } from '../../lib/motion'
 
@@ -7,20 +7,28 @@ const icons = {
   success: CheckCircle,
   error: AlertCircle,
   info: Info,
-  warning: AlertTriangle
+  warning: AlertTriangle,
+  'zen-upbeat': Zap,
+  'zen-chill': Coffee
 }
 
 const colors = {
   success: 'var(--color-secondary)',
   error: '#ef4444',
   info: 'var(--color-accent)',
-  warning: '#f59e0b'
+  warning: '#f59e0b',
+  'zen-upbeat': '#00f3ff',
+  'zen-chill': '#b19cd9'
 }
 
 const ToastItem = ({ toast }: { toast: ToastItem }) => {
   const { removeToast } = useUIStore()
   const Icon = icons[toast.type]
   const color = colors[toast.type]
+
+  const isZen = toast.type === 'zen-upbeat' || toast.type === 'zen-chill'
+  const customFont = isZen ? "'Space Grotesk', 'Fira Code', sans-serif" : undefined
+  const customShadow = isZen ? `0 0 15px ${color}40` : '0 8px 24px rgba(0,0,0,0.5)'
 
   return (
     <motion.div
@@ -33,9 +41,10 @@ const ToastItem = ({ toast }: { toast: ToastItem }) => {
       style={{
         backgroundColor: 'var(--color-surface-4)',
         border: '1px solid var(--color-border-default)',
-        boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+        boxShadow: customShadow,
         borderLeftColor: color,
-        borderLeftWidth: '2px'
+        borderLeftWidth: '2px',
+        fontFamily: customFont
       }}
       onClick={() => removeToast(toast.id)}
     >

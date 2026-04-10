@@ -121,11 +121,25 @@ const api = {
     chat: (params: {
       provider: string
       model: string
+      workspaceDir?: string
       apiKey?: string
       ollamaUrl?: string
       useGeminiOAuth?: boolean
       messages: { role: string; content: string }[]
     }) => ipcRenderer.invoke('ai:chat', params),
+    generateTest: (params: {
+      filePath: string
+      provider: string
+      model: string
+      apiKey?: string
+      ollamaUrl?: string
+      useGeminiOAuth?: boolean
+    }) =>
+      ipcRenderer.invoke('ai:generateTest', params) as Promise<{
+        success: boolean
+        targetPath?: string
+        error?: string
+      }>,
     abort: () => ipcRenderer.invoke('ai:abort'),
     onChunk: (callback: (chunk: { type: string; text?: string; error?: string }) => void) => {
       const handler = (

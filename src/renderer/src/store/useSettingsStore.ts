@@ -38,6 +38,10 @@ interface SettingsState {
   lyriaApiKey: string
   setLyriaApiKey: (key: string) => void
 
+  // Custom Location for Weather/Time
+  customLocation: string
+  setCustomLocation: (location: string) => void
+
   // Setters
   setGeminiApiKey: (key: string) => void
   setAutoPlayVibe: (autoPlay: boolean) => void
@@ -65,6 +69,7 @@ export const useSettingsStore = create<SettingsState>()(
       // Existing defaults
       geminiApiKey: '',
       lyriaApiKey: '',
+      customLocation: '',
       autoPlayVibe: true,
       fontSize: 14,
       wordWrap: true,
@@ -100,6 +105,7 @@ export const useSettingsStore = create<SettingsState>()(
         set({ geminiApiKey: key })
         window.api.secureStore.set('geminiApiKey', key).catch(() => {})
       },
+      setCustomLocation: (location) => set({ customLocation: location }),
       setAutoPlayVibe: (autoPlay) => set({ autoPlayVibe: autoPlay }),
       setFontSize: (size) => set({ fontSize: size }),
       setWordWrap: (wrap) => set({ wordWrap: wrap }),
@@ -164,6 +170,7 @@ export const useSettingsStore = create<SettingsState>()(
       storage: createJSONStorage(() => electronZustandStorage),
       // Persist only non-sensitive, non-action fields
       partialize: (state) => ({
+        customLocation: state.customLocation,
         autoPlayVibe: state.autoPlayVibe,
         fontSize: state.fontSize,
         wordWrap: state.wordWrap,

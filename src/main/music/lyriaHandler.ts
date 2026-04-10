@@ -1,6 +1,7 @@
 import { ipcMain, dialog, IpcMainInvokeEvent } from 'electron'
 import { writeFile } from 'fs/promises'
 import { GoogleGenAI } from '@google/genai'
+import { getGeminiOAuthCredential } from '../oauth/googleOAuth'
 
 export interface LyriaGenerateParams {
   model: 'lyria-3-clip-preview' | 'lyria-3-pro-preview'
@@ -20,6 +21,88 @@ export interface LyriaProgressChunk {
 }
 
 let currentAbortController: AbortController | null = null
+
+async function generateWithOAuth(
+  params: LyriaGenerateParams,
+  token: string,
+  projectId: string,
+  signal: AbortSignal
+): Promise<{ lyrics?: string; audioBase64?: string; mimeType?: string }> {
+  let promptText = params.prompt
+  if (params.instrumental) {
+    promptText += ' [instrumental, no vocals]'
+  }
+  if (params.lyrics) {
+    promptText += `\n\nCustom lyrics:\n${params.lyrics}`
+  }
+
+  const contents = [
+    {
+      role: 'user',
+      parts: [{ text: promptText }]
+    }
+  ]
+
+  const body: Record<string, unknown> = {
+    contents,
+    config: {
+      responseModalities: ['AUDIO', 'TEXT']
+    }
+  }
+
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${token}`,
+    'Content-Type': 'application/json'
+  }
+  if (projectId) {
+    headers['x-goog-user-project'] = projectId
+  }
+
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${params.model}:generateContent`,
+    {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+      signal
+    }
+  )
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => '')
+    if (response.status === 403) {
+      throw new Error(
+        `Gemini auth error (403): ${errText || 'Sign out and re-sign in with Google in Settings to grant AI access'}`
+      )
+    }
+    throw new Error(`Gemini OAuth error ${response.status}: ${errText}`)
+  }
+
+  const data = await response.json()
+
+  let lyrics: string | undefined
+  let audioBase64: string | undefined
+  let mimeType = 'audio/mp3'
+
+  const candidates = data.candidates ?? []
+  for (const candidate of candidates) {
+    const parts = candidate.content?.parts ?? []
+    for (const part of parts) {
+      if (part.text) {
+        lyrics = part.text
+      } else if (part.inlineData?.data) {
+        audioBase64 = part.inlineData.data
+        mimeType = part.inlineData.mimeType ?? 'audio/mp3'
+      }
+    }
+  }
+
+  if (!audioBase64) {
+    throw new Error('No audio generated. Try a different prompt.')
+  }
+
+  return { lyrics, audioBase64, mimeType }
+}
 
 async function generateWithApiKey(
   params: LyriaGenerateParams,
@@ -86,17 +169,30 @@ export function setupLyriaHandlers(): void {
       send({ type: 'started' })
 
       try {
-        // Lyria requires API key — OAuth (cloudcode-pa.googleapis.com) doesn't support Lyria
-        if (!params.apiKey) {
-          send({
-            type: 'error',
-            error:
-              'Lyria requires a Gemini API key. Get one free at aistudio.google.com/apikey, then paste it into the Music Generator panel.'
-          })
-          return
-        }
+        let result: { lyrics?: string; audioBase64?: string; mimeType?: string }
 
-        const result = await generateWithApiKey(params, signal)
+        if (params.useGeminiOAuth) {
+          const cred = await getGeminiOAuthCredential()
+          if (!cred) {
+            send({
+              type: 'error',
+              error: 'Not signed in to Gemini. Please connect in Settings to use Zen Vibe Mode.'
+            })
+            return
+          }
+          const [token, projectId] = cred.split('|')
+          result = await generateWithOAuth(params, token, projectId, signal)
+        } else {
+          if (!params.apiKey) {
+            send({
+              type: 'error',
+              error:
+                'Lyria requires a Gemini API key. Get one free at aistudio.google.com/apikey, then paste it into the Music Generator panel.'
+            })
+            return
+          }
+          result = await generateWithApiKey(params, signal)
+        }
 
         if (signal.aborted) return
 

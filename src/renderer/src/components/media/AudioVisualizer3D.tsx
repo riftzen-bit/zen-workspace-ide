@@ -2,12 +2,14 @@ import { useRef, useMemo } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useMediaStore } from '../../store/useMediaStore'
+import { useZenStore } from '../../store/useZenStore'
 
 const BARS_COUNT = 24
 
 const Bars = () => {
   const groupRef = useRef<THREE.Group>(null)
   const isPlaying = useMediaStore((state) => state.isPlaying)
+  const wpm = useZenStore((state) => state.currentWpm)
 
   // Initialize bar positions in a circle
   const bars = useMemo(() => {
@@ -25,6 +27,9 @@ const Bars = () => {
     if (!groupRef.current) return
 
     const time = clock.getElapsedTime()
+    const intensity = Math.min(wpm / 120, 1.5) // Cap intensity multiplier based on WPM
+    const scaleMultiplier = 1.5 + intensity * 1.5
+    const pulseThreshold = 0.98 - intensity * 0.04
 
     groupRef.current.children.forEach((child, i) => {
       if (isPlaying) {
@@ -34,11 +39,11 @@ const Bars = () => {
         const target = Math.max(0.1, (wave1 + wave2) * 0.5 + 0.6)
 
         // Smoothly interpolate current scale to the target
-        child.scale.y = THREE.MathUtils.lerp(child.scale.y, target * 1.5, 0.15)
+        child.scale.y = THREE.MathUtils.lerp(child.scale.y, target * scaleMultiplier, 0.15)
 
         // Randomly pulse some bars higher to mimic high hats/kicks
-        if (Math.random() > 0.98) {
-          child.scale.y = Math.max(child.scale.y, Math.random() * 2 + 1)
+        if (Math.random() > pulseThreshold) {
+          child.scale.y = Math.max(child.scale.y, Math.random() * (2 + intensity * 2) + 1)
         }
       } else {
         // Smoothly go down to idle height (0.1) when paused
@@ -46,8 +51,8 @@ const Bars = () => {
       }
     })
 
-    // Rotate the whole group slowly
-    groupRef.current.rotation.y += isPlaying ? 0.005 : 0.001
+    // Rotate the whole group slowly, increasing with WPM
+    groupRef.current.rotation.y += isPlaying ? 0.005 + intensity * 0.015 : 0.001
   })
 
   return (

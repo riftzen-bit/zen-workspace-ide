@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain } from 'electron'
+import { ipcMain, shell } from 'electron'
 import { randomBytes, createHash } from 'crypto'
 import { createServer, IncomingMessage, ServerResponse } from 'http'
 import { AddressInfo } from 'net'
@@ -337,48 +337,34 @@ export function setupOAuthHandlers(): void {
 
     oauthInProgress = true
     let loopback: Awaited<ReturnType<typeof startLoopbackServer>> | null = null
-    let win: BrowserWindow | null = null
 
     try {
       loopback = await startLoopbackServer()
       const redirectUri = `http://127.0.0.1:${loopback.port}`
       const { verifier, challenge } = generatePKCE()
 
-      win = new BrowserWindow({
-        width: 500,
-        height: 650,
-        show: true,
-        autoHideMenuBar: true,
-        webPreferences: { nodeIntegration: false, contextIsolation: true }
-      })
-
-      win.webContents.setUserAgent(
-        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
-      )
-
-      win.loadURL(
+      const authUrl =
         `https://accounts.google.com/o/oauth2/v2/auth?` +
-          new URLSearchParams({
-            client_id: clientId,
-            redirect_uri: redirectUri,
-            response_type: 'code',
-            scope: SCOPE,
-            code_challenge: challenge,
-            code_challenge_method: 'S256',
-            access_type: 'offline',
-            prompt: 'consent'
-          }).toString()
-      )
+        new URLSearchParams({
+          client_id: clientId,
+          redirect_uri: redirectUri,
+          response_type: 'code',
+          scope: SCOPE,
+          code_challenge: challenge,
+          code_challenge_method: 'S256',
+          access_type: 'offline',
+          prompt: 'consent'
+        }).toString()
 
-      // Race: code arrives vs window closed by user
+      await shell.openExternal(authUrl)
+
+      // Race: code arrives vs timeout
       const code = await Promise.race([
         loopback.waitForCode(),
         new Promise<never>((_, reject) => {
-          win!.on('closed', () => reject(new Error('Window closed')))
+          setTimeout(() => reject(new Error('OAuth timeout (10 minutes)')), 10 * 60 * 1000)
         })
       ])
-
-      if (!win.isDestroyed()) win.close()
 
       const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
         method: 'POST',
@@ -427,7 +413,6 @@ export function setupOAuthHandlers(): void {
       return { success: true, email }
     } catch (err) {
       loopback?.close()
-      if (win && !win.isDestroyed()) win.close()
       const message = err instanceof Error ? err.message : 'Unknown error'
       return { success: false, error: message }
     } finally {
@@ -454,41 +439,33 @@ export function setupOAuthHandlers(): void {
     if (oauthInProgress) return { success: false, error: 'OAuth already in progress' }
     oauthInProgress = true
     let loopback: Awaited<ReturnType<typeof startLoopbackServer>> | null = null
-    let win: BrowserWindow | null = null
+
     try {
       loopback = await startLoopbackServer()
       const redirectUri = `http://127.0.0.1:${loopback.port}`
       const { verifier, challenge } = generatePKCE()
-      win = new BrowserWindow({
-        width: 500,
-        height: 650,
-        show: true,
-        autoHideMenuBar: true,
-        webPreferences: { nodeIntegration: false, contextIsolation: true }
-      })
-      win.webContents.setUserAgent(
-        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
-      )
-      win.loadURL(
+
+      const authUrl =
         `https://accounts.google.com/o/oauth2/v2/auth?` +
-          new URLSearchParams({
-            client_id: AG_CLIENT_ID,
-            redirect_uri: redirectUri,
-            response_type: 'code',
-            scope: AG_SCOPE,
-            code_challenge: challenge,
-            code_challenge_method: 'S256',
-            access_type: 'offline',
-            prompt: 'consent'
-          }).toString()
-      )
+        new URLSearchParams({
+          client_id: AG_CLIENT_ID,
+          redirect_uri: redirectUri,
+          response_type: 'code',
+          scope: AG_SCOPE,
+          code_challenge: challenge,
+          code_challenge_method: 'S256',
+          access_type: 'offline',
+          prompt: 'consent'
+        }).toString()
+
+      await shell.openExternal(authUrl)
+
       const code = await Promise.race([
         loopback.waitForCode(),
         new Promise<never>((_, reject) => {
-          win!.on('closed', () => reject(new Error('Window closed')))
+          setTimeout(() => reject(new Error('OAuth timeout (10 minutes)')), 10 * 60 * 1000)
         })
       ])
-      if (!win.isDestroyed()) win.close()
       const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -530,7 +507,6 @@ export function setupOAuthHandlers(): void {
       return { success: true, email, hasProject: !!projectId }
     } catch (err) {
       loopback?.close()
-      if (win && !win.isDestroyed()) win.close()
       return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
     } finally {
       oauthInProgress = false
@@ -552,41 +528,33 @@ export function setupOAuthHandlers(): void {
     if (oauthInProgress) return { success: false, error: 'OAuth already in progress' }
     oauthInProgress = true
     let loopback: Awaited<ReturnType<typeof startLoopbackServer>> | null = null
-    let win: BrowserWindow | null = null
+
     try {
       loopback = await startLoopbackServer()
       const redirectUri = `http://127.0.0.1:${loopback.port}`
       const { verifier, challenge } = generatePKCE()
-      win = new BrowserWindow({
-        width: 500,
-        height: 650,
-        show: true,
-        autoHideMenuBar: true,
-        webPreferences: { nodeIntegration: false, contextIsolation: true }
-      })
-      win.webContents.setUserAgent(
-        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
-      )
-      win.loadURL(
+
+      const authUrl =
         `https://accounts.google.com/o/oauth2/v2/auth?` +
-          new URLSearchParams({
-            client_id: GEMINI_CLI_CLIENT_ID,
-            redirect_uri: redirectUri,
-            response_type: 'code',
-            scope: GEMINI_CLI_SCOPE,
-            code_challenge: challenge,
-            code_challenge_method: 'S256',
-            access_type: 'offline',
-            prompt: 'consent'
-          }).toString()
-      )
+        new URLSearchParams({
+          client_id: GEMINI_CLI_CLIENT_ID,
+          redirect_uri: redirectUri,
+          response_type: 'code',
+          scope: GEMINI_CLI_SCOPE,
+          code_challenge: challenge,
+          code_challenge_method: 'S256',
+          access_type: 'offline',
+          prompt: 'consent'
+        }).toString()
+
+      await shell.openExternal(authUrl)
+
       const code = await Promise.race([
         loopback.waitForCode(),
         new Promise<never>((_, reject) => {
-          win!.on('closed', () => reject(new Error('Window closed')))
+          setTimeout(() => reject(new Error('OAuth timeout (10 minutes)')), 10 * 60 * 1000)
         })
       ])
-      if (!win.isDestroyed()) win.close()
       const bodyParams = new URLSearchParams({
         code,
         client_id: GEMINI_CLI_CLIENT_ID,
@@ -632,7 +600,6 @@ export function setupOAuthHandlers(): void {
       return { success: true, email }
     } catch (err) {
       loopback?.close()
-      if (win && !win.isDestroyed()) win.close()
       return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
     } finally {
       oauthInProgress = false

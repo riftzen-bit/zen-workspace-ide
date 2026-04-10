@@ -19,76 +19,58 @@ function getWindow(): BrowserWindow | null {
   return windows.length > 0 ? windows[0] : null
 }
 
-function stopWatcher(): Promise<void> {
-  if (watcher) {
-    return watcher.close().then(() => {
-      watcher = null
-      currentWorkspaceDir = null
-    })
+function emitFsEvent(channel: string, path: string) {
+  const win = getWindow()
+  if (win && !win.isDestroyed()) {
+    win.webContents.send(channel, path)
   }
-  return Promise.resolve()
 }
 
-function startWatcher(dirPath: string): void {
+export async function stopWatcher(): Promise<void> {
+  if (watcher) {
+    await watcher.close()
+    watcher = null
+    currentWorkspaceDir = null
+  }
+}
+
+async function startWatcher(dirPath: string): Promise<void> {
   if (currentWorkspaceDir === dirPath) return
 
-  stopWatcher().then(() => {
-    currentWorkspaceDir = dirPath
+  // Ensure previous watcher is fully closed before starting a new one
+  await stopWatcher()
 
-    watcher = chokidar.watch(dirPath, {
-      ignored: IGNORED_PATTERNS,
-      persistent: true,
-      ignoreInitial: true,
-      awaitWriteFinish: {
-        stabilityThreshold: 300,
-        pollInterval: 100
-      }
-    })
+  currentWorkspaceDir = dirPath
 
-    watcher
-      .on('change', (filePath: string) => {
-        const win = getWindow()
-        if (win && !win.isDestroyed()) {
-          win.webContents.send('fs:fileChanged', filePath)
-        }
-      })
-      .on('add', (filePath: string) => {
-        const win = getWindow()
-        if (win && !win.isDestroyed()) {
-          win.webContents.send('fs:fileCreated', filePath)
-        }
-      })
-      .on('unlink', (filePath: string) => {
-        const win = getWindow()
-        if (win && !win.isDestroyed()) {
-          win.webContents.send('fs:fileDeleted', filePath)
-        }
-      })
-      .on('addDir', (dirPath: string) => {
-        const win = getWindow()
-        if (win && !win.isDestroyed()) {
-          win.webContents.send('fs:dirCreated', dirPath)
-        }
-      })
-      .on('unlinkDir', (dirPath: string) => {
-        const win = getWindow()
-        if (win && !win.isDestroyed()) {
-          win.webContents.send('fs:dirDeleted', dirPath)
-        }
-      })
-  })
-}
-
-export function setupFileWatcher(): void {
-  ipcMain.handle('fs:watchWorkspace', (_event, dirPath: string) => {
-    if (dirPath) {
-      startWatcher(dirPath)
-    } else {
-      stopWatcher()
+  watcher = chokidar.watch(dirPath, {
+    ignored: IGNORED_PATTERNS,
+    persistent: true,
+    ignoreInitial: true,
+    awaitWriteFinish: {
+      stabilityThreshold: 300,
+      pollInterval: 100
     }
   })
 
-  ipcMain.handle('fs:stopWatcher', () => {
-    stopWatcher()
+  watcher
+    .on('change', (path) => emitFsEvent('fs:fileChanged', path))
+    .on('add', (path) => emitFsEvent('fs:fileCreated', path))
+    .on('unlink', (path) => emitFsEvent('fs:fileDeleted', path))
+    .on('addDir', (path) => emitFsEvent('fs:dirCreated', path))
+    .on('unlinkDir', (path) => emitFsEvent('fs:dirDeleted', path))
+    .on('error', (error) => console.error(`Watcher error: ${error}`))
+}
+
+export function setupFileWatcher(): void {
+  ipcMain.handle('fs:watchWorkspace', async (_event, dirPath: string) => {
+    if (dirPath) {
+      await startWatcher(dirPath)
+    } else {
+      await stopWatcher()
+    }
+  })
+
+  ipcMain.handle('fs:stopWatcher', async () => {
+    await stopWatcher()
   })
 }
