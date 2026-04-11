@@ -219,4 +219,3 @@ export const TerminalInstance = ({ id, command }: TerminalInstanceProps) => {
     </div>
   )
 }
-

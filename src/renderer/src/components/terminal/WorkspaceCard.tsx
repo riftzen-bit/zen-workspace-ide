@@ -302,4 +302,3 @@ export const WorkspaceCard = ({
     </motion.div>
   )
 }
-

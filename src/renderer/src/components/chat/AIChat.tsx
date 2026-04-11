@@ -317,11 +317,15 @@ export const AIChat = () => {
 
   const handleRemoveContextFile = (path: string) => {
     setExcludedContextPaths((current) => Array.from(new Set([...current, normalizePath(path)])))
-    setExtraContextPaths((current) => current.filter((item) => normalizePath(item) !== normalizePath(path)))
+    setExtraContextPaths((current) =>
+      current.filter((item) => normalizePath(item) !== normalizePath(path))
+    )
   }
 
   const handleAddContextFile = (path: string) => {
-    setExcludedContextPaths((current) => current.filter((item) => normalizePath(item) !== normalizePath(path)))
+    setExcludedContextPaths((current) =>
+      current.filter((item) => normalizePath(item) !== normalizePath(path))
+    )
     setExtraContextPaths((current) => Array.from(new Set([...current, normalizePath(path)])))
   }
 
@@ -609,11 +613,11 @@ export const AIChat = () => {
                     <Trash2 size={14} strokeWidth={1.5} />
                   </button>
                 </div>
-                  {s.title.includes('(Branch)') && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded border border-white/[0.06] text-zinc-500 w-fit">
-                      Branch
-                    </span>
-                  )}
+                {s.title.includes('(Branch)') && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded border border-white/[0.06] text-zinc-500 w-fit">
+                    Branch
+                  </span>
+                )}
                 <div className="flex items-center justify-between text-[11px] text-zinc-600">
                   <span>{s.messages.length} messages</span>
                   <span>{new Date(s.updatedAt).toLocaleDateString()}</span>
@@ -717,7 +721,9 @@ export const AIChat = () => {
                     Smart Context
                   </span>
                   <span className="text-[10px] text-zinc-600">
-                    {isPreparingContext ? 'Preparing...' : `${contextFiles.length} file(s) attached`}
+                    {isPreparingContext
+                      ? 'Preparing...'
+                      : `${contextFiles.length} file(s) attached`}
                   </span>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
@@ -816,4 +822,3 @@ export const AIChat = () => {
     </div>
   )
 }
-

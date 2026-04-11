@@ -81,10 +81,7 @@ function normalizeGeminiOAuthTokens(tokens: OAuthTokens): OAuthTokens {
   const normalizedQuotaProject =
     tokens.quotaProject ?? deriveQuotaProjectFromClientId(normalizedClientId)
 
-  if (
-    normalizedClientId === tokens.clientId &&
-    normalizedQuotaProject === tokens.quotaProject
-  ) {
+  if (normalizedClientId === tokens.clientId && normalizedQuotaProject === tokens.quotaProject) {
     return tokens
   }
 
@@ -108,10 +105,7 @@ function getGeminiOAuthTokens(): OAuthTokens | null {
   }
 
   const normalized = normalizeGeminiOAuthTokens(stored)
-  if (
-    normalized.clientId !== stored.clientId ||
-    normalized.quotaProject !== stored.quotaProject
-  ) {
+  if (normalized.clientId !== stored.clientId || normalized.quotaProject !== stored.quotaProject) {
     writeSecureJson(GEMINI_OAUTH_SECURE_KEY, normalized)
   }
 
@@ -271,7 +265,8 @@ export function setupOAuthHandlers(): void {
     if (!clientId) {
       return {
         success: false,
-        error: 'No OAuth Client ID configured. Open the Setup Guide in Settings to configure your Google credentials.',
+        error:
+          'No OAuth Client ID configured. Open the Setup Guide in Settings to configure your Google credentials.',
         errorCode: 'not_configured'
       }
     }
@@ -317,7 +312,11 @@ export function setupOAuthHandlers(): void {
       ])
 
       if (authResult.state !== expectedState) {
-        return { success: false, error: 'Sign-in verification failed. Please retry.', errorCode: 'state_mismatch' }
+        return {
+          success: false,
+          error: 'Sign-in verification failed. Please retry.',
+          errorCode: 'state_mismatch'
+        }
       }
 
       const clientSecret = getUserClientSecret()
@@ -389,12 +388,17 @@ export function setupOAuthHandlers(): void {
       loopback?.close()
       const message = err instanceof Error ? err.message : 'Unknown error'
       if (message.includes('OAuth timeout')) {
-        return { success: false, error: 'Google sign-in timed out. Please try again.', errorCode: 'timeout' }
+        return {
+          success: false,
+          error: 'Google sign-in timed out. Please try again.',
+          errorCode: 'timeout'
+        }
       }
       if (message.includes('access_denied')) {
         return {
           success: false,
-          error: 'Google blocked the sign-in. You must add your Gmail address as a Test User in Google Cloud Console: go to APIs & Services → OAuth consent screen → Audience → Test users → Add your email. Then try signing in again.',
+          error:
+            'Google blocked the sign-in. You must add your Gmail address as a Test User in Google Cloud Console: go to APIs & Services → OAuth consent screen → Audience → Test users → Add your email. Then try signing in again.',
           errorCode: 'access_denied'
         }
       }
@@ -430,7 +434,10 @@ export function setupOAuthHandlers(): void {
       await shell.openExternal(url)
       return { success: true }
     } catch (err) {
-      return { success: false, error: err instanceof Error ? err.message : 'Failed to open setup guide' }
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'Failed to open setup guide'
+      }
     }
   })
 
@@ -457,8 +464,7 @@ export function setupOAuthHandlers(): void {
         }
       }
 
-      const clientIdChanged =
-        params.clientId !== undefined && params.clientId !== previousClientId
+      const clientIdChanged = params.clientId !== undefined && params.clientId !== previousClientId
       const clientSecretChanged =
         params.clientSecret !== undefined && params.clientSecret !== previousClientSecret
       if (clientIdChanged || clientSecretChanged) {

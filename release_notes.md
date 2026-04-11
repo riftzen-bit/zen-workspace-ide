@@ -26,6 +26,8 @@
 - **Activity Parsing:** Improved ANSI stripping, Windows path detection, paused/working status parsing, and command event rendering in the activity feed.
 - **OAuth Refresh & Migration:** Improved Google OAuth token refresh, migrated older stored tokens safely, and cleared legacy credentials that no longer match the new flow.
 - **Git, Settings, Chat, and Editor Polish:** Refined cross-feature wiring across Git dashboard, AI chat, Monaco editor, settings, prompt flows, and status surfaces for the new dashboards and credential model.
+- **Warning Cleanup:** Removed the full batch of local ESLint/Prettier warnings introduced by the release work, including the final React hooks dependency warning in Task Tracker, so `npm run lint` is clean again.
+- **CI Annotation Cleanup:** Upgraded GitHub Actions workflow dependencies to Node 24-compatible versions and replaced the deprecated release action path, eliminating the Actions runtime deprecation warnings shown in the release annotations.
 - **Release Verification:** Added more provider tests, AI handler safeguards, orchestrator coverage, and updated CI so automated tests now run before packaging.
 
 ## ✨ What's New in v1.1.3

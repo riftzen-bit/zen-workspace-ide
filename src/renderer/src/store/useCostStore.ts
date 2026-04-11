@@ -34,7 +34,9 @@ export const useCostStore = create<CostState>((set) => ({
         const totalCost = +(state.totalCost + amount).toFixed(6)
         const warnedAt80 =
           state.warnedAt80 ||
-          (state.budgetLimit !== null && state.budgetLimit > 0 && totalCost >= state.budgetLimit * 0.8)
+          (state.budgetLimit !== null &&
+            state.budgetLimit > 0 &&
+            totalCost >= state.budgetLimit * 0.8)
         return { totalCost, warnedAt80 }
       })
     }
@@ -47,7 +49,9 @@ export const useCostStore = create<CostState>((set) => ({
         const totalCost = +(state.totalCost + amount).toFixed(6)
         const warnedAt80 =
           state.warnedAt80 ||
-          (state.budgetLimit !== null && state.budgetLimit > 0 && totalCost >= state.budgetLimit * 0.8)
+          (state.budgetLimit !== null &&
+            state.budgetLimit > 0 &&
+            totalCost >= state.budgetLimit * 0.8)
         return {
           totalCost,
           warnedAt80,
@@ -62,7 +66,6 @@ export const useCostStore = create<CostState>((set) => ({
   resetCost: () =>
     set({ totalCost: 0, byTerminalId: {}, warnedAt80: false, limitTriggered: false }),
   setBudgetLimit: (value) => set({ budgetLimit: value, warnedAt80: false, limitTriggered: false }),
-  setAutoPauseOnLimit: (value) => set({ autoPauseOnLimit: value })
-  ,
+  setAutoPauseOnLimit: (value) => set({ autoPauseOnLimit: value }),
   setLimitTriggered: (value) => set({ limitTriggered: value })
 }))

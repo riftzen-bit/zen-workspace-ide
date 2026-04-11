@@ -777,4 +777,3 @@ export const MusicGenerator = () => {
     </AnimatePresence>
   )
 }
-

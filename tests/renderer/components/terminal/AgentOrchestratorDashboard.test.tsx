@@ -148,8 +148,6 @@ describe('AgentOrchestratorDashboard', () => {
       expect(addToast).toHaveBeenCalledWith('Executed on 2 nodes', 'success')
     })
     expect(useActivityStore.getState().events).toHaveLength(2)
-    expect(
-      useActivityStore.getState().events.every((event) => event.type === 'command')
-    ).toBe(true)
+    expect(useActivityStore.getState().events.every((event) => event.type === 'command')).toBe(true)
   })
 })

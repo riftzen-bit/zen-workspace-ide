@@ -65,7 +65,12 @@ const SEVERITY_META: Record<
   }
 }
 
-function replaceLineRange(content: string, lineStart: number, lineEnd: number, replacement: string): string {
+function replaceLineRange(
+  content: string,
+  lineStart: number,
+  lineEnd: number,
+  replacement: string
+): string {
   const lines = content.split(/\r?\n/)
   const replacementLines = replacement.replace(/\r\n/g, '\n').split('\n')
   lines.splice(lineStart - 1, Math.max(1, lineEnd - lineStart + 1), ...replacementLines)
@@ -205,7 +210,9 @@ export const CodeReviewPanel = ({
 
       setFindings((current) =>
         current.map((item) =>
-          item.id === finding.id ? { ...item, canApply: false, suggestion: 'Applied to file.' } : item
+          item.id === finding.id
+            ? { ...item, canApply: false, suggestion: 'Applied to file.' }
+            : item
         )
       )
       onAppliedChange()
@@ -264,11 +271,16 @@ export const CodeReviewPanel = ({
               >
                 <div className="flex items-center gap-2">
                   <meta.Icon size={13} style={{ color: meta.color }} />
-                  <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: meta.color }}>
+                  <span
+                    className="text-[11px] font-semibold uppercase tracking-wide"
+                    style={{ color: meta.color }}
+                  >
                     {meta.label}
                   </span>
                 </div>
-                <p className="text-[18px] font-semibold mt-2 text-zinc-200">{groupedCounts[severity]}</p>
+                <p className="text-[18px] font-semibold mt-2 text-zinc-200">
+                  {groupedCounts[severity]}
+                </p>
               </div>
             )
           })}
@@ -303,7 +315,10 @@ export const CodeReviewPanel = ({
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <meta.Icon size={13} style={{ color: meta.color }} />
-                      <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: meta.color }}>
+                      <span
+                        className="text-[11px] font-semibold uppercase tracking-wide"
+                        style={{ color: meta.color }}
+                      >
                         {meta.label}
                       </span>
                       <span className="text-[10px] text-zinc-600">
@@ -322,11 +337,17 @@ export const CodeReviewPanel = ({
                 </div>
                 <p className="text-[12px] text-zinc-400 mt-2 leading-relaxed">{finding.summary}</p>
                 {finding.suggestion && (
-                  <p className="text-[12px] text-zinc-500 mt-2 leading-relaxed">{finding.suggestion}</p>
+                  <p className="text-[12px] text-zinc-500 mt-2 leading-relaxed">
+                    {finding.suggestion}
+                  </p>
                 )}
                 <div className="flex items-center justify-between gap-2 mt-3">
                   <span className="text-[10px] uppercase tracking-wide text-zinc-600">
-                    {finding.canApply && !staged ? 'Quick fix available' : staged ? 'Read-only diff' : 'Review only'}
+                    {finding.canApply && !staged
+                      ? 'Quick fix available'
+                      : staged
+                        ? 'Read-only diff'
+                        : 'Review only'}
                   </span>
                   <button
                     onClick={() => handleApplyFinding(finding)}

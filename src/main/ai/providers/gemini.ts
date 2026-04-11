@@ -20,12 +20,7 @@ function parseRetryDelaySeconds(errText: string, retryAfterHeader: string | null
     }
   }
 
-  const patterns = [
-    /reset after (\d+)s/i,
-    /retry after (\d+)s/i,
-    /wait (\d+)s/i,
-    /in (\d+)s/i
-  ]
+  const patterns = [/reset after (\d+)s/i, /retry after (\d+)s/i, /wait (\d+)s/i, /in (\d+)s/i]
 
   for (const source of candidates) {
     for (const pattern of patterns) {
@@ -75,11 +70,17 @@ function summarizeGeminiOAuthError(status: number, errText: string): string {
     return 'Google accepted the sign-in, but the linked Google Cloud project cannot be used for Gemini quota. Ensure the OAuth client belongs to your own project and that the Generative Language API is enabled there.'
   }
 
-  if (lower.includes('serviceusage.services.use') || lower.includes('caller does not have required permission to use project')) {
+  if (
+    lower.includes('serviceusage.services.use') ||
+    lower.includes('caller does not have required permission to use project')
+  ) {
     return 'Your Google account does not have permission to use the OAuth client project for Gemini quota. Use a project you own, or grant your account access to that project.'
   }
 
-  if (lower.includes('generativelanguage.googleapis.com') && lower.includes('not been used in project')) {
+  if (
+    lower.includes('generativelanguage.googleapis.com') &&
+    lower.includes('not been used in project')
+  ) {
     return 'The Generative Language API is not enabled for the Google Cloud project linked to this OAuth client. Enable the API in Google Cloud Console, then sign in again.'
   }
 
@@ -88,7 +89,10 @@ function summarizeGeminiOAuthError(status: number, errText: string): string {
   }
 
   if (status === 403) {
-    return parsedMessage || 'Google denied the Gemini OAuth request. Check your Cloud project setup in the Setup Guide.'
+    return (
+      parsedMessage ||
+      'Google denied the Gemini OAuth request. Check your Cloud project setup in the Setup Guide.'
+    )
   }
 
   return parsedMessage || trimmed || `Gemini OAuth error ${status}`

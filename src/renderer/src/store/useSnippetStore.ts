@@ -16,7 +16,10 @@ export const useSnippetStore = create<SnippetState>()(
       customSnippets: [],
       addSnippet: (snippet) =>
         set((state) => ({
-          customSnippets: [snippet, ...state.customSnippets.filter((item) => item.id !== snippet.id)]
+          customSnippets: [
+            snippet,
+            ...state.customSnippets.filter((item) => item.id !== snippet.id)
+          ]
         })),
       removeSnippet: (id) =>
         set((state) => ({

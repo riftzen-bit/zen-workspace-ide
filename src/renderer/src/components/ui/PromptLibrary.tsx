@@ -449,4 +449,3 @@ export const PromptLibrary = () => {
     </AnimatePresence>
   )
 }
-

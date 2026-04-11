@@ -369,4 +369,3 @@ export const GitDashboard = () => {
     </div>
   )
 }
-

@@ -508,4 +508,3 @@ export const CommandPalette = () => {
     </AnimatePresence>
   )
 }
-

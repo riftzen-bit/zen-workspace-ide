@@ -219,7 +219,8 @@ export function setupLyriaHandlers(): void {
         } else if (params.useGeminiOAuth) {
           send({
             type: 'error',
-            error: 'Not signed in to Gemini. Open Setup Guide in Settings to configure your credentials.'
+            error:
+              'Not signed in to Gemini. Open Setup Guide in Settings to configure your credentials.'
           })
           return
         } else {

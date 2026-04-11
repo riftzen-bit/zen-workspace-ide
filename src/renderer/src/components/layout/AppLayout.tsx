@@ -44,12 +44,8 @@ export const AppLayout = () => {
     setCommandPaletteOpen
   } = useUIStore()
   const { activeWorkspaceId } = useTerminalStore()
-  const {
-    autoPlayVibe,
-    agentBudgetLimit,
-    autoPauseAgentBudget,
-    adaptiveAmbientEnabled
-  } = useSettingsStore()
+  const { autoPlayVibe, agentBudgetLimit, autoPauseAgentBudget, adaptiveAmbientEnabled } =
+    useSettingsStore()
   const isWorkspaceActive = activeWorkspaceId !== null
   const { isZenMode, currentWpm, errorCount } = useZenStore()
   const adaptiveAmbientRef = useRef<{ vibe: 'lofi' | 'rain' | null; changedAt: number }>({
@@ -59,7 +55,9 @@ export const AppLayout = () => {
 
   const pauseActiveWorkspacesForBudget = async () => {
     const terminalStore = useTerminalStore.getState()
-    const activeWorkspaces = terminalStore.workspaces.filter((workspace) => workspace.status === 'active')
+    const activeWorkspaces = terminalStore.workspaces.filter(
+      (workspace) => workspace.status === 'active'
+    )
     if (activeWorkspaces.length === 0) {
       return
     }
@@ -82,7 +80,10 @@ export const AppLayout = () => {
     if (failures.some((result) => result.reason === 'unsupported-platform')) {
       useUIStore
         .getState()
-        .addToast('Budget limit reached, but workspace auto-pause is not supported on this platform.', 'warning')
+        .addToast(
+          'Budget limit reached, but workspace auto-pause is not supported on this platform.',
+          'warning'
+        )
       return
     }
 
@@ -153,7 +154,10 @@ export const AppLayout = () => {
           if (!before.warnedAt80 && after.warnedAt80 && after.totalCost < after.budgetLimit) {
             useUIStore
               .getState()
-              .addToast(`AI budget is ${Math.round((after.totalCost / after.budgetLimit) * 100)}% used.`, 'warning')
+              .addToast(
+                `AI budget is ${Math.round((after.totalCost / after.budgetLimit) * 100)}% used.`,
+                'warning'
+              )
           }
 
           if (!before.limitTriggered && after.totalCost >= after.budgetLimit) {
@@ -366,8 +370,7 @@ export const AppLayout = () => {
 
     '--color-text-primary': '#cccccc',
     '--color-selection-bg': '#333333',
-    '--font-primary':
-      '"Space Mono", "JetBrains Mono", Consolas, Menlo, monospace'
+    '--font-primary': '"Space Mono", "JetBrains Mono", Consolas, Menlo, monospace'
   } as React.CSSProperties
 
   return (
@@ -423,9 +426,7 @@ export const AppLayout = () => {
           )}
 
           {/* Main Content Area */}
-          <div
-            className={`flex-1 min-w-0 flex flex-col relative z-0 overflow-hidden bg-[#050505]`}
-          >
+          <div className={`flex-1 min-w-0 flex flex-col relative z-0 overflow-hidden bg-[#050505]`}>
             <div className="flex-1 min-h-0" style={{ display: showTerminalView ? 'flex' : 'none' }}>
               <FocusTerminal />
             </div>

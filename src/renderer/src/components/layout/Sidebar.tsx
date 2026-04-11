@@ -393,11 +393,11 @@ export const Sidebar = () => {
                 ? 'Search'
                 : activeView === 'tasks'
                   ? 'Tasks'
-                : activeView === 'git'
-                  ? 'Source Control'
-                  : activeView === 'activity'
-                    ? 'Activity'
-                    : 'Search'}
+                  : activeView === 'git'
+                    ? 'Source Control'
+                    : activeView === 'activity'
+                      ? 'Activity'
+                      : 'Search'}
           </span>
         </div>
 
@@ -537,4 +537,3 @@ export const Sidebar = () => {
     </div>
   )
 }
-

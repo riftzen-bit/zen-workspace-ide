@@ -69,9 +69,11 @@ export const useChatStore = create<ChatState>()(
       getActiveMessage: () => {
         const { activeMessageId } = get()
         if (!activeMessageId) return null
-        return get()
-          .getMessages()
-          .find((message) => message.id === activeMessageId) ?? null
+        return (
+          get()
+            .getMessages()
+            .find((message) => message.id === activeMessageId) ?? null
+        )
       },
 
       addMessage: (msg) =>
@@ -262,7 +264,9 @@ export const useChatStore = create<ChatState>()(
           ...p,
           sessions,
           activeMessageId:
-            p.activeMessageId ?? activeSession?.messages[activeSession.messages.length - 1]?.id ?? null
+            p.activeMessageId ??
+            activeSession?.messages[activeSession.messages.length - 1]?.id ??
+            null
         }
       }
     }

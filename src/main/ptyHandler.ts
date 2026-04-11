@@ -78,11 +78,14 @@ async function waitForPtyReady(id: string, timeoutMs = 1200): Promise<boolean> {
   return isPtyReady(id)
 }
 
-function emitManualActivity(terminalId: string, event: {
-  type: string
-  message: string
-  agentStatus?: 'idle' | 'working' | 'waiting' | 'error' | 'done' | 'paused'
-}) {
+function emitManualActivity(
+  terminalId: string,
+  event: {
+    type: string
+    message: string
+    agentStatus?: 'idle' | 'working' | 'waiting' | 'error' | 'done' | 'paused'
+  }
+) {
   const win = BrowserWindow.getAllWindows()[0]
   if (win && !win.isDestroyed()) {
     win.webContents.send('terminal:activity', {
@@ -321,7 +324,11 @@ export function setupPtyHandlers() {
       try {
         process.kill(ptys[id].pid, 'SIGSTOP')
         ptyStatus[id] = 'paused'
-        emitManualActivity(id, { type: 'status', message: 'Workspace paused', agentStatus: 'paused' })
+        emitManualActivity(id, {
+          type: 'status',
+          message: 'Workspace paused',
+          agentStatus: 'paused'
+        })
         return { id, success: true }
       } catch (e) {
         return { id, success: false, reason: String(e) }
@@ -344,7 +351,11 @@ export function setupPtyHandlers() {
       try {
         process.kill(ptys[id].pid, 'SIGCONT')
         ptyStatus[id] = 'running'
-        emitManualActivity(id, { type: 'status', message: 'Workspace resumed', agentStatus: 'idle' })
+        emitManualActivity(id, {
+          type: 'status',
+          message: 'Workspace resumed',
+          agentStatus: 'idle'
+        })
         return { id, success: true }
       } catch (e) {
         return { id, success: false, reason: String(e) }

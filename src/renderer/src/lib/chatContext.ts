@@ -59,7 +59,11 @@ function extractRelativeImports(content: string): string[] {
   return Array.from(imports)
 }
 
-function resolveImportCandidates(fromFile: string, specifier: string, allPaths: string[]): string[] {
+function resolveImportCandidates(
+  fromFile: string,
+  specifier: string,
+  allPaths: string[]
+): string[] {
   const fromDir = dirname(fromFile)
   const normalizedBase = normalizePath(joinPath(fromDir, specifier))
   const candidates = new Set<string>([normalizedBase])
@@ -98,7 +102,9 @@ function findRootConfigs(workspaceDir: string | null | undefined, allPaths: stri
   for (const path of allPaths) {
     byRelativePath.set(toRelativePath(workspaceDir, path), path)
   }
-  return ROOT_CONTEXT_FILES.map((name) => byRelativePath.get(name)).filter((value): value is string => !!value)
+  return ROOT_CONTEXT_FILES.map((name) => byRelativePath.get(name)).filter(
+    (value): value is string => !!value
+  )
 }
 
 async function readContextFileContent(

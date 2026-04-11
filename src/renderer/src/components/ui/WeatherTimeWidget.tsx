@@ -207,4 +207,3 @@ export const WeatherTimeWidget = () => {
     </motion.div>
   )
 }
-

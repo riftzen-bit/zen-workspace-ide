@@ -23,9 +23,9 @@ jobs:
     name: Lint & Typecheck
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: '22'
           cache: 'npm'
@@ -69,9 +69,9 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: '22'
           cache: 'npm'
@@ -114,7 +114,7 @@ jobs:
 
       # Upload artifacts (only installers, no yml/blockmap)
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.label }}-artifacts
           path: |
@@ -137,10 +137,10 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # Download all platform artifacts
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           path: artifacts
           merge-multiple: true
@@ -149,12 +149,18 @@ jobs:
         run: find artifacts -type f | sort
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          draft: false
-          prerelease: ${{ contains(github.ref, '-beta') || contains(github.ref, '-alpha') }}
-          generate_release_notes: true
-          files: |
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s globstar nullglob
+
+          tag_name="${GITHUB_REF_NAME}"
+          prerelease_flag=()
+          if [[ "${IS_PRERELEASE}" == "true" ]]; then
+            prerelease_flag+=(--prerelease)
+          fi
+
+          files=(
             artifacts/**/*.dmg
             artifacts/**/*.zip
             artifacts/**/*.exe
@@ -162,5 +168,18 @@ jobs:
             artifacts/**/*.deb
             artifacts/**/*.rpm
             artifacts/**/*.snap
+          )
+
+          if [[ ${#files[@]} -eq 0 ]]; then
+            echo "No release assets were found under artifacts/."
+            exit 1
+          fi
+
+          if gh release view "${tag_name}" >/dev/null 2>&1; then
+            gh release upload "${tag_name}" "${files[@]}" --clobber
+          else
+            gh release create "${tag_name}" "${files[@]}" --title "${tag_name}" --generate-notes "${prerelease_flag[@]}"
+          fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IS_PRERELEASE: ${{ contains(github.ref, '-beta') || contains(github.ref, '-alpha') }}

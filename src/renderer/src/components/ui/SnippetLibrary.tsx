@@ -15,8 +15,7 @@ const BUILTIN_SNIPPETS: CodeSnippet[] = [
     label: 'React Data Hook',
     category: 'React',
     description: 'Fetch data with loading and error states.',
-    body:
-      "import { useEffect, useState } from 'react'\n\nexport function use${resourceName}() {\n  const [data, setData] = useState<${resourceType} | null>(null)\n  const [loading, setLoading] = useState(true)\n  const [error, setError] = useState<string | null>(null)\n\n  useEffect(() => {\n    let cancelled = false\n\n    async function load() {\n      try {\n        setLoading(true)\n        setError(null)\n        const result = await ${fetchCall}\n        if (!cancelled) {\n          setData(result)\n        }\n      } catch (err) {\n        if (!cancelled) {\n          setError(err instanceof Error ? err.message : 'Unknown error')\n        }\n      } finally {\n        if (!cancelled) {\n          setLoading(false)\n        }\n      }\n    }\n\n    void load()\n    return () => {\n      cancelled = true\n    }\n  }, [])\n\n  return { data, loading, error }\n}\n",
+    body: "import { useEffect, useState } from 'react'\n\nexport function use${resourceName}() {\n  const [data, setData] = useState<${resourceType} | null>(null)\n  const [loading, setLoading] = useState(true)\n  const [error, setError] = useState<string | null>(null)\n\n  useEffect(() => {\n    let cancelled = false\n\n    async function load() {\n      try {\n        setLoading(true)\n        setError(null)\n        const result = await ${fetchCall}\n        if (!cancelled) {\n          setData(result)\n        }\n      } catch (err) {\n        if (!cancelled) {\n          setError(err instanceof Error ? err.message : 'Unknown error')\n        }\n      } finally {\n        if (!cancelled) {\n          setLoading(false)\n        }\n      }\n    }\n\n    void load()\n    return () => {\n      cancelled = true\n    }\n  }, [])\n\n  return { data, loading, error }\n}\n",
     placeholders: ['resourceName', 'resourceType', 'fetchCall'],
     builtin: true,
     createdAt: 0
@@ -26,8 +25,7 @@ const BUILTIN_SNIPPETS: CodeSnippet[] = [
     label: 'Vitest Suite',
     category: 'Testing',
     description: 'A focused unit test file starter.',
-    body:
-      "import { describe, it, expect } from 'vitest'\nimport { ${symbolName} } from '${importPath}'\n\ndescribe('${symbolName}', () => {\n  it('behaves as expected', () => {\n    const result = ${symbolName}(${callArgs})\n    expect(result).toEqual(${expectedValue})\n  })\n})\n",
+    body: "import { describe, it, expect } from 'vitest'\nimport { ${symbolName} } from '${importPath}'\n\ndescribe('${symbolName}', () => {\n  it('behaves as expected', () => {\n    const result = ${symbolName}(${callArgs})\n    expect(result).toEqual(${expectedValue})\n  })\n})\n",
     placeholders: ['symbolName', 'importPath', 'callArgs', 'expectedValue'],
     builtin: true,
     createdAt: 0
@@ -96,7 +94,9 @@ export const SnippetLibrary = () => {
     const resolved = resolveSnippetBody(snippet, values)
     const { fileContents } = useFileStore.getState()
     const existing = fileContents[activeFile] ?? (await window.api.readFile(activeFile)) ?? ''
-    const nextContent = existing.endsWith('\n') ? `${existing}${resolved}` : `${existing}\n${resolved}`
+    const nextContent = existing.endsWith('\n')
+      ? `${existing}${resolved}`
+      : `${existing}\n${resolved}`
     updateFileContent(activeFile, nextContent)
     setSnippetLibraryOpen(false)
     addToast(`Inserted ${snippet.label}`, 'success')
@@ -142,9 +142,12 @@ export const SnippetLibrary = () => {
       addSnippet({
         id: `snippet-${Date.now()}`,
         label: payload.label.trim(),
-        category: typeof payload.category === 'string' ? payload.category.trim() || 'Custom' : 'Custom',
+        category:
+          typeof payload.category === 'string' ? payload.category.trim() || 'Custom' : 'Custom',
         description:
-          typeof payload.description === 'string' ? payload.description.trim() || 'AI generated snippet' : 'AI generated snippet',
+          typeof payload.description === 'string'
+            ? payload.description.trim() || 'AI generated snippet'
+            : 'AI generated snippet',
         body,
         placeholders: extractSnippetPlaceholders(body),
         createdAt: Date.now()
@@ -192,18 +195,28 @@ export const SnippetLibrary = () => {
           >
             <div className="flex items-center gap-2.5">
               <Sparkles size={15} style={{ color: 'var(--color-accent-bright)' }} />
-              <span className="text-body font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+              <span
+                className="text-body font-semibold"
+                style={{ color: 'var(--color-text-primary)' }}
+              >
                 Snippet Library
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <button onClick={handleGenerateSnippet} className="btn-ghost px-3 py-1.5 text-body" disabled={isGenerating}>
+              <button
+                onClick={handleGenerateSnippet}
+                className="btn-ghost px-3 py-1.5 text-body"
+                disabled={isGenerating}
+              >
                 <span className="inline-flex items-center gap-1.5">
                   <Wand2 size={13} />
                   {isGenerating ? 'Generating...' : 'Generate'}
                 </span>
               </button>
-              <button onClick={() => setIsAdding((current) => !current)} className="btn-ghost px-3 py-1.5 text-body">
+              <button
+                onClick={() => setIsAdding((current) => !current)}
+                className="btn-ghost px-3 py-1.5 text-body"
+              >
                 <span className="inline-flex items-center gap-1.5">
                   <Plus size={13} />
                   Add
@@ -266,7 +279,10 @@ export const SnippetLibrary = () => {
                 rows={6}
               />
               <div className="flex justify-end gap-2">
-                <button onClick={() => setIsAdding(false)} className="btn-ghost px-3 py-1.5 text-body">
+                <button
+                  onClick={() => setIsAdding(false)}
+                  className="btn-ghost px-3 py-1.5 text-body"
+                >
                   Cancel
                 </button>
                 <button onClick={handleSaveSnippet} className="btn-primary">
@@ -294,7 +310,9 @@ export const SnippetLibrary = () => {
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="text-[13px] font-medium text-zinc-200">{snippet.label}</span>
+                        <span className="text-[13px] font-medium text-zinc-200">
+                          {snippet.label}
+                        </span>
                         <span className="text-[10px] uppercase tracking-wide text-zinc-600">
                           {snippet.category}
                         </span>

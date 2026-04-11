@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { CheckSquare, RefreshCw, MessageSquare, AlertTriangle } from 'lucide-react'
 import { useFileStore } from '../../store/useFileStore'
 import { useUIStore } from '../../store/useUIStore'
@@ -19,7 +19,7 @@ export const TaskTracker = () => {
   const [filter, setFilter] = useState<FilterTag>('ALL')
   const [loading, setLoading] = useState(false)
 
-  const refreshTodos = async () => {
+  const refreshTodos = useCallback(async () => {
     if (!workspaceDir) {
       setTodos([])
       return
@@ -34,11 +34,11 @@ export const TaskTracker = () => {
     } finally {
       setLoading(false)
     }
-  }
+  }, [addToast, workspaceDir])
 
   useEffect(() => {
     void refreshTodos()
-  }, [workspaceDir])
+  }, [refreshTodos])
 
   const filteredTodos = useMemo(() => {
     return filter === 'ALL' ? todos : todos.filter((todo) => todo.tag === filter)
@@ -86,7 +86,9 @@ export const TaskTracker = () => {
         style={{ borderColor: 'var(--color-border-subtle)' }}
       >
         <div className="flex items-center gap-2">
-          <span className="text-[11px] font-semibold tracking-wider uppercase text-zinc-500">Tasks</span>
+          <span className="text-[11px] font-semibold tracking-wider uppercase text-zinc-500">
+            Tasks
+          </span>
           <span className="text-[10px] px-1.5 py-0.5 border border-white/[0.05] text-zinc-500">
             {filteredTodos.length}
           </span>
@@ -96,7 +98,10 @@ export const TaskTracker = () => {
         </button>
       </div>
 
-      <div className="p-3 flex gap-2 border-b" style={{ borderColor: 'var(--color-border-subtle)' }}>
+      <div
+        className="p-3 flex gap-2 border-b"
+        style={{ borderColor: 'var(--color-border-subtle)' }}
+      >
         {(['ALL', 'TODO', 'FIXME', 'HACK'] as FilterTag[]).map((tag) => {
           const active = filter === tag
           return (
@@ -166,9 +171,13 @@ export const TaskTracker = () => {
                             </span>
                             <span className="text-[10px] text-zinc-600">Line {todo.line}</span>
                           </div>
-                          <p className="text-[12px] text-zinc-300 mt-2 leading-relaxed">{todo.text}</p>
+                          <p className="text-[12px] text-zinc-300 mt-2 leading-relaxed">
+                            {todo.text}
+                          </p>
                         </div>
-                        {todo.tag === 'HACK' && <AlertTriangle size={14} className="text-amber-400 shrink-0" />}
+                        {todo.tag === 'HACK' && (
+                          <AlertTriangle size={14} className="text-amber-400 shrink-0" />
+                        )}
                       </div>
                       <div className="flex items-center justify-between gap-2 mt-3">
                         <button
