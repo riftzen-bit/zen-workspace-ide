@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   X,
@@ -11,7 +11,7 @@ import {
   LogIn,
   LogOut,
   Check,
-  Download
+  ExternalLink
 } from 'lucide-react'
 import { useUIStore } from '../../store/useUIStore'
 import { useSettingsStore, AIProviderType } from '../../store/useSettingsStore'
@@ -22,8 +22,7 @@ const PROVIDERS: { id: AIProviderType; label: string; color: string }[] = [
   { id: 'openai', label: 'OpenAI', color: '#10a37f' },
   { id: 'anthropic', label: 'Claude', color: '#d97757' },
   { id: 'groq', label: 'Groq', color: '#f55036' },
-  { id: 'ollama', label: 'Ollama', color: '#888' },
-  { id: 'antigravity', label: 'Antigravity', color: '#4285F4' }
+  { id: 'ollama', label: 'Ollama', color: '#888' }
 ]
 
 const MODELS: Record<AIProviderType, string[]> = {
@@ -52,25 +51,19 @@ const MODELS: Record<AIProviderType, string[]> = {
     'gemma3:12b',
     'phi4',
     'qwen3:8b'
-  ],
-  antigravity: [
-    'gemini-2.5-pro',
-    'gemini-2.5-flash',
-    'gemini-3.1-pro-preview',
-    'gemini-3-pro-preview',
-    'gemini-3-flash-preview',
-    'gemini-2.0-flash'
   ]
 }
 
 const PasswordInput = ({
   value,
   onChange,
-  placeholder
+  placeholder,
+  disabled = false
 }: {
   value: string
   onChange: (v: string) => void
   placeholder?: string
+  disabled?: boolean
 }) => {
   const [show, setShow] = useState(false)
   return (
@@ -80,12 +73,14 @@ const PasswordInput = ({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
+        disabled={disabled}
         className="input-field w-full pr-10"
       />
       <button
         type="button"
+        disabled={disabled}
         onClick={() => setShow((s) => !s)}
-        className="absolute right-3 top-1/2 -translate-y-1/2 btn-ghost p-0"
+        className="absolute right-3 top-1/2 -translate-y-1/2 btn-ghost p-0 disabled:opacity-50"
         style={{ color: 'var(--color-text-muted)' }}
       >
         {show ? <EyeOff size={14} /> : <Eye size={14} />}
@@ -97,12 +92,12 @@ const PasswordInput = ({
 const Toggle = ({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) => (
   <button
     onClick={() => onChange(!value)}
-    className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none"
+    className="relative inline-flex h-6 w-11 items-center rounded-none transition-colors duration-200 focus:outline-none"
     style={{ backgroundColor: value ? 'var(--color-accent)' : 'var(--color-surface-5)' }}
   >
     <motion.span
       layout
-      className="inline-block h-4 w-4 rounded-full bg-white"
+      className="inline-block h-4 w-4 rounded-none bg-white"
       animate={{ x: value ? 22 : 4 }}
       transition={{ type: 'spring', stiffness: 500, damping: 30 }}
     />
@@ -125,9 +120,6 @@ export const SettingsOverlay = () => {
     setGroqApiKey,
     ollamaUrl,
     setOllamaUrl,
-    antigravityOAuthActive,
-    antigravityOAuthEmail,
-    setAntigravityOAuthActive,
     geminiOAuthActive,
     geminiOAuthEmail,
     setGeminiOAuthActive,
@@ -138,46 +130,63 @@ export const SettingsOverlay = () => {
     fontSize,
     setFontSize,
     wordWrap,
-    setWordWrap
+    setWordWrap,
+    smartContextEnabled,
+    setSmartContextEnabled,
+    inlineCompletionEnabled,
+    setInlineCompletionEnabled,
+    adaptiveAmbientEnabled,
+    setAdaptiveAmbientEnabled,
+    agentBudgetLimit,
+    setAgentBudgetLimit,
+    autoPauseAgentBudget,
+    setAutoPauseAgentBudget
   } = settings
 
   const [selectedTab, setSelectedTab] = useState<AIProviderType>(activeProvider)
-  const [agLoading, setAgLoading] = useState(false)
-  const [agError, setAgError] = useState('')
   const [geminiOAuthLoading, setGeminiOAuthLoading] = useState(false)
   const [geminiOAuthError, setGeminiOAuthError] = useState('')
-  const [cliAvailable, setCliAvailable] = useState(false)
-  const [cliImporting, setCliImporting] = useState(false)
+  const [setupGuideOpening, setSetupGuideOpening] = useState(false)
 
   useEffect(() => {
-    if (selectedTab === 'gemini') {
-      window.api.oauth.geminiCheckCli().then((r) => setCliAvailable(r.available))
-    }
-  }, [selectedTab])
+    if (selectedTab !== 'gemini') return
+    let cancelled = false
 
-  const handleAntigravityLogin = async () => {
-    setAgLoading(true)
-    setAgError('')
-    try {
-      const result = await window.api.oauth.antigravityStart()
-      if (result.success) {
-        setAntigravityOAuthActive(true, result.email)
-      } else {
-        setAgError(result.error ?? 'Login failed')
+    const syncGeminiOAuthState = async () => {
+      try {
+        const status = await window.api.oauth.geminiStatus()
+        if (cancelled) return
+        setGeminiOAuthActive(status.active, status.email)
+      } catch {
+        // ignore
       }
-    } catch {
-      setAgError('OAuth failed')
-    } finally {
-      setAgLoading(false)
     }
-  }
 
-  const handleAntigravityLogout = async () => {
-    await window.api.oauth.antigravityLogout()
-    setAntigravityOAuthActive(false)
-  }
+    void syncGeminiOAuthState()
+
+    return () => {
+      cancelled = true
+    }
+  }, [selectedTab, setGeminiOAuthActive])
+
+  // Listen for credential updates from the setup guide
+  useEffect(() => {
+    const cleanup = window.api.oauth.onKeysUpdated(() => {
+      void settings.loadSecureKeys().then(async () => {
+        try {
+          const status = await window.api.oauth.geminiStatus()
+          setGeminiOAuthActive(status.active, status.email)
+          if (!status.active) setGeminiOAuthError('')
+        } catch {
+          setGeminiOAuthActive(false)
+        }
+      })
+    })
+    return cleanup
+  }, [settings, setGeminiOAuthActive])
 
   const handleGeminiOAuthLogin = async () => {
+    if (geminiOAuthLoading) return
     setGeminiOAuthLoading(true)
     setGeminiOAuthError('')
     try {
@@ -185,7 +194,7 @@ export const SettingsOverlay = () => {
       if (result.success) {
         setGeminiOAuthActive(true, result.email)
       } else {
-        setGeminiOAuthError(result.error ?? 'Login failed')
+        setGeminiOAuthError(result.error ?? 'OAuth failed')
       }
     } catch {
       setGeminiOAuthError('OAuth failed')
@@ -197,135 +206,151 @@ export const SettingsOverlay = () => {
   const handleGeminiOAuthLogout = async () => {
     await window.api.oauth.geminiLogout()
     setGeminiOAuthActive(false)
+    setGeminiOAuthError('')
   }
 
-  const handleGeminiCliImport = async () => {
-    setCliImporting(true)
-    setGeminiOAuthError('')
+  const handleOpenSetupGuide = async () => {
+    if (setupGuideOpening) return
+    setSetupGuideOpening(true)
     try {
-      const result = await window.api.oauth.geminiImportCli()
-      if (result.success) {
-        setGeminiOAuthActive(true, result.email)
-      } else {
-        setGeminiOAuthError(result.error ?? 'Import failed')
-      }
+      await window.api.oauth.openSetupGuide()
     } catch {
-      setGeminiOAuthError('Failed to import Gemini CLI credentials')
+      // ignore
     } finally {
-      setCliImporting(false)
+      setTimeout(() => setSetupGuideOpening(false), 1000)
     }
   }
+
+  const hasOAuthCredentials = settings.googleClientId.length > 0
 
   const renderProviderConfig = () => {
     switch (selectedTab) {
       case 'gemini':
         return (
           <div className="flex flex-col gap-4">
-            {/* Sign in with Google — primary method */}
+            {/* Setup Guide button */}
             <div
-              className="rounded-xl p-4 flex flex-col gap-3"
-              style={{
-                backgroundColor: 'var(--color-surface-3)',
-                border: '1px solid var(--color-border-subtle)'
-              }}
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p
-                    className="text-body font-medium"
-                    style={{ color: 'var(--color-text-secondary)' }}
-                  >
-                    Sign in with Google
-                  </p>
-                  {geminiOAuthActive && geminiOAuthEmail && (
-                    <p className="text-caption mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
-                      {geminiOAuthEmail}
-                    </p>
-                  )}
-                </div>
-                {geminiOAuthActive ? (
-                  <button
-                    onClick={handleGeminiOAuthLogout}
-                    className="btn-ghost flex items-center gap-1.5 text-label"
-                    style={{ color: 'var(--color-text-muted)' }}
-                  >
-                    <LogOut size={13} /> Sign out
-                  </button>
-                ) : (
-                  <button
-                    onClick={handleGeminiOAuthLogin}
-                    disabled={geminiOAuthLoading}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-label font-medium transition-colors disabled:opacity-50"
-                    style={{
-                      backgroundColor: 'var(--color-surface-4)',
-                      border: '1px solid var(--color-border-default)',
-                      color: 'var(--color-text-secondary)'
-                    }}
-                  >
-                    <LogIn size={13} />
-                    {geminiOAuthLoading ? 'Signing in…' : 'Sign in with Google'}
-                  </button>
-                )}
-              </div>
-              {geminiOAuthActive && (
-                <div
-                  className="flex items-center gap-1.5 text-caption"
-                  style={{ color: 'var(--color-secondary)' }}
-                >
-                  <Check size={11} /> Connected to Gemini API (generativelanguage.googleapis.com)
-                </div>
-              )}
-              {geminiOAuthError && (
-                <p className="text-caption" style={{ color: '#ef4444' }}>
-                  {geminiOAuthError}
-                </p>
-              )}
-              <p className="text-caption" style={{ color: 'var(--color-text-muted)' }}>
-                Authenticate directly with Gemini API — no API key needed.
-              </p>
-
-              {/* Import from Gemini CLI */}
-              {!geminiOAuthActive && cliAvailable && (
-                <div
-                  className="flex items-center justify-between pt-2"
-                  style={{ borderTop: '1px solid var(--color-border-subtle)' }}
-                >
-                  <p className="text-caption" style={{ color: 'var(--color-text-muted)' }}>
-                    Gemini CLI detected — import existing credentials
-                  </p>
-                  <button
-                    onClick={handleGeminiCliImport}
-                    disabled={cliImporting}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-label font-medium transition-colors disabled:opacity-50"
-                    style={{
-                      backgroundColor: 'var(--color-surface-4)',
-                      border: '1px solid var(--color-border-default)',
-                      color: 'var(--color-text-secondary)'
-                    }}
-                  >
-                    <Download size={12} />
-                    {cliImporting ? 'Importing…' : 'Import from CLI'}
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* API key fallback */}
-            <div
-              className="rounded-xl p-4 flex flex-col gap-3"
+              className="rounded-none p-4 flex items-center justify-between"
               style={{
                 backgroundColor: 'var(--color-surface-3)',
                 border: '1px solid var(--color-border-subtle)',
-                opacity: geminiOAuthActive ? 0.5 : 1
+                borderLeftColor: '#4285F4',
+                borderLeftWidth: '2px'
+              }}
+            >
+              <div>
+                <p
+                  className="text-body font-medium"
+                  style={{ color: 'var(--color-text-secondary)' }}
+                >
+                  Setup Guide
+                </p>
+                <p className="text-caption mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
+                  Get your own API key or OAuth credentials from Google
+                </p>
+              </div>
+              <button
+                onClick={handleOpenSetupGuide}
+                disabled={setupGuideOpening}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-none text-label font-medium transition-colors disabled:opacity-50"
+                style={{
+                  backgroundColor: '#2563eb',
+                  border: '1px solid #3b82f6',
+                  color: '#fff'
+                }}
+              >
+                <ExternalLink size={13} />
+                {setupGuideOpening ? 'Opening...' : 'Open Guide'}
+              </button>
+            </div>
+
+            {/* Sign in with Google (OAuth) */}
+            {hasOAuthCredentials && (
+              <div
+                className="rounded-none p-4 flex flex-col gap-3"
+                style={{
+                  backgroundColor: 'var(--color-surface-3)',
+                  border: '1px solid var(--color-border-subtle)'
+                }}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p
+                      className="text-body font-medium"
+                      style={{ color: 'var(--color-text-secondary)' }}
+                    >
+                      Sign in with Google
+                    </p>
+                    {geminiOAuthActive && geminiOAuthEmail && (
+                      <p
+                        className="text-caption mt-0.5"
+                        style={{ color: 'var(--color-text-muted)' }}
+                      >
+                        {geminiOAuthEmail}
+                      </p>
+                    )}
+                  </div>
+                  {geminiOAuthActive ? (
+                    <button
+                      onClick={handleGeminiOAuthLogout}
+                      className="btn-ghost flex items-center gap-1.5 text-label"
+                      style={{ color: 'var(--color-text-muted)' }}
+                    >
+                      <LogOut size={13} /> Sign out
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleGeminiOAuthLogin}
+                      disabled={geminiOAuthLoading}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-none text-label font-medium transition-colors disabled:opacity-50"
+                      style={{
+                        backgroundColor: 'var(--color-surface-4)',
+                        border: '1px solid var(--color-border-default)',
+                        color: 'var(--color-text-secondary)'
+                      }}
+                    >
+                      <LogIn size={13} />
+                      {geminiOAuthLoading ? 'Signing in...' : 'Sign in with Google'}
+                    </button>
+                  )}
+                </div>
+                {geminiOAuthActive && (
+                  <div
+                    className="flex items-center gap-1.5 text-caption"
+                    style={{ color: 'var(--color-secondary)' }}
+                  >
+                    <Check size={11} /> Connected to Gemini API
+                  </div>
+                )}
+                {geminiOAuthError && (
+                  <p className="text-caption" style={{ color: '#ef4444' }}>
+                    {geminiOAuthError}
+                  </p>
+                )}
+                <p className="text-caption" style={{ color: 'var(--color-text-muted)' }}>
+                  Uses your own OAuth credentials. No shared quotas.
+                </p>
+              </div>
+            )}
+
+            {/* API key input */}
+            <div
+              className="rounded-none p-4 flex flex-col gap-3"
+              style={{
+                backgroundColor: 'var(--color-surface-3)',
+                border: '1px solid var(--color-border-subtle)',
+                opacity: geminiOAuthActive ? 0.5 : 1,
+                pointerEvents: geminiOAuthActive ? 'none' : 'auto'
               }}
             >
               <p className="text-body font-medium" style={{ color: 'var(--color-text-secondary)' }}>
-                Or use an API Key
+                {hasOAuthCredentials ? 'Or use an API Key' : 'API Key'}
               </p>
               <PasswordInput
                 value={geminiApiKey}
                 onChange={setGeminiApiKey}
-                placeholder="AIzaSy…"
+                placeholder="AIzaSy..."
+                disabled={geminiOAuthActive}
               />
               <p className="text-caption" style={{ color: 'var(--color-text-muted)' }}>
                 Get key at{' '}
@@ -341,7 +366,8 @@ export const SettingsOverlay = () => {
                   }}
                 >
                   aistudio.google.com
-                </a>
+                </a>{' '}
+                or use the Setup Guide above.
               </p>
             </div>
           </div>
@@ -350,7 +376,7 @@ export const SettingsOverlay = () => {
       case 'openai':
         return (
           <div
-            className="rounded-xl p-4 flex flex-col gap-3"
+            className="rounded-none p-4 flex flex-col gap-3"
             style={{
               backgroundColor: 'var(--color-surface-3)',
               border: '1px solid var(--color-border-subtle)'
@@ -359,7 +385,7 @@ export const SettingsOverlay = () => {
             <p className="text-body font-medium" style={{ color: 'var(--color-text-secondary)' }}>
               API Key
             </p>
-            <PasswordInput value={openaiApiKey} onChange={setOpenaiApiKey} placeholder="sk-…" />
+            <PasswordInput value={openaiApiKey} onChange={setOpenaiApiKey} placeholder="sk-..." />
             <p className="text-caption" style={{ color: 'var(--color-text-muted)' }}>
               Get key at platform.openai.com
             </p>
@@ -369,7 +395,7 @@ export const SettingsOverlay = () => {
       case 'anthropic':
         return (
           <div
-            className="rounded-xl p-4 flex flex-col gap-3"
+            className="rounded-none p-4 flex flex-col gap-3"
             style={{
               backgroundColor: 'var(--color-surface-3)',
               border: '1px solid var(--color-border-subtle)'
@@ -381,7 +407,7 @@ export const SettingsOverlay = () => {
             <PasswordInput
               value={anthropicApiKey}
               onChange={setAnthropicApiKey}
-              placeholder="sk-ant-…"
+              placeholder="sk-ant-..."
             />
             <p className="text-caption" style={{ color: 'var(--color-text-muted)' }}>
               Get key at console.anthropic.com
@@ -392,7 +418,7 @@ export const SettingsOverlay = () => {
       case 'groq':
         return (
           <div
-            className="rounded-xl p-4 flex flex-col gap-3"
+            className="rounded-none p-4 flex flex-col gap-3"
             style={{
               backgroundColor: 'var(--color-surface-3)',
               border: '1px solid var(--color-border-subtle)'
@@ -401,9 +427,9 @@ export const SettingsOverlay = () => {
             <p className="text-body font-medium" style={{ color: 'var(--color-text-secondary)' }}>
               API Key
             </p>
-            <PasswordInput value={groqApiKey} onChange={setGroqApiKey} placeholder="gsk_…" />
+            <PasswordInput value={groqApiKey} onChange={setGroqApiKey} placeholder="gsk_..." />
             <p className="text-caption" style={{ color: 'var(--color-text-muted)' }}>
-              Get key at console.groq.com — free tier available
+              Get key at console.groq.com -- free tier available
             </p>
           </div>
         )
@@ -411,7 +437,7 @@ export const SettingsOverlay = () => {
       case 'ollama':
         return (
           <div
-            className="rounded-xl p-4 flex flex-col gap-3"
+            className="rounded-none p-4 flex flex-col gap-3"
             style={{
               backgroundColor: 'var(--color-surface-3)',
               border: '1px solid var(--color-border-subtle)'
@@ -428,73 +454,7 @@ export const SettingsOverlay = () => {
               className="input-field w-full"
             />
             <p className="text-caption" style={{ color: 'var(--color-text-muted)' }}>
-              Runs locally — no API key needed. Install at ollama.com
-            </p>
-          </div>
-        )
-
-      case 'antigravity':
-        return (
-          <div
-            className="rounded-xl p-4 flex flex-col gap-3"
-            style={{
-              backgroundColor: 'var(--color-surface-3)',
-              border: '1px solid var(--color-border-subtle)'
-            }}
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p
-                  className="text-body font-medium"
-                  style={{ color: 'var(--color-text-secondary)' }}
-                >
-                  Google Account
-                </p>
-                {antigravityOAuthActive && antigravityOAuthEmail && (
-                  <p className="text-caption mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
-                    {antigravityOAuthEmail}
-                  </p>
-                )}
-              </div>
-              {antigravityOAuthActive ? (
-                <button
-                  onClick={handleAntigravityLogout}
-                  className="btn-ghost flex items-center gap-1.5 text-label"
-                  style={{ color: 'var(--color-text-muted)' }}
-                >
-                  <LogOut size={13} /> Sign out
-                </button>
-              ) : (
-                <button
-                  onClick={handleAntigravityLogin}
-                  disabled={agLoading}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-label font-medium transition-colors disabled:opacity-50"
-                  style={{
-                    backgroundColor: 'var(--color-surface-4)',
-                    border: '1px solid var(--color-border-default)',
-                    color: 'var(--color-text-secondary)'
-                  }}
-                >
-                  <LogIn size={13} />
-                  {agLoading ? 'Signing in…' : 'Sign in with Google'}
-                </button>
-              )}
-            </div>
-            {antigravityOAuthActive && (
-              <div
-                className="flex items-center gap-1.5 text-caption"
-                style={{ color: 'var(--color-secondary)' }}
-              >
-                <Check size={11} /> Ready — uses Google Cloud Code API, no API key needed
-              </div>
-            )}
-            {agError && (
-              <p className="text-caption" style={{ color: '#ef4444' }}>
-                {agError}
-              </p>
-            )}
-            <p className="text-caption" style={{ color: 'var(--color-text-muted)' }}>
-              Sign in with your Google account to use Gemini models for free via Google Cloud Code.
+              Runs locally -- no API key needed. Install at ollama.com
             </p>
           </div>
         )
@@ -520,7 +480,7 @@ export const SettingsOverlay = () => {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.97, y: 8 }}
             transition={transition.overlay}
-            className="w-full max-w-xl flex flex-col overflow-hidden rounded-2xl bg-[#0A0A0A] border border-white/[0.06] shadow-2xl shadow-black/80"
+            className="w-full max-w-xl flex flex-col overflow-hidden rounded-none bg-[#0A0A0A] border border-white/[0.06] shadow-2xl shadow-black/80"
           >
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-5 border-b border-white/[0.04] bg-white/[0.01]">
@@ -529,7 +489,7 @@ export const SettingsOverlay = () => {
               </h2>
               <button
                 onClick={() => setActiveView('explorer')}
-                className="btn-ghost rounded-lg p-1.5 text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.04] transition-colors"
+                className="btn-ghost rounded-none p-1.5 text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.04] transition-colors"
               >
                 <X size={16} />
               </button>
@@ -558,7 +518,7 @@ export const SettingsOverlay = () => {
                           setSelectedTab(p.id)
                           setActiveProvider(p.id)
                         }}
-                        className={`px-3.5 py-1.5 rounded-lg text-[12px] font-medium tracking-wide transition-all duration-200 flex items-center gap-2 ${
+                        className={`px-3.5 py-1.5 rounded-none text-[12px] font-medium tracking-wide transition-all duration-200 flex items-center gap-2 ${
                           isSelected
                             ? 'bg-white/[0.06] border-white/[0.12] text-white shadow-sm'
                             : 'bg-white/[0.02] border-white/[0.04] text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.04]'
@@ -566,7 +526,7 @@ export const SettingsOverlay = () => {
                       >
                         {isActive && (
                           <span
-                            className="w-1.5 h-1.5 rounded-full shadow-[0_0_8px_rgba(255,255,255,0.5)]"
+                            className="w-1.5 h-1.5 rounded-none shadow-[0_0_8px_rgba(255,255,255,0.5)]"
                             style={{ backgroundColor: p.color }}
                           />
                         )}
@@ -591,7 +551,7 @@ export const SettingsOverlay = () => {
 
                 {/* Model selector */}
                 <div
-                  className="rounded-xl p-4 flex items-center justify-between gap-4"
+                  className="rounded-none p-4 flex items-center justify-between gap-4"
                   style={{
                     backgroundColor: 'var(--color-surface-3)',
                     border: '1px solid var(--color-border-subtle)'
@@ -606,7 +566,7 @@ export const SettingsOverlay = () => {
                   <select
                     value={modelPerProvider[selectedTab]}
                     onChange={(e) => setModelForProvider(selectedTab, e.target.value)}
-                    className="text-body rounded-lg px-3 py-1.5 focus:outline-none"
+                    className="text-body rounded-none px-3 py-1.5 focus:outline-none"
                     style={{
                       backgroundColor: 'var(--color-surface-4)',
                       border: '1px solid var(--color-border-default)',
@@ -622,6 +582,114 @@ export const SettingsOverlay = () => {
                 </div>
               </section>
 
+              {/* AI Assistance */}
+              <section className="flex flex-col gap-4">
+                <div className="flex items-center gap-3">
+                  <h3 className="text-[11px] font-semibold tracking-wider uppercase text-zinc-500 flex items-center gap-2">
+                    <KeyRound size={13} /> AI Assistance
+                  </h3>
+                  <div className="flex-1 h-px bg-white/[0.04]" />
+                </div>
+
+                <div
+                  className="rounded-none p-5 flex flex-col gap-4"
+                  style={{
+                    backgroundColor: 'var(--color-surface-3)',
+                    border: '1px solid var(--color-border-subtle)'
+                  }}
+                >
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <h4
+                        className="text-body font-medium"
+                        style={{ color: 'var(--color-text-secondary)' }}
+                      >
+                        Smart Context
+                      </h4>
+                      <p className="text-caption mt-1" style={{ color: 'var(--color-text-muted)' }}>
+                        Automatically attach imported files, companion tests, and config files to
+                        chat prompts.
+                      </p>
+                    </div>
+                    <Toggle value={smartContextEnabled} onChange={setSmartContextEnabled} />
+                  </div>
+
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <h4
+                        className="text-body font-medium"
+                        style={{ color: 'var(--color-text-secondary)' }}
+                      >
+                        Inline Completion
+                      </h4>
+                      <p className="text-caption mt-1" style={{ color: 'var(--color-text-muted)' }}>
+                        Show ghost-text AI suggestions directly inside the editor.
+                      </p>
+                    </div>
+                    <Toggle value={inlineCompletionEnabled} onChange={setInlineCompletionEnabled} />
+                  </div>
+                </div>
+              </section>
+
+              {/* Agent Safety */}
+              <section className="flex flex-col gap-4">
+                <div className="flex items-center gap-3">
+                  <h3 className="text-[11px] font-semibold tracking-wider uppercase text-zinc-500 flex items-center gap-2">
+                    <KeyRound size={13} /> Agent Safety
+                  </h3>
+                  <div className="flex-1 h-px bg-white/[0.04]" />
+                </div>
+
+                <div
+                  className="rounded-none p-5 flex flex-col gap-4"
+                  style={{
+                    backgroundColor: 'var(--color-surface-3)',
+                    border: '1px solid var(--color-border-subtle)'
+                  }}
+                >
+                  <div className="space-y-2">
+                    <label
+                      className="text-body font-medium block"
+                      style={{ color: 'var(--color-text-secondary)' }}
+                    >
+                      Session Budget (USD)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={agentBudgetLimit ?? ''}
+                      onChange={(e) => {
+                        const raw = e.target.value.trim()
+                        setAgentBudgetLimit(raw ? Math.max(0, Number(raw)) : null)
+                      }}
+                      placeholder="Leave empty for no limit"
+                      className="input-field w-full"
+                    />
+                    <p className="text-caption" style={{ color: 'var(--color-text-muted)' }}>
+                      Zen Workspace IDE warns at 80% of the budget and raises a critical alert at
+                      100%.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <h4
+                        className="text-body font-medium"
+                        style={{ color: 'var(--color-text-secondary)' }}
+                      >
+                        Auto-pause Workspaces
+                      </h4>
+                      <p className="text-caption mt-1" style={{ color: 'var(--color-text-muted)' }}>
+                        Pause running terminal workspaces when the budget is exceeded. On
+                        unsupported platforms, the app will show a blocking alert instead.
+                      </p>
+                    </div>
+                    <Toggle value={autoPauseAgentBudget} onChange={setAutoPauseAgentBudget} />
+                  </div>
+                </div>
+              </section>
+
               {/* Editor Settings */}
               <section className="flex flex-col gap-4">
                 <div className="flex items-center gap-3">
@@ -632,7 +700,7 @@ export const SettingsOverlay = () => {
                 </div>
 
                 <div
-                  className="rounded-xl p-5 grid grid-cols-2 gap-8"
+                  className="rounded-none p-5 grid grid-cols-2 gap-8"
                   style={{
                     backgroundColor: 'var(--color-surface-3)',
                     border: '1px solid var(--color-border-subtle)',
@@ -653,7 +721,7 @@ export const SettingsOverlay = () => {
                       max="24"
                       value={fontSize}
                       onChange={(e) => setFontSize(Number(e.target.value))}
-                      className="w-full h-1.5 rounded-lg appearance-none cursor-pointer"
+                      className="w-full h-1.5 rounded-none appearance-none cursor-pointer"
                       style={{
                         accentColor: 'var(--color-accent)',
                         backgroundColor: 'var(--color-surface-5)'
@@ -683,7 +751,7 @@ export const SettingsOverlay = () => {
                 </div>
 
                 <div
-                  className="rounded-xl p-5"
+                  className="rounded-none p-5"
                   style={{
                     backgroundColor: 'var(--color-surface-3)',
                     border: '1px solid var(--color-border-subtle)'
@@ -702,6 +770,22 @@ export const SettingsOverlay = () => {
                       </p>
                     </div>
                     <Toggle value={autoPlayVibe} onChange={setAutoPlayVibe} />
+                  </div>
+
+                  <div className="flex items-center justify-between mt-5">
+                    <div>
+                      <h4
+                        className="text-body font-medium"
+                        style={{ color: 'var(--color-text-secondary)' }}
+                      >
+                        Adaptive Ambient
+                      </h4>
+                      <p className="text-caption mt-1" style={{ color: 'var(--color-text-muted)' }}>
+                        Automatically shift between calm and active ambient modes based on your
+                        typing activity.
+                      </p>
+                    </div>
+                    <Toggle value={adaptiveAmbientEnabled} onChange={setAdaptiveAmbientEnabled} />
                   </div>
                 </div>
               </section>

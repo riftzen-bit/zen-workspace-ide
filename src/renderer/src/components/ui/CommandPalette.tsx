@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+﻿import { useState, useEffect, useRef } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Search,
@@ -15,12 +15,17 @@ import {
   Plus,
   BookOpen,
   TestTube,
+  CheckSquare,
+  BarChart3,
+  Sparkles,
+  GitBranch,
   type LucideIcon
 } from 'lucide-react'
 import { useUIStore } from '../../store/useUIStore'
 import { useFileStore } from '../../store/useFileStore'
 import { useTerminalStore } from '../../store/useTerminalStore'
 import { useSettingsStore } from '../../store/useSettingsStore'
+import { useChatStore } from '../../store/useChatStore'
 import { transition } from '../../lib/motion'
 
 interface Command {
@@ -46,7 +51,8 @@ const useCommands = (): Command[] => {
     enterZenMode,
     exitZenMode,
     setCommandPaletteOpen,
-    setPromptLibraryOpen
+    setPromptLibraryOpen,
+    setSnippetLibraryOpen
   } = useUIStore()
   const { workspaceDir } = useFileStore()
   const { setModalOpen } = useTerminalStore()
@@ -101,6 +107,17 @@ const useCommands = (): Command[] => {
       }
     },
     {
+      id: 'orchestrator',
+      label: 'Open Agent Orchestrator',
+      description: 'Monitor agents, costs, and broadcast instructions',
+      icon: BarChart3,
+      category: 'Navigation',
+      action: () => {
+        setActiveView('orchestrator')
+        close()
+      }
+    },
+    {
       id: 'settings',
       label: 'Open Settings',
       description: 'Configure API key, editor, and vibe player',
@@ -108,6 +125,29 @@ const useCommands = (): Command[] => {
       category: 'Navigation',
       action: () => {
         setActiveView('settings')
+        close()
+      }
+    },
+    {
+      id: 'tasks',
+      label: 'Open Task Tracker',
+      description: 'Scan and review TODO, FIXME, and HACK comments',
+      icon: CheckSquare,
+      category: 'Navigation',
+      action: () => {
+        setActiveView('tasks')
+        if (!isSidebarOpen) toggleSidebar()
+        close()
+      }
+    },
+    {
+      id: 'focus-analytics',
+      label: 'Open Focus Analytics',
+      description: 'Review coding activity, WPM trends, and focus score',
+      icon: BarChart3,
+      category: 'Navigation',
+      action: () => {
+        setActiveView('focus')
         close()
       }
     },
@@ -170,6 +210,39 @@ const useCommands = (): Command[] => {
       }
     },
     {
+      id: 'snippet-library',
+      label: 'Snippet Library',
+      description: 'Save, insert, or generate reusable snippets',
+      icon: Sparkles,
+      category: 'AI',
+      action: () => {
+        close()
+        setSnippetLibraryOpen(true)
+      }
+    },
+    {
+      id: 'branch-chat',
+      label: 'AI: Branch Current Conversation',
+      description: 'Create a new chat branch from the latest message',
+      icon: GitBranch,
+      category: 'AI',
+      action: () => {
+        close()
+        const { getMessages, branchFromMessage } = useChatStore.getState()
+        const messages = getMessages()
+        const latest = messages[messages.length - 1]
+        if (!latest) {
+          useUIStore.getState().addToast('No message available to branch from.', 'warning')
+          return
+        }
+        const branchId = branchFromMessage(latest.id)
+        if (branchId) {
+          useUIStore.getState().setChatOpen(true)
+          useUIStore.getState().addToast('Created a new chat branch.', 'success')
+        }
+      }
+    },
+    {
       id: 'generate-test',
       label: 'AI: Generate Test for Current File',
       description: 'Automatically generate a test file using AI',
@@ -193,12 +266,16 @@ const useCommands = (): Command[] => {
 
         useUIStore.getState().addToast('Generating test...', 'info')
         try {
+          const workspaceDir = useFileStore.getState().workspaceDir
           const res = await window.api.ai.generateTest({
             filePath: activeFile,
+            workspaceDir: workspaceDir ?? undefined,
             provider: currentProvider,
             model: currentModel,
             apiKey:
-              currentProvider === 'gemini' ? useSettingsStore.getState().geminiApiKey : undefined,
+              currentProvider === 'gemini' && !useSettingsStore.getState().geminiOAuthActive
+                ? useSettingsStore.getState().geminiApiKey
+                : undefined,
             useGeminiOAuth:
               currentProvider === 'gemini'
                 ? useSettingsStore.getState().geminiOAuthActive
@@ -343,7 +420,7 @@ export const CommandPalette = () => {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.97, y: -8 }}
             transition={transition.overlay}
-            className="w-full max-w-lg flex flex-col overflow-hidden rounded-2xl bg-[#0A0A0A] border border-white/[0.06] shadow-2xl shadow-black/80"
+            className="w-full max-w-lg flex flex-col overflow-hidden rounded-none bg-[#0A0A0A] border border-white/[0.06] shadow-2xl shadow-black/80"
             style={{
               maxHeight: '60vh'
             }}
@@ -386,7 +463,7 @@ export const CommandPalette = () => {
                         return (
                           <button
                             key={cmd.id}
-                            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-left ${isSelected ? 'bg-white/[0.06] text-white' : 'text-zinc-400 hover:bg-white/[0.02] hover:text-zinc-300'}`}
+                            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-none transition-colors text-left ${isSelected ? 'bg-white/[0.06] text-white' : 'text-zinc-400 hover:bg-white/[0.02] hover:text-zinc-300'}`}
                             onMouseEnter={() => setSelectedIndex(currentIndex)}
                             onClick={cmd.action}
                           >
@@ -431,3 +508,4 @@ export const CommandPalette = () => {
     </AnimatePresence>
   )
 }
+

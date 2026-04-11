@@ -1,13 +1,17 @@
 import { ipcMain, dialog } from 'electron'
-import { join, resolve, normalize, sep } from 'path'
+import { join, resolve, normalize } from 'path'
 import * as fs from 'fs'
+import { canonicalizePath, isTrustedIpcSender, resolvePathWithinRoot } from './security'
 
 let currentWorkspace: string | null = null
 
-function isWithinWorkspace(filePath: string): boolean {
+export function getCurrentWorkspacePath(): string | null {
+  return currentWorkspace
+}
+
+function isWithinWorkspace(filePath: string, allowMissing = false): boolean {
   if (!currentWorkspace) return false
-  const resolved = resolve(normalize(filePath))
-  return resolved === currentWorkspace || resolved.startsWith(currentWorkspace + sep)
+  return resolvePathWithinRoot(currentWorkspace, filePath, allowMissing) !== null
 }
 
 export type FileNode = {
@@ -17,46 +21,101 @@ export type FileNode = {
   children?: FileNode[]
 }
 
+export type WorkspaceTodo = {
+  id: string
+  path: string
+  relativePath: string
+  name: string
+  line: number
+  column: number
+  tag: 'TODO' | 'FIXME' | 'HACK'
+  text: string
+}
+
 export function setupFSHandlers(): void {
-  ipcMain.handle('dialog:openDirectory', async () => {
+  ipcMain.handle('dialog:openDirectory', async (event) => {
+    if (!isTrustedIpcSender(event)) return null
+
     const { canceled, filePaths } = await dialog.showOpenDialog({
       properties: ['openDirectory', 'createDirectory']
     })
     if (canceled || filePaths.length === 0) {
       return null
     }
-    currentWorkspace = resolve(filePaths[0])
+    currentWorkspace = canonicalizePath(filePaths[0])
     return currentWorkspace
   })
 
-  ipcMain.handle('fs:setWorkspace', (_, dirPath: string) => {
-    currentWorkspace = resolve(normalize(dirPath))
-  })
+  ipcMain.handle('fs:setWorkspace', (event, dirPath: string) => {
+    if (!isTrustedIpcSender(event)) return
+    if (!dirPath || typeof dirPath !== 'string') return
 
-  ipcMain.handle('fs:readDirectory', async (_, dirPath: string) => {
-    if (!isWithinWorkspace(dirPath)) return []
-    return await scanDirAsync(dirPath)
-  })
-
-  ipcMain.handle('fs:searchFiles', async (_, query: string, dirPath: string) => {
-    if (!isWithinWorkspace(dirPath)) return []
-    return await searchFilesAsync(query, dirPath)
-  })
-
-  ipcMain.handle('fs:readFile', async (_, filePath: string) => {
-    if (!isWithinWorkspace(filePath)) return null
+    const resolvedPath = resolve(normalize(dirPath))
     try {
-      return await fs.promises.readFile(filePath, 'utf-8')
+      const stat = fs.statSync(resolvedPath)
+      if (!stat.isDirectory()) return
+      currentWorkspace = canonicalizePath(resolvedPath)
+    } catch {
+      // Ignore invalid workspace paths.
+    }
+  })
+
+  ipcMain.handle('fs:readDirectory', async (event, dirPath: string) => {
+    if (!isTrustedIpcSender(event)) return []
+    if (!isWithinWorkspace(dirPath)) return []
+
+    const safeDirPath = currentWorkspace ? resolvePathWithinRoot(currentWorkspace, dirPath) : null
+    if (!safeDirPath) return []
+
+    return await scanDirAsync(safeDirPath)
+  })
+
+  ipcMain.handle('fs:searchFiles', async (event, query: string, dirPath: string) => {
+    if (!isTrustedIpcSender(event)) return []
+    if (!isWithinWorkspace(dirPath)) return []
+
+    const safeDirPath = currentWorkspace ? resolvePathWithinRoot(currentWorkspace, dirPath) : null
+    if (!safeDirPath) return []
+
+    return await searchFilesAsync(query, safeDirPath)
+  })
+
+  ipcMain.handle('fs:scanTodos', async (event, dirPath: string) => {
+    if (!isTrustedIpcSender(event)) return []
+    if (!isWithinWorkspace(dirPath)) return []
+
+    const safeDirPath = currentWorkspace ? resolvePathWithinRoot(currentWorkspace, dirPath) : null
+    if (!safeDirPath) return []
+
+    return await scanTodosAsync(safeDirPath, currentWorkspace ?? safeDirPath)
+  })
+
+  ipcMain.handle('fs:readFile', async (event, filePath: string) => {
+    if (!isTrustedIpcSender(event)) return null
+    if (!isWithinWorkspace(filePath)) return null
+
+    const safeFilePath = currentWorkspace ? resolvePathWithinRoot(currentWorkspace, filePath) : null
+    if (!safeFilePath) return null
+
+    try {
+      return await fs.promises.readFile(safeFilePath, 'utf-8')
     } catch (e: unknown) {
       if (e instanceof Error) console.error('Failed to read file:', e.message)
       return null
     }
   })
 
-  ipcMain.handle('fs:saveFile', async (_, filePath: string, content: string) => {
-    if (!isWithinWorkspace(filePath)) return false
+  ipcMain.handle('fs:saveFile', async (event, filePath: string, content: string) => {
+    if (!isTrustedIpcSender(event)) return false
+    if (!isWithinWorkspace(filePath, true)) return false
+
+    const safeFilePath = currentWorkspace
+      ? resolvePathWithinRoot(currentWorkspace, filePath, true)
+      : null
+    if (!safeFilePath) return false
+
     try {
-      await fs.promises.writeFile(filePath, content, 'utf-8')
+      await fs.promises.writeFile(safeFilePath, content, 'utf-8')
       return true
     } catch (e: unknown) {
       if (e instanceof Error) console.error('Failed to save file:', e.message)
@@ -64,42 +123,73 @@ export function setupFSHandlers(): void {
     }
   })
 
-  ipcMain.handle('fs:createFile', async (_, filePath: string) => {
-    if (!isWithinWorkspace(filePath)) return { ok: false, error: 'Outside workspace' }
+  ipcMain.handle('fs:createFile', async (event, filePath: string) => {
+    if (!isTrustedIpcSender(event)) return { ok: false, error: 'Untrusted sender' }
+    if (!isWithinWorkspace(filePath, true)) return { ok: false, error: 'Outside workspace' }
+
+    const safeFilePath = currentWorkspace
+      ? resolvePathWithinRoot(currentWorkspace, filePath, true)
+      : null
+    if (!safeFilePath) return { ok: false, error: 'Outside workspace' }
+
     try {
-      await fs.promises.writeFile(filePath, '', { flag: 'wx' })
+      await fs.promises.writeFile(safeFilePath, '', { flag: 'wx' })
       return { ok: true }
     } catch (e: unknown) {
       return { ok: false, error: e instanceof Error ? e.message : String(e) }
     }
   })
 
-  ipcMain.handle('fs:createDir', async (_, dirPath: string) => {
-    if (!isWithinWorkspace(dirPath)) return { ok: false, error: 'Outside workspace' }
+  ipcMain.handle('fs:createDir', async (event, dirPath: string) => {
+    if (!isTrustedIpcSender(event)) return { ok: false, error: 'Untrusted sender' }
+    if (!isWithinWorkspace(dirPath, true)) return { ok: false, error: 'Outside workspace' }
+
+    const safeDirPath = currentWorkspace
+      ? resolvePathWithinRoot(currentWorkspace, dirPath, true)
+      : null
+    if (!safeDirPath) return { ok: false, error: 'Outside workspace' }
+
     try {
-      await fs.promises.mkdir(dirPath, { recursive: true })
+      await fs.promises.mkdir(safeDirPath, { recursive: true })
       return { ok: true }
     } catch (e: unknown) {
       return { ok: false, error: e instanceof Error ? e.message : String(e) }
     }
   })
 
-  ipcMain.handle('fs:rename', async (_, oldPath: string, newPath: string) => {
-    if (!isWithinWorkspace(oldPath) || !isWithinWorkspace(newPath)) {
+  ipcMain.handle('fs:rename', async (event, oldPath: string, newPath: string) => {
+    if (!isTrustedIpcSender(event)) return { ok: false, error: 'Untrusted sender' }
+    if (!isWithinWorkspace(oldPath) || !isWithinWorkspace(newPath, true)) {
       return { ok: false, error: 'Outside workspace' }
     }
+
+    const safeOldPath = currentWorkspace ? resolvePathWithinRoot(currentWorkspace, oldPath) : null
+    const safeNewPath = currentWorkspace
+      ? resolvePathWithinRoot(currentWorkspace, newPath, true)
+      : null
+    if (!safeOldPath || !safeNewPath) {
+      return { ok: false, error: 'Outside workspace' }
+    }
+
     try {
-      await fs.promises.rename(oldPath, newPath)
+      await fs.promises.rename(safeOldPath, safeNewPath)
       return { ok: true }
     } catch (e: unknown) {
       return { ok: false, error: e instanceof Error ? e.message : String(e) }
     }
   })
 
-  ipcMain.handle('fs:delete', async (_, targetPath: string) => {
+  ipcMain.handle('fs:delete', async (event, targetPath: string) => {
+    if (!isTrustedIpcSender(event)) return { ok: false, error: 'Untrusted sender' }
     if (!isWithinWorkspace(targetPath)) return { ok: false, error: 'Outside workspace' }
+
+    const safeTargetPath = currentWorkspace
+      ? resolvePathWithinRoot(currentWorkspace, targetPath)
+      : null
+    if (!safeTargetPath) return { ok: false, error: 'Outside workspace' }
+
     try {
-      await fs.promises.rm(targetPath, { recursive: true, force: true })
+      await fs.promises.rm(safeTargetPath, { recursive: true, force: true })
       return { ok: true }
     } catch (e: unknown) {
       return { ok: false, error: e instanceof Error ? e.message : String(e) }
@@ -120,6 +210,10 @@ async function scanDirAsync(dir: string): Promise<FileNode[]> {
       }
 
       const fullPath = join(dir, file)
+      if (!isWithinWorkspace(fullPath)) {
+        return null
+      }
+
       const stat = await fs.promises.stat(fullPath)
 
       if (stat && stat.isDirectory()) {
@@ -196,6 +290,10 @@ async function searchFilesAsync(
       }
 
       const fullPath = join(currentDir, file)
+      if (!isWithinWorkspace(fullPath)) {
+        return
+      }
+
       let stat
       try {
         stat = await fs.promises.stat(fullPath)
@@ -223,4 +321,94 @@ async function searchFilesAsync(
 
   await scan(dir)
   return results
+}
+
+async function scanTodosAsync(dir: string, workspaceRoot: string): Promise<WorkspaceTodo[]> {
+  const results: WorkspaceTodo[] = []
+  const TODO_PATTERN = /\b(TODO|FIXME|HACK)\b[:\s-]*(.*)$/i
+
+  async function scan(currentDir: string) {
+    let list: string[] = []
+    try {
+      list = await fs.promises.readdir(currentDir)
+    } catch {
+      return
+    }
+
+    const promises = list.map(async (file) => {
+      if (
+        file === 'node_modules' ||
+        file === '.git' ||
+        file === 'dist' ||
+        file === 'out' ||
+        file === '.next' ||
+        file === 'coverage' ||
+        file.endsWith('.png') ||
+        file.endsWith('.jpg') ||
+        file.endsWith('.jpeg') ||
+        file.endsWith('.gif') ||
+        file.endsWith('.svg') ||
+        file.endsWith('.mp3') ||
+        file.endsWith('.mp4') ||
+        file.endsWith('.lock')
+      ) {
+        return
+      }
+
+      const fullPath = join(currentDir, file)
+      if (!isWithinWorkspace(fullPath)) return
+
+      let stat
+      try {
+        stat = await fs.promises.stat(fullPath)
+      } catch {
+        return
+      }
+
+      if (stat.isDirectory()) {
+        await scan(fullPath)
+        return
+      }
+
+      if (stat.size > 1_000_000) return
+
+      let content = ''
+      try {
+        content = await fs.promises.readFile(fullPath, 'utf8')
+      } catch {
+        return
+      }
+
+      const lines = content.split(/\r?\n/)
+      for (let index = 0; index < lines.length; index++) {
+        const line = lines[index]
+        const match = line.match(TODO_PATTERN)
+        if (!match) continue
+        const tag = match[1].toUpperCase() as 'TODO' | 'FIXME' | 'HACK'
+        const markerIndex = line.toUpperCase().indexOf(tag)
+        results.push({
+          id: `${fullPath}:${index + 1}:${markerIndex + 1}`,
+          path: fullPath,
+          relativePath: fullPath.startsWith(workspaceRoot)
+            ? fullPath.slice(workspaceRoot.length).replace(/^[\\/]+/, '')
+            : fullPath,
+          name: file,
+          line: index + 1,
+          column: markerIndex + 1,
+          tag,
+          text: match[2]?.trim() || line.trim()
+        })
+      }
+    })
+
+    await Promise.all(promises)
+  }
+
+  await scan(dir)
+  return results.sort((a, b) => {
+    if (a.path === b.path) {
+      return a.line - b.line
+    }
+    return a.path.localeCompare(b.path)
+  })
 }

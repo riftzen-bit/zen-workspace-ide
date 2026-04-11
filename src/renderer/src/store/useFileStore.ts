@@ -9,6 +9,8 @@ interface FileState {
   openFiles: { path: string; name: string }[]
   activeFile: string | null
   activeSearchQuery: string | null
+  pendingLocation: { path: string; line: number; column: number } | null
+  editorSelection: string
   fileContents: Record<string, string>
   isSaving: boolean
 
@@ -20,6 +22,9 @@ interface FileState {
   setActiveFile: (path: string) => void
   updateFileContent: (path: string, content: string) => void
   setActiveSearchQuery: (query: string | null) => void
+  setPendingLocation: (path: string, line: number, column?: number) => void
+  clearPendingLocation: () => void
+  setEditorSelection: (value: string) => void
   setIsSaving: (isSaving: boolean) => void
   resetForProjectSwitch: () => void
   reloadFileFromDisk: (path: string, content: string) => void
@@ -34,6 +39,8 @@ export const useFileStore = create<FileState>()(
       openFiles: [],
       activeFile: null,
       activeSearchQuery: null,
+      pendingLocation: null,
+      editorSelection: '',
       fileContents: {},
       isSaving: false,
 
@@ -67,13 +74,24 @@ export const useFileStore = create<FileState>()(
           return {
             openFiles: newOpenFiles,
             activeFile: newActiveFile,
-            fileContents: remainingContents
+            fileContents: remainingContents,
+            pendingLocation:
+              state.pendingLocation?.path === path && newActiveFile !== path
+                ? null
+                : state.pendingLocation
           }
         })
       },
 
       setActiveFile: (path) => set({ activeFile: path }),
       setActiveSearchQuery: (query) => set({ activeSearchQuery: query }),
+      setPendingLocation: (path, line, column = 1) =>
+        set({
+          activeFile: path,
+          pendingLocation: { path, line, column }
+        }),
+      clearPendingLocation: () => set({ pendingLocation: null }),
+      setEditorSelection: (value) => set({ editorSelection: value }),
       updateFileContent: (path, content) =>
         set((state) => ({
           fileContents: {
@@ -101,7 +119,11 @@ export const useFileStore = create<FileState>()(
           return {
             openFiles: newOpenFiles,
             activeFile: newActiveFile,
-            fileContents: remainingContents
+            fileContents: remainingContents,
+            pendingLocation:
+              state.pendingLocation?.path === path && newActiveFile !== path
+                ? null
+                : state.pendingLocation
           }
         })
       },
@@ -112,7 +134,9 @@ export const useFileStore = create<FileState>()(
           openFiles: [],
           activeFile: null,
           fileContents: {},
-          activeSearchQuery: null
+          activeSearchQuery: null,
+          pendingLocation: null,
+          editorSelection: ''
         })
     }),
     {

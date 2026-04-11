@@ -1,3 +1,33 @@
+## ✨ What's New in v1.1.4
+
+### 🚀 Features & Enhancements
+
+- **Agent Orchestrator Dashboard:** Added a dedicated multi-agent control surface with node selection, broadcast commands, per-node activity summaries, and real-time cost visibility.
+- **Focus Analytics Dashboard:** Added a new focus analytics view with streak tracking, focus score, WPM telemetry, weekly coding activity, and file-touch summaries.
+- **Task Tracker:** Added a workspace task scanner for `TODO`, `FIXME`, and `HACK` comments so you can review them quickly, open them in the editor, or send them directly to AI chat.
+- **Snippet Library:** Added built-in and custom code snippets with placeholder prompts, quick insertion into the editor, and AI-generated snippet support.
+- **AI Code Review Panel:** Added an AI-assisted code review panel in the Git diff workflow with structured findings, severity levels, Monaco highlights, and one-click suggestion apply for working tree diffs.
+- **Gemini Setup Guide & OAuth Flow:** Added an in-app Gemini setup guide, safer OAuth credential handling, quota project derivation, and improved sign-in flows for Gemini and Lyria usage.
+- **Expanded Provider Support Cleanup:** Removed the legacy Antigravity provider and consolidated the active AI provider lineup around Gemini, OpenAI, Anthropic, Groq, and Ollama.
+
+### 🛡️ Security & Reliability
+
+- **Trusted IPC Guardrails:** Hardened main-process IPC handlers so file system, terminal, AI, OAuth, Git, watcher, and secure-store actions reject untrusted renderer senders.
+- **Safer Workspace Path Handling:** Tightened path resolution for AI tools, file system actions, file watching, and AI-generated test output so operations stay inside the active workspace.
+- **Secure Credential Storage:** Expanded encrypted credential storage and cleanup flows for Gemini OAuth, Google OAuth secrets, and music generation keys.
+- **Safer External Link Handling:** Restricted external URL opening to public `http(s)` destinations and blocked unsafe private/local targets.
+- **Provider Safety Improvements:** Added stronger Gemini OAuth error guidance, better rate-limit messaging, and capped tool-call loops in AI chat to prevent runaway tool execution.
+
+### 🐛 Bug Fixes & Platform Improvements
+
+- **Orchestrator Stability:** Fixed flaky multi-node broadcast behavior by waiting for PTY readiness before writes and by surfacing immediate command dispatch events in the activity feed.
+- **Windows Terminal Logging:** Fixed missing or delayed logs on Windows by handling carriage-return-only terminal output correctly and normalizing terminal input writes to use Windows-friendly `\r`.
+- **Terminal View Persistence:** Prevented orchestrator-related PTY shutdowns by keeping the terminal surface mounted when switching views.
+- **Activity Parsing:** Improved ANSI stripping, Windows path detection, paused/working status parsing, and command event rendering in the activity feed.
+- **OAuth Refresh & Migration:** Improved Google OAuth token refresh, migrated older stored tokens safely, and cleared legacy credentials that no longer match the new flow.
+- **Git, Settings, Chat, and Editor Polish:** Refined cross-feature wiring across Git dashboard, AI chat, Monaco editor, settings, prompt flows, and status surfaces for the new dashboards and credential model.
+- **Release Verification:** Added more provider tests, AI handler safeguards, orchestrator coverage, and updated CI so automated tests now run before packaging.
+
 ## ✨ What's New in v1.1.3
 
 ### 🚀 Features & Enhancements

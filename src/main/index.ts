@@ -30,6 +30,32 @@ import { setupFileWatcher } from './fileWatcher'
 import { setupGitHandlers } from './gitHandler'
 import { setupLyriaHandlers } from './music/lyriaHandler'
 
+function isSafeExternalUrl(rawUrl: string): boolean {
+  try {
+    const url = new URL(rawUrl)
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return false
+
+    const host = url.hostname.toLowerCase()
+    if (host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '[::1]') {
+      return false
+    }
+
+    if (
+      /^10\./.test(host) ||
+      /^127\./.test(host) ||
+      /^169\.254\./.test(host) ||
+      /^192\.168\./.test(host) ||
+      /^172\.(1[6-9]|2\d|3[0-1])\./.test(host)
+    ) {
+      return false
+    }
+
+    return true
+  } catch {
+    return false
+  }
+}
+
 function createWindow(): void {
   const bounds = store.get('window-bounds', { width: 1000, height: 750 }) as {
     width: number
@@ -93,13 +119,8 @@ function createWindow(): void {
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
-    try {
-      const url = new URL(details.url)
-      if (url.protocol === 'http:' || url.protocol === 'https:') {
-        shell.openExternal(details.url)
-      }
-    } catch {
-      /* ignore malformed URLs */
+    if (isSafeExternalUrl(details.url)) {
+      shell.openExternal(details.url)
     }
     return { action: 'deny' }
   })

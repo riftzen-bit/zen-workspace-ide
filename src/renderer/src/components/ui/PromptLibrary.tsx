@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+﻿import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Search, MessageSquare, Terminal, X, Plus, Trash2 } from 'lucide-react'
 import { useUIStore } from '../../store/useUIStore'
@@ -154,7 +154,11 @@ export const PromptLibrary = () => {
     // Send to first active workspace's first terminal
     const terminal = activeWorkspaces[0].terminals[0]
     if (terminal) {
-      window.api.terminal.write(terminal.id, prompt.text)
+      const normalizedPrompt = prompt.text.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+      const text = normalizedPrompt.endsWith('\n')
+        ? normalizedPrompt.slice(0, -1).replace(/\n/g, '\r') + '\r'
+        : normalizedPrompt.replace(/\n/g, '\r') + '\r'
+      window.api.terminal.write(terminal.id, text)
       useUIStore.getState().addToast(`Sent to ${activeWorkspaces[0].name}`, 'info')
     }
     setPromptLibraryOpen(false)
@@ -197,7 +201,7 @@ export const PromptLibrary = () => {
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.97, y: -8 }}
           transition={transition.overlay}
-          className="w-full max-w-2xl flex flex-col overflow-hidden rounded-2xl"
+          className="w-full max-w-2xl flex flex-col overflow-hidden rounded-none"
           style={{
             backgroundColor: 'var(--color-surface-3)',
             border: '1px solid var(--color-border-default)',
@@ -225,7 +229,7 @@ export const PromptLibrary = () => {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setIsAdding(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-caption transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-none text-caption transition-colors"
                 style={{
                   backgroundColor: 'var(--color-surface-4)',
                   color: 'var(--color-text-secondary)',
@@ -370,7 +374,7 @@ export const PromptLibrary = () => {
                       <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                         <button
                           onClick={() => handleSendToChat(prompt)}
-                          className="flex items-center gap-1 px-2 py-1 rounded-md text-caption transition-colors"
+                          className="flex items-center gap-1 px-2 py-1 rounded-none text-caption transition-colors"
                           style={{
                             backgroundColor: 'var(--color-surface-5)',
                             color: 'var(--color-secondary)',
@@ -384,7 +388,7 @@ export const PromptLibrary = () => {
                         {activeTerminalCount > 0 && (
                           <button
                             onClick={() => handleSendToTerminal(prompt)}
-                            className="flex items-center gap-1 px-2 py-1 rounded-md text-caption transition-colors"
+                            className="flex items-center gap-1 px-2 py-1 rounded-none text-caption transition-colors"
                             style={{
                               backgroundColor: 'var(--color-surface-5)',
                               color: 'var(--color-accent)',
@@ -399,7 +403,7 @@ export const PromptLibrary = () => {
                         {!prompt.builtin && (
                           <button
                             onClick={() => handleDeleteCustom(prompt.id)}
-                            className="p-1 rounded-md transition-colors"
+                            className="p-1 rounded-none transition-colors"
                             style={{ color: '#f87171' }}
                             title="Delete prompt"
                           >
@@ -445,3 +449,4 @@ export const PromptLibrary = () => {
     </AnimatePresence>
   )
 }
+

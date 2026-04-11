@@ -1,5 +1,6 @@
 import { ipcMain, safeStorage } from 'electron'
 import StoreModule from 'electron-store'
+import { isTrustedIpcSender } from './security'
 
 const Store = ((StoreModule as { default?: typeof StoreModule }).default ||
   StoreModule) as typeof StoreModule
@@ -13,7 +14,9 @@ const SENSITIVE_KEYS = new Set([
   'groqApiKey',
   'googleClientId',
   'googleClientSecret',
-  'lyriaApiKey'
+  'lyriaApiKey',
+  'googleOAuthTokens',
+  'geminiOAuthTokens'
 ])
 const PREFIX = 'encrypted:'
 
@@ -76,6 +79,7 @@ export function setupSafeStoreHandlers(): void {
   migrateOldKeys()
 
   ipcMain.handle('secure-store:get', (_, key: string): string | null => {
+    if (!isTrustedIpcSender(_)) return null
     if (!SENSITIVE_KEYS.has(key)) return null
     const encoded = store.get(PREFIX + key) as string | undefined
     if (!encoded) return null
@@ -87,11 +91,13 @@ export function setupSafeStoreHandlers(): void {
   })
 
   ipcMain.handle('secure-store:set', (_, key: string, value: string): void => {
+    if (!isTrustedIpcSender(_)) return
     if (!SENSITIVE_KEYS.has(key) || typeof value !== 'string') return
     store.set(PREFIX + key, encryptValue(value))
   })
 
   ipcMain.handle('secure-store:delete', (_, key: string): void => {
+    if (!isTrustedIpcSender(_)) return
     if (!SENSITIVE_KEYS.has(key)) return
     store.delete(PREFIX + key)
   })

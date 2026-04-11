@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+﻿import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   ChevronRight,
@@ -23,6 +23,7 @@ import { useUIStore } from '../../store/useUIStore'
 import { transition } from '../../lib/motion'
 import { ActivityFeed } from '../activity/ActivityFeed'
 import { GitDashboard } from '../git/GitDashboard'
+import { TaskTracker } from '../tasks/TaskTracker'
 
 const getFileIcon = (name: string) => {
   const ext = name.split('.').pop()?.toLowerCase()
@@ -76,9 +77,7 @@ const MenuItem = ({
     onClick={onClick}
     className="w-full flex items-center gap-2.5 px-3 py-2 text-body transition-colors text-left"
     style={{ color: color ?? 'var(--color-text-secondary)' }}
-    onMouseEnter={(e) =>
-      ((e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--color-surface-5)')
-    }
+    onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = '#111111')}
     onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = '')}
   >
     <Icon size={13} style={{ color: color ?? 'var(--color-text-muted)' }} />
@@ -184,20 +183,20 @@ const FileContextMenu = ({ x, y, node, onClose, onRefresh }: FileContextMenuProp
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.97 }}
       transition={transition.tooltip}
-      className="fixed z-[9999] rounded-xl overflow-hidden shadow-2xl"
+      className="fixed z-[9999] rounded-none overflow-hidden shadow-none border-[#222222]"
       style={{
         left: adjustedX,
         top: adjustedY,
         width: menuWidth,
-        backgroundColor: 'var(--color-surface-4)',
-        border: '1px solid var(--color-border-default)',
+        backgroundColor: '#0a0a0a',
+        border: '1px solid #222222',
         boxShadow: '0 8px 32px rgba(0,0,0,0.5)'
       }}
     >
       <div
         className="px-3 py-1.5 border-b"
         style={{
-          borderColor: 'var(--color-border-subtle)',
+          borderColor: '#222222',
           backgroundColor: 'var(--color-surface-3)'
         }}
       >
@@ -208,7 +207,7 @@ const FileContextMenu = ({ x, y, node, onClose, onRefresh }: FileContextMenuProp
       <div className="py-1">
         <MenuItem Icon={FilePlus} label="New File" onClick={handleNewFile} />
         <MenuItem Icon={FolderPlus} label="New Folder" onClick={handleNewFolder} />
-        <div className="mx-3 my-1 h-px" style={{ backgroundColor: 'var(--color-border-subtle)' }} />
+        <div className="mx-3 my-1 h-px" style={{ backgroundColor: '#222222' }} />
         <MenuItem Icon={Pencil} label="Rename" onClick={handleRename} />
         <MenuItem Icon={Trash2} label="Delete" color="#f87171" onClick={handleDelete} />
       </div>
@@ -245,7 +244,7 @@ const FileTreeNode = ({ node, depth = 0, onContextMenu }: FileTreeNodeProps) => 
   return (
     <div>
       <div
-        className={`flex items-center py-[6px] mx-2 mb-[2px] rounded-lg cursor-pointer select-none transition-all duration-200 group ${
+        className={`flex items-center py-[6px] mx-2 mb-[2px] rounded-none cursor-pointer select-none transition-all duration-200 group ${
           isSelected
             ? 'bg-white/[0.04] text-zinc-200'
             : 'text-zinc-500 hover:bg-white/[0.02] hover:text-zinc-300'
@@ -378,20 +377,22 @@ export const Sidebar = () => {
       style={{
         width: `${width}px`,
         backgroundColor: '#050505',
-        borderColor: 'var(--color-border-subtle)'
+        borderColor: '#222222'
       }}
     >
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
         <div
-          className="h-12 px-4 flex items-center justify-between border-b shrink-0 bg-[#0A0A0A]/50 backdrop-blur-sm"
-          style={{ borderColor: 'var(--color-border-subtle)' }}
+          className="h-12 px-4 flex items-center justify-between border-b shrink-0 bg-[#050505]"
+          style={{ borderColor: '#222222' }}
         >
           <span className="text-[11px] font-semibold tracking-wider uppercase text-zinc-500">
             {activeView === 'explorer'
               ? 'Explorer'
               : activeView === 'search'
                 ? 'Search'
+                : activeView === 'tasks'
+                  ? 'Tasks'
                 : activeView === 'git'
                   ? 'Source Control'
                   : activeView === 'activity'
@@ -403,6 +404,8 @@ export const Sidebar = () => {
         <div className="flex-1 flex flex-col overflow-hidden">
           {activeView === 'activity' ? (
             <ActivityFeed />
+          ) : activeView === 'tasks' ? (
+            <TaskTracker />
           ) : activeView === 'git' ? (
             <GitDashboard />
           ) : activeView === 'explorer' ? (
@@ -429,7 +432,7 @@ export const Sidebar = () => {
             ) : (
               <div className="flex-1 overflow-y-auto hide-scrollbar">
                 <div className="p-6 text-center flex flex-col items-center gap-4 mt-10">
-                  <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-1 bg-white/[0.03] border border-white/[0.05] shadow-inner">
+                  <div className="w-14 h-14 rounded-none flex items-center justify-center mb-1 bg-white/[0.03] border border-white/[0.05] shadow-inner">
                     <FolderOpen size={24} strokeWidth={1.4} className="text-zinc-500" />
                   </div>
                   <p className="text-[13px] text-zinc-500 font-medium tracking-wide">
@@ -437,7 +440,7 @@ export const Sidebar = () => {
                   </p>
                   <button
                     onClick={handleOpenFolder}
-                    className="mt-2 px-4 py-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.05] text-[13px] text-zinc-300 font-medium transition-all duration-200 hover:scale-105 active:scale-95"
+                    className="mt-2 px-4 py-2 rounded-none bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.05] text-[13px] text-zinc-300 font-medium transition-all duration-200 hover:scale-105 active:scale-95"
                   >
                     Open Folder
                   </button>
@@ -457,7 +460,7 @@ export const Sidebar = () => {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search in files…"
-                  className="w-full bg-[#0A0A0A] border border-white/[0.06] rounded-xl text-[13px] text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-white/[0.12] transition-colors py-2"
+                  className="w-full bg-[#0A0A0A] border border-white/[0.06] rounded-none text-[13px] text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-white/[0.12] transition-colors py-2"
                   style={{ paddingLeft: '2.25rem' }}
                 />
               </div>
@@ -477,7 +480,7 @@ export const Sidebar = () => {
                           const content = await window.api.readFile(res.path)
                           if (content !== null) openFile(res.path, res.name, content)
                         }}
-                        className="p-2 rounded-lg flex items-center gap-3 cursor-pointer group text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.03] transition-all duration-200"
+                        className="p-2 rounded-none flex items-center gap-3 cursor-pointer group text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.03] transition-all duration-200"
                       >
                         <div className="shrink-0 opacity-80 group-hover:scale-110 transition-transform duration-200">
                           {getFileIcon(res.name)}
@@ -534,3 +537,4 @@ export const Sidebar = () => {
     </div>
   )
 }
+

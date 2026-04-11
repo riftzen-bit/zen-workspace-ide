@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+﻿import { useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Play, Pause, CloudRain, Disc, X, Music2 } from 'lucide-react'
 import { useMediaStore } from '../../store/useMediaStore'
@@ -83,13 +83,13 @@ export const VibePlayer = () => {
           pointerEvents: isVibePlayerOpen ? 'auto' : 'none'
         }}
         transition={transition.bounce}
-        className="fixed bottom-8 left-1/2 z-50 flex items-center px-3 py-2.5 gap-2.5 bg-[#0A0A0A]/90 backdrop-blur-xl border border-white/[0.08] shadow-2xl shadow-black/80 rounded-full"
+        className="fixed bottom-8 left-1/2 z-50 flex items-center px-3 py-2.5 gap-2.5 bg-[#0A0A0A]/90 backdrop-blur-xl border border-white/[0.08] shadow-2xl shadow-black/80 rounded-none"
         style={{ x: '-50%' }}
       >
         {/* Play/Pause — spring physics */}
         <motion.button
           onClick={togglePlay}
-          className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
+          className="w-10 h-10 rounded-none flex items-center justify-center shrink-0"
           style={{
             backgroundColor: 'var(--color-accent)',
             color: '#0a0a0c'
@@ -146,11 +146,11 @@ export const VibePlayer = () => {
               }}
             />
             <div
-              className="absolute inset-0 w-full h-1 my-auto rounded-full overflow-hidden group-hover:opacity-0 transition-opacity"
+              className="absolute inset-0 w-full h-1 my-auto rounded-none overflow-hidden group-hover:opacity-0 transition-opacity"
               style={{ backgroundColor: 'var(--color-surface-5)' }}
             >
               <div
-                className="h-full rounded-full"
+                className="h-full rounded-none"
                 style={{ width: `${volume}%`, backgroundColor: 'var(--color-accent)' }}
               />
             </div>
@@ -164,7 +164,7 @@ export const VibePlayer = () => {
 
         {/* Vibe selector */}
         <div
-          className="flex items-center gap-0.5 rounded-full p-1"
+          className="flex items-center gap-0.5 rounded-none p-1"
           style={{
             backgroundColor: 'var(--color-surface-2)',
             border: '1px solid var(--color-border-subtle)'
@@ -182,7 +182,7 @@ export const VibePlayer = () => {
                   setIsPlaying(true)
                   setTimeout(() => postCommand('playVideo'), 100)
                 }}
-                className="p-2 rounded-full transition-colors"
+                className="p-2 rounded-none transition-colors"
                 style={{
                   backgroundColor: isActive ? 'var(--color-accent-glow)' : 'transparent',
                   color: isActive ? 'var(--color-accent-bright)' : 'var(--color-text-muted)',
@@ -219,17 +219,18 @@ export const VibePlayer = () => {
         {/* Generate music */}
         <button
           onClick={() => setMusicGeneratorOpen(true)}
-          className="btn-ghost rounded-full p-2"
+          className="btn-ghost rounded-none p-2"
           title="Generate music with Lyria"
         >
           <Music2 size={14} />
         </button>
 
         {/* Close */}
-        <button onClick={() => setVibePlayerOpen(false)} className="btn-ghost rounded-full p-2">
+        <button onClick={() => setVibePlayerOpen(false)} className="btn-ghost rounded-none p-2">
           <X size={15} />
         </button>
       </motion.div>
     </>
   )
 }
+

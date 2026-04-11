@@ -8,6 +8,8 @@ export type ActivityEventType =
   | 'cost'
   | 'task_done'
   | 'permission'
+  | 'status'
+  | 'command'
 
 export interface ActivityEvent {
   id: string
@@ -16,6 +18,8 @@ export interface ActivityEvent {
   message: string
   filePath?: string
   costValue?: string
+  agentStatus?: 'idle' | 'working' | 'waiting' | 'error' | 'done' | 'paused'
+  agentName?: string
   timestamp: number
 }
 

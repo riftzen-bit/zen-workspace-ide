@@ -10,7 +10,7 @@
 [![Vite](https://img.shields.io/badge/Vite-7-purple.svg)](https://vitejs.dev/)
 [![Zustand](https://img.shields.io/badge/Zustand-5-yellow.svg)](https://zustand-demo.pmnd.rs/)
 
-<img src="./resources/icon.png" width="120" height="120" alt="Zen Workspace Logo" style="border-radius: 20px; box-shadow: 0 10px 30px rgba(251, 191, 36, 0.2);" />
+<img src="./resources/icon.png" width="120" height="120" alt="Zen Workspace IDE Logo" style="border-radius: 20px; box-shadow: 0 10px 30px rgba(251, 191, 36, 0.2);" />
 
 </div>
 
@@ -18,7 +18,7 @@
 
 ## ⚡ Overview
 
-Welcome to **Zen Workspace**, an Electron-based integrated development environment crafted from the ground up for elite engineers and power users. Designed using _Gemini Design Brain_ aesthetics—featuring deep `#050505` backgrounds, subtle glassmorphism, and precise spatial organization—Zen Workspace guarantees an unparalleled, distraction-free environment.
+Welcome to **Zen Workspace IDE**, an Electron-based integrated development environment crafted from the ground up for elite engineers and power users. Designed using _Gemini Design Brain_ aesthetics—featuring deep `#050505` backgrounds, subtle glassmorphism, and precise spatial organization—Zen Workspace IDE guarantees an unparalleled, distraction-free environment.
 
 Stop wrestling with bloated IDEs. Enter the **Focus Terminal Environment**, where raw command-line power meets elegant orchestration.
 

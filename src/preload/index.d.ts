@@ -6,10 +6,32 @@ interface PtyOperationResult {
   results?: Array<{ id: string; success: boolean; reason?: string }>
 }
 
+interface PtyBroadcastResult {
+  dispatched: string[]
+  unavailable: Array<{ id: string; reason: string }>
+}
+
 interface AIChunk {
   type: 'text' | 'done' | 'error'
   text?: string
   error?: string
+}
+
+interface AIReviewFinding {
+  id: string
+  severity: 'critical' | 'warning' | 'info' | 'suggestion'
+  title: string
+  summary: string
+  lineStart: number
+  lineEnd: number
+  suggestion?: string
+  replacement?: string
+  canApply: boolean
+}
+
+interface AIReviewResult {
+  findings: AIReviewFinding[]
+  summary: string
 }
 
 interface AIChatParams {
@@ -22,13 +44,37 @@ interface AIChatParams {
   messages: Array<{ role: string; content: string }>
 }
 
+interface AICompleteParams {
+  provider: string
+  model: string
+  prompt: string
+  workspaceDir?: string
+  apiKey?: string
+  ollamaUrl?: string
+  useGeminiOAuth?: boolean
+  systemPrompt?: string
+}
+
 interface AIGenerateTestParams {
   filePath: string
+  workspaceDir?: string
   provider: string
   model: string
   apiKey?: string
   ollamaUrl?: string
   useGeminiOAuth?: boolean
+}
+
+interface AIReviewParams {
+  provider: string
+  model: string
+  workspaceDir?: string
+  apiKey?: string
+  ollamaUrl?: string
+  useGeminiOAuth?: boolean
+  filePath: string
+  original: string
+  modified: string
 }
 
 declare global {
@@ -39,6 +85,18 @@ declare global {
       readDirectory: (dirPath: string) => Promise<FileNode[]>
       readFile: (filePath: string) => Promise<string | null>
       searchFiles: (query: string, dir: string) => Promise<{ path: string; name: string }[]>
+      scanTodos: (dir: string) => Promise<
+        Array<{
+          id: string
+          path: string
+          relativePath: string
+          name: string
+          line: number
+          column: number
+          tag: 'TODO' | 'FIXME' | 'HACK'
+          text: string
+        }>
+      >
       saveFile: (filePath: string, content: string) => Promise<boolean>
       createFile: (filePath: string) => Promise<{ ok: boolean; error?: string }>
       createDir: (dirPath: string) => Promise<{ ok: boolean; error?: string }>
@@ -89,8 +147,9 @@ declare global {
           cwd?: string
         ) => Promise<boolean>
         exists: (id: string) => Promise<boolean>
-        resize: (id: string, cols: number, rows: number) => Promise<void>
-        write: (id: string, data: string) => Promise<void>
+        resize: (id: string, cols: number, rows: number) => void
+        write: (id: string, data: string) => void
+        broadcast: (terminalIds: string[], data: string) => Promise<PtyBroadcastResult>
         kill: (id: string) => Promise<void>
         pause: (id: string) => Promise<PtyOperationResult>
         resume: (id: string) => Promise<PtyOperationResult>
@@ -106,12 +165,16 @@ declare global {
             message: string
             filePath?: string
             costValue?: string
+            agentStatus?: 'idle' | 'working' | 'waiting' | 'error' | 'done' | 'paused'
+            agentName?: string
             timestamp: number
           }) => void
         ) => () => void
       }
       ai: {
         chat: (params: AIChatParams) => Promise<void>
+        complete: (params: AICompleteParams) => Promise<{ text: string; error?: string }>
+        review: (params: AIReviewParams) => Promise<AIReviewResult>
         generateTest: (
           params: AIGenerateTestParams
         ) => Promise<{ success: boolean; targetPath?: string; error?: string }>
@@ -119,42 +182,30 @@ declare global {
         onChunk: (callback: (chunk: AIChunk) => void) => () => void
       }
       oauth: {
-        googleStart: () => Promise<{ success: boolean; email?: string; error?: string }>
-        googleLogout: () => Promise<void>
-        googleStatus: () => Promise<{
-          active: boolean
-          email?: string
-          isConfigured?: boolean
-        }>
-        googleGetToken: () => Promise<string | null>
-        antigravityStart: () => Promise<{
-          success: boolean
-          email?: string
-          hasProject?: boolean
-          error?: string
-        }>
-        antigravityLogout: () => Promise<void>
-        antigravityStatus: () => Promise<{
-          active: boolean
-          email?: string
-          hasProject?: boolean
-        }>
         geminiStart: () => Promise<{
           success: boolean
           email?: string
           error?: string
+          errorCode?: string
         }>
         geminiLogout: () => Promise<void>
         geminiStatus: () => Promise<{
           active: boolean
           email?: string
         }>
-        geminiCheckCli: () => Promise<{ available: boolean }>
-        geminiImportCli: () => Promise<{
+        openSetupGuide: () => Promise<{
           success: boolean
-          email?: string
           error?: string
         }>
+        saveCredentials: (params: {
+          apiKey?: string
+          clientId?: string
+          clientSecret?: string
+        }) => Promise<{
+          success: boolean
+          error?: string
+        }>
+        onKeysUpdated: (callback: () => void) => () => void
       }
       music: {
         generate: (params: {

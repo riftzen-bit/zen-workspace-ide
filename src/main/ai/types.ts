@@ -1,4 +1,4 @@
-export type AIProviderType = 'gemini' | 'openai' | 'anthropic' | 'groq' | 'ollama' | 'antigravity'
+export type AIProviderType = 'gemini' | 'openai' | 'anthropic' | 'groq' | 'ollama'
 
 export interface AIMessage {
   role: 'user' | 'assistant' | 'system'
@@ -21,13 +21,37 @@ export interface AIChatParams {
   messages: AIMessage[]
 }
 
+export interface AICompleteParams {
+  provider: AIProviderType
+  model: string
+  prompt: string
+  workspaceDir?: string
+  apiKey?: string
+  ollamaUrl?: string
+  useGeminiOAuth?: boolean
+  systemPrompt?: string
+}
+
 export interface AIGenerateTestParams {
   filePath: string
+  workspaceDir?: string
   provider: AIProviderType
   model: string
   apiKey?: string
   ollamaUrl?: string
   useGeminiOAuth?: boolean
+}
+
+export interface AIReviewParams {
+  provider: AIProviderType
+  model: string
+  workspaceDir?: string
+  apiKey?: string
+  ollamaUrl?: string
+  useGeminiOAuth?: boolean
+  filePath: string
+  original: string
+  modified: string
 }
 
 export interface AIProvider {

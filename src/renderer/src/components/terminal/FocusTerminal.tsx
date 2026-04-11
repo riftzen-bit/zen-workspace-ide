@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+﻿import { useState, useRef, useEffect } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useTerminalStore } from '../../store/useTerminalStore'
 import { TerminalInstance } from './TerminalInstance'
@@ -103,6 +103,9 @@ export const FocusTerminal = () => {
 
   const activeWorkspace = workspaces.find((w) => w.id === activeWorkspaceId)
   const isOverview = !activeWorkspace
+  const layoutSignature = workspaces
+    .map((w) => `${w.id}:${w.layout}:${w.terminals.length}`)
+    .join('|')
 
   useEffect(() => {
     if (editingTabId && editInputRef.current) {
@@ -110,6 +113,13 @@ export const FocusTerminal = () => {
       editInputRef.current.select()
     }
   }, [editingTabId])
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      window.dispatchEvent(new Event('terminal:force-fit'))
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [activeWorkspaceId, layoutSignature])
 
   const handleCreate = () => {
     if (!name.trim()) return
@@ -162,7 +172,7 @@ export const FocusTerminal = () => {
           initial={{ opacity: 0, scale: 0.97, y: 6 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           transition={transition.overlay}
-          className="rounded-xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden"
+          className="rounded-none shadow-2xl w-full max-w-md flex flex-col overflow-hidden"
           style={{
             backgroundColor: 'var(--color-surface-3)',
             border: '1px solid var(--color-border-default)'
@@ -204,7 +214,7 @@ export const FocusTerminal = () => {
                       setLayout(tpl.layout)
                       setCliTypes(tpl.cliTypes)
                     }}
-                    className="flex items-start gap-2 p-2.5 rounded-lg border text-left transition-colors"
+                    className="flex items-start gap-2 p-2.5 rounded-none border text-left transition-colors"
                     style={{
                       backgroundColor: 'var(--color-surface-2)',
                       borderColor: 'var(--color-border-subtle)',
@@ -274,7 +284,7 @@ export const FocusTerminal = () => {
                   <button
                     key={num}
                     onClick={() => handleLayoutChange(num)}
-                    className="flex-1 py-2 rounded-lg border text-caption font-medium transition-colors"
+                    className="flex-1 py-2 rounded-none border text-caption font-medium transition-colors"
                     style={{
                       backgroundColor:
                         layout === num ? 'var(--color-surface-5)' : 'var(--color-surface-2)',
@@ -301,7 +311,7 @@ export const FocusTerminal = () => {
                       onChange={(e) => {
                         if (e.target.value) handleSetAllCli(e.target.value)
                       }}
-                      className="text-label appearance-none cursor-pointer pr-5 pl-2 py-1 rounded-md"
+                      className="text-label appearance-none cursor-pointer pr-5 pl-2 py-1 rounded-none"
                       style={{
                         backgroundColor: 'var(--color-surface-4)',
                         color: 'var(--color-text-tertiary)',
@@ -441,7 +451,7 @@ export const FocusTerminal = () => {
                     setEditingTabId(ws.id)
                     setEditTabName(ws.name)
                   }}
-                  className="flex items-center min-w-[140px] max-w-[220px] h-[30px] px-3 cursor-pointer group rounded-lg transition-colors border shrink-0"
+                  className="flex items-center min-w-[140px] max-w-[220px] h-[30px] px-3 cursor-pointer group rounded-none transition-colors border shrink-0"
                   style={{
                     backgroundColor: isActive ? 'var(--color-surface-3)' : 'transparent',
                     borderColor: isActive ? 'var(--color-border-subtle)' : 'transparent',
@@ -532,7 +542,7 @@ export const FocusTerminal = () => {
         >
           <div className="flex items-center gap-3">
             <div
-              className="w-8 h-8 rounded-xl flex items-center justify-center"
+              className="w-8 h-8 rounded-none flex items-center justify-center"
               style={{
                 backgroundColor: 'var(--color-surface-3)',
                 border: '1px solid var(--color-border-subtle)'
@@ -579,7 +589,7 @@ export const FocusTerminal = () => {
                 className="flex flex-col items-center gap-4"
               >
                 <div
-                  className="text-mono px-5 py-3 rounded-xl flex items-center gap-2"
+                  className="text-mono px-5 py-3 rounded-none flex items-center gap-2"
                   style={{
                     backgroundColor: 'var(--color-surface-2)',
                     border: '1px solid var(--color-border-subtle)',
@@ -590,7 +600,7 @@ export const FocusTerminal = () => {
                   <motion.span
                     animate={{ opacity: [1, 0, 1] }}
                     transition={{ duration: 1.1, repeat: Infinity, ease: 'linear' }}
-                    className="inline-block w-[2px] h-[14px] rounded-sm"
+                    className="inline-block w-[2px] h-[14px] rounded-none"
                     style={{ backgroundColor: 'var(--color-text-tertiary)', marginTop: '1px' }}
                   />
                 </div>
@@ -646,7 +656,7 @@ export const FocusTerminal = () => {
                   setName('')
                   setModalOpen(true)
                 }}
-                className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed transition-all min-h-[140px] cursor-pointer"
+                className="flex flex-col items-center justify-center gap-2 rounded-none border border-dashed transition-all min-h-[140px] cursor-pointer"
                 style={{
                   borderColor: 'var(--color-border-subtle)',
                   color: 'var(--color-text-muted)'
@@ -678,3 +688,4 @@ export const FocusTerminal = () => {
     </div>
   )
 }
+

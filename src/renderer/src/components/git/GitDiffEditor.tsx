@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { DiffEditor, useMonaco } from '@monaco-editor/react'
+import type { editor } from 'monaco-editor'
 import { useFileStore } from '../../store/useFileStore'
 import { useUIStore } from '../../store/useUIStore'
 import { useSettingsStore } from '../../store/useSettingsStore'
 import { FileText, X } from 'lucide-react'
+import { CodeReviewPanel } from './CodeReviewPanel'
 
 export const GitDiffEditor = () => {
   const { workspaceDir } = useFileStore()
@@ -14,6 +16,8 @@ export const GitDiffEditor = () => {
   const [original, setOriginal] = useState('')
   const [modified, setModified] = useState('')
   const [loading, setLoading] = useState(false)
+  const diffEditorRef = useRef<editor.IStandaloneDiffEditor | null>(null)
+  const requestSeqRef = useRef(0)
 
   useEffect(() => {
     if (!monaco) return
@@ -34,8 +38,27 @@ export const GitDiffEditor = () => {
   }, [monaco])
 
   useEffect(() => {
+    return () => {
+      try {
+        // Reset models before unmount to prevent Monaco dispose ordering races.
+        diffEditorRef.current?.setModel(null)
+      } catch {
+        // ignore cleanup errors
+      }
+      diffEditorRef.current = null
+    }
+  }, [])
+
+  useEffect(() => {
     const loadDiff = async () => {
-      if (!workspaceDir || !activeDiffFile) return
+      if (!workspaceDir || !activeDiffFile) {
+        setOriginal('')
+        setModified('')
+        setLoading(false)
+        return
+      }
+
+      const seq = ++requestSeqRef.current
       setLoading(true)
       try {
         const { original: orig, modified: mod } = await window.api.git.fileDiffContent(
@@ -43,16 +66,37 @@ export const GitDiffEditor = () => {
           activeDiffFile.file,
           activeDiffFile.staged
         )
-        setOriginal(orig || '')
-        setModified(mod || '')
+        if (seq === requestSeqRef.current) {
+          setOriginal(orig || '')
+          setModified(mod || '')
+        }
       } catch (err) {
-        console.error('Failed to load diff content', err)
+        if (seq === requestSeqRef.current) {
+          console.error('Failed to load diff content', err)
+        }
       } finally {
-        setLoading(false)
+        if (seq === requestSeqRef.current) {
+          setLoading(false)
+        }
       }
     }
     loadDiff()
   }, [workspaceDir, activeDiffFile])
+
+  const handleReloadDiff = () => {
+    if (!workspaceDir || !activeDiffFile) return
+    setLoading(true)
+    window.api.git
+      .fileDiffContent(workspaceDir, activeDiffFile.file, activeDiffFile.staged)
+      .then(({ original: orig, modified: mod }) => {
+        setOriginal(orig || '')
+        setModified(mod || '')
+      })
+      .catch((err) => {
+        console.error('Failed to reload diff content', err)
+      })
+      .finally(() => setLoading(false))
+  }
 
   if (!activeDiffFile) return null
 
@@ -97,34 +141,50 @@ export const GitDiffEditor = () => {
       </div>
 
       {/* Diff Content */}
-      <div className="flex-1 relative">
-        <DiffEditor
+      <div className="flex-1 min-h-0 flex">
+        <div className="flex-1 relative min-w-0">
+          <DiffEditor
+            key={`${activeDiffFile.file}:${activeDiffFile.staged ? 'staged' : 'unstaged'}`}
+            original={original}
+            modified={modified}
+            language={language}
+            theme="zen-dark"
+            onMount={(diffEditor) => {
+              diffEditorRef.current = diffEditor
+            }}
+            options={{
+              readOnly: true,
+              renderSideBySide: true,
+              automaticLayout: true,
+              fontSize,
+              wordWrap: wordWrap ? 'on' : 'off',
+              minimap: { enabled: false },
+              padding: { top: 16, bottom: 16 },
+              scrollBeyondLastLine: false,
+              fontFamily: '"JetBrains Mono", "Fira Code", monospace',
+              fontLigatures: true,
+              smoothScrolling: true,
+              cursorBlinking: 'smooth',
+              cursorSmoothCaretAnimation: 'on',
+              formatOnPaste: true,
+              formatOnType: true
+            }}
+          />
+          {loading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-[#0c0c0e]/50 backdrop-blur-sm z-10">
+              <span className="text-caption text-zinc-500 animate-pulse">Loading diff...</span>
+            </div>
+          )}
+        </div>
+        <CodeReviewPanel
+          filePath={activeDiffFile.file}
+          staged={activeDiffFile.staged}
           original={original}
           modified={modified}
-          language={language}
-          theme="zen-dark"
-          options={{
-            readOnly: true,
-            renderSideBySide: true,
-            fontSize,
-            wordWrap: wordWrap ? 'on' : 'off',
-            minimap: { enabled: false },
-            padding: { top: 16, bottom: 16 },
-            scrollBeyondLastLine: false,
-            fontFamily: '"JetBrains Mono", "Fira Code", monospace',
-            fontLigatures: true,
-            smoothScrolling: true,
-            cursorBlinking: 'smooth',
-            cursorSmoothCaretAnimation: 'on',
-            formatOnPaste: true,
-            formatOnType: true
-          }}
+          modifiedEditor={diffEditorRef.current?.getModifiedEditor() ?? null}
+          monaco={monaco}
+          onAppliedChange={handleReloadDiff}
         />
-        {loading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-[#0c0c0e]/50 backdrop-blur-sm z-10">
-            <span className="text-caption text-zinc-500 animate-pulse">Loading diff...</span>
-          </div>
-        )}
       </div>
     </div>
   )

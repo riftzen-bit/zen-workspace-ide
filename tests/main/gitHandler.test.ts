@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { ipcMain } from 'electron'
-import { exec } from 'child_process'
+import { execFile } from 'child_process'
 import { existsSync, readFileSync } from 'fs-extra'
 import { setupGitHandlers } from '../../src/main/gitHandler'
 
@@ -11,7 +11,7 @@ vi.mock('electron', () => ({
 }))
 
 vi.mock('child_process', () => ({
-  exec: vi.fn()
+  execFile: vi.fn()
 }))
 
 vi.mock('fs-extra', () => ({
@@ -36,14 +36,15 @@ describe('gitHandler', () => {
 
   it('git:branch returns branch name on success', async () => {
     ;(existsSync as any).mockReturnValue(true)
-    ;(exec as any).mockImplementation((cmd: string, opts: any, cb: any) => {
+    ;(execFile as any).mockImplementation((bin: string, args: string[], opts: any, cb: any) => {
       cb(null, 'main\n')
     })
 
     const result = await handlers['git:branch'](null, '/repo')
     expect(result).toBe('main')
-    expect(exec).toHaveBeenCalledWith(
-      'git rev-parse --abbrev-ref HEAD',
+    expect(execFile).toHaveBeenCalledWith(
+      'git',
+      ['rev-parse', '--abbrev-ref', 'HEAD'],
       expect.objectContaining({ cwd: '/repo' }),
       expect.any(Function)
     )
@@ -57,7 +58,7 @@ describe('gitHandler', () => {
 
   it('git:status returns correct staged/unstaged boolean flags', async () => {
     ;(existsSync as any).mockReturnValue(true)
-    ;(exec as any).mockImplementation((cmd: string, opts: any, cb: any) => {
+    ;(execFile as any).mockImplementation((bin: string, args: string[], opts: any, cb: any) => {
       cb(null, 'M  staged-file.ts\n M unstaged-file.ts\n?? new-file.ts')
     })
 
@@ -67,7 +68,7 @@ describe('gitHandler', () => {
 
   it('git:statusFiles parses porcelain output correctly', async () => {
     ;(existsSync as any).mockReturnValue(true)
-    ;(exec as any).mockImplementation((cmd: string, opts: any, cb: any) => {
+    ;(execFile as any).mockImplementation((bin: string, args: string[], opts: any, cb: any) => {
       cb(null, 'M  staged.ts\n M unstaged.ts\n?? untracked.ts\nAM added-staged-and-unstaged.ts')
     })
 
@@ -81,9 +82,10 @@ describe('gitHandler', () => {
 
   it('git:fileDiffContent compares HEAD and Index when stagedOnly is true', async () => {
     ;(existsSync as any).mockReturnValue(true)
-    ;(exec as any).mockImplementation((cmd: string, opts: any, cb: any) => {
-      if (cmd.includes('HEAD:')) cb(null, 'old content')
-      else if (cmd.includes(':0:')) cb(null, 'staged content')
+    ;(execFile as any).mockImplementation((bin: string, args: string[], opts: any, cb: any) => {
+      const joined = args.join(' ')
+      if (joined.includes('HEAD:')) cb(null, 'old content')
+      else if (joined.includes(':0:')) cb(null, 'staged content')
     })
 
     const result = await handlers['git:fileDiffContent'](null, '/repo', 'test.ts', true)
@@ -92,8 +94,9 @@ describe('gitHandler', () => {
 
   it('git:fileDiffContent compares Index and Workspace when stagedOnly is false', async () => {
     ;(existsSync as any).mockReturnValue(true)
-    ;(exec as any).mockImplementation((cmd: string, opts: any, cb: any) => {
-      if (cmd.includes(':0:')) cb(null, 'staged content')
+    ;(execFile as any).mockImplementation((bin: string, args: string[], opts: any, cb: any) => {
+      const joined = args.join(' ')
+      if (joined.includes(':0:')) cb(null, 'staged content')
     })
     ;(readFileSync as any).mockReturnValue('workspace content')
 
@@ -102,18 +105,28 @@ describe('gitHandler', () => {
   })
 
   it('git:add executes git add command', async () => {
-    ;(exec as any).mockImplementation((cmd: string, opts: any, cb: any) => cb(null))
+    ;(execFile as any).mockImplementation((bin: string, args: string[], opts: any, cb: any) =>
+      cb(null)
+    )
     const result = await handlers['git:add'](null, '/repo', 'file.ts')
     expect(result).toBe(true)
-    expect(exec).toHaveBeenCalledWith('git add "file.ts"', expect.any(Object), expect.any(Function))
+    expect(execFile).toHaveBeenCalledWith(
+      'git',
+      ['add', '--', 'file.ts'],
+      expect.any(Object),
+      expect.any(Function)
+    )
   })
 
   it('git:unstage executes git reset command', async () => {
-    ;(exec as any).mockImplementation((cmd: string, opts: any, cb: any) => cb(null))
+    ;(execFile as any).mockImplementation((bin: string, args: string[], opts: any, cb: any) =>
+      cb(null)
+    )
     const result = await handlers['git:unstage'](null, '/repo', 'file.ts')
     expect(result).toBe(true)
-    expect(exec).toHaveBeenCalledWith(
-      'git reset HEAD "file.ts"',
+    expect(execFile).toHaveBeenCalledWith(
+      'git',
+      ['reset', 'HEAD', '--', 'file.ts'],
       expect.any(Object),
       expect.any(Function)
     )
@@ -121,18 +134,25 @@ describe('gitHandler', () => {
 
   it('git:diff handles staged diff', async () => {
     ;(existsSync as any).mockReturnValue(true)
-    ;(exec as any).mockImplementation((cmd: string, opts: any, cb: any) => cb(null, 'diff content'))
+    ;(execFile as any).mockImplementation((bin: string, args: string[], opts: any, cb: any) =>
+      cb(null, 'diff content')
+    )
     const result = await handlers['git:diff'](null, '/repo', true)
     expect(result).toBe('diff content')
-    expect(exec).toHaveBeenCalledWith('git diff --cached', expect.any(Object), expect.any(Function))
+    expect(execFile).toHaveBeenCalledWith(
+      'git',
+      ['diff', '--cached'],
+      expect.any(Object),
+      expect.any(Function)
+    )
   })
 
   it('git:diff falls back if HEAD does not exist', async () => {
     ;(existsSync as any).mockReturnValue(true)
     let callCount = 0
-    ;(exec as any).mockImplementation((cmd: string, opts: any, cb: any) => {
+    ;(execFile as any).mockImplementation((bin: string, args: string[], opts: any, cb: any) => {
       callCount++
-      if (cmd === 'git diff HEAD') cb(new Error('no head'))
+      if (args.join(' ') === 'diff HEAD') cb(new Error('no head'))
       else cb(null, 'fallback diff')
     })
     const result = await handlers['git:diff'](null, '/repo', false)
@@ -142,11 +162,14 @@ describe('gitHandler', () => {
 
   it('git:commit executes commit command with message escaping', async () => {
     ;(existsSync as any).mockReturnValue(true)
-    ;(exec as any).mockImplementation((cmd: string, opts: any, cb: any) => cb(null))
+    ;(execFile as any).mockImplementation((bin: string, args: string[], opts: any, cb: any) =>
+      cb(null)
+    )
     const result = await handlers['git:commit'](null, '/repo', 'feat: "test"', false)
     expect(result.success).toBe(true)
-    expect(exec).toHaveBeenCalledWith(
-      'git commit -m "feat: \\"test\\""',
+    expect(execFile).toHaveBeenCalledWith(
+      'git',
+      ['commit', '-m', 'feat: "test"'],
       expect.any(Object),
       expect.any(Function)
     )
@@ -154,10 +177,13 @@ describe('gitHandler', () => {
 
   it('git:commit uses -a flag when addAll is true', async () => {
     ;(existsSync as any).mockReturnValue(true)
-    ;(exec as any).mockImplementation((cmd: string, opts: any, cb: any) => cb(null))
+    ;(execFile as any).mockImplementation((bin: string, args: string[], opts: any, cb: any) =>
+      cb(null)
+    )
     await handlers['git:commit'](null, '/repo', 'msg', true)
-    expect(exec).toHaveBeenCalledWith(
-      'git commit -a -m "msg"',
+    expect(execFile).toHaveBeenCalledWith(
+      'git',
+      ['commit', '-a', '-m', 'msg'],
       expect.any(Object),
       expect.any(Function)
     )
@@ -165,7 +191,7 @@ describe('gitHandler', () => {
 
   it('git:commit returns error message on failure', async () => {
     ;(existsSync as any).mockReturnValue(true)
-    ;(exec as any).mockImplementation((cmd: string, opts: any, cb: any) =>
+    ;(execFile as any).mockImplementation((bin: string, args: string[], opts: any, cb: any) =>
       cb(new Error('fail'), '', 'stderr error')
     )
     const result = await handlers['git:commit'](null, '/repo', 'msg', false)

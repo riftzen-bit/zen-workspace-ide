@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+﻿import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   X,
@@ -225,7 +225,7 @@ export const MusicGenerator = () => {
             className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
           >
             <div
-              className="relative w-full max-w-lg rounded-2xl flex flex-col pointer-events-auto"
+              className="relative w-full max-w-lg rounded-none flex flex-col pointer-events-auto"
               style={{
                 backgroundColor: 'var(--color-surface-1)',
                 border: '1px solid var(--color-border-default)',
@@ -241,7 +241,7 @@ export const MusicGenerator = () => {
               >
                 <div className="flex items-center gap-2.5">
                   <div
-                    className="w-8 h-8 rounded-xl flex items-center justify-center"
+                    className="w-8 h-8 rounded-none flex items-center justify-center"
                     style={{ backgroundColor: 'var(--color-accent-glow)' }}
                   >
                     <Music2 size={15} style={{ color: 'var(--color-accent-bright)' }} />
@@ -260,7 +260,7 @@ export const MusicGenerator = () => {
                 </div>
                 <button
                   onClick={() => !isGenerating && setMusicGeneratorOpen(false)}
-                  className="btn-ghost rounded-lg p-1.5"
+                  className="btn-ghost rounded-none p-1.5"
                   disabled={isGenerating}
                 >
                   <X size={15} />
@@ -292,7 +292,7 @@ export const MusicGenerator = () => {
                       onChange={(e) => setLyriaApiKey(e.target.value)}
                       placeholder="AIza..."
                       disabled={isGenerating}
-                      className="w-full rounded-xl px-3 py-2.5 text-sm outline-none pr-9"
+                      className="w-full rounded-none px-3 py-2.5 text-sm outline-none pr-9"
                       style={{
                         backgroundColor: 'var(--color-surface-3)',
                         border: '1px solid var(--color-border-subtle)',
@@ -329,7 +329,7 @@ export const MusicGenerator = () => {
                     placeholder="e.g. Upbeat lo-fi hip hop with guitar and soft drums, chill coding vibe..."
                     disabled={isGenerating}
                     rows={3}
-                    className="w-full resize-none rounded-xl px-3 py-2.5 text-sm outline-none transition-colors"
+                    className="w-full resize-none rounded-none px-3 py-2.5 text-sm outline-none transition-colors"
                     style={{
                       backgroundColor: 'var(--color-surface-3)',
                       border: '1px solid var(--color-border-subtle)',
@@ -354,7 +354,7 @@ export const MusicGenerator = () => {
                     Vibe
                   </label>
                   <div
-                    className="flex gap-1 p-1 rounded-xl"
+                    className="flex gap-1 p-1 rounded-none"
                     style={{ backgroundColor: 'var(--color-surface-3)' }}
                   >
                     {(
@@ -367,7 +367,7 @@ export const MusicGenerator = () => {
                         key={value}
                         onClick={() => setVibe(value)}
                         disabled={isGenerating}
-                        className="flex-1 py-1.5 rounded-lg text-xs font-medium transition-all"
+                        className="flex-1 py-1.5 rounded-none text-xs font-medium transition-all"
                         style={{
                           backgroundColor:
                             vibe === value ? 'var(--color-accent-glow)' : 'transparent',
@@ -396,7 +396,7 @@ export const MusicGenerator = () => {
                     Model
                   </label>
                   <div
-                    className="flex gap-1 p-1 rounded-xl"
+                    className="flex gap-1 p-1 rounded-none"
                     style={{ backgroundColor: 'var(--color-surface-3)' }}
                   >
                     {(
@@ -409,7 +409,7 @@ export const MusicGenerator = () => {
                         key={value}
                         onClick={() => setModel(value)}
                         disabled={isGenerating}
-                        className="flex-1 py-1.5 rounded-lg text-xs font-medium transition-all"
+                        className="flex-1 py-1.5 rounded-none text-xs font-medium transition-all"
                         style={{
                           backgroundColor:
                             model === value ? 'var(--color-accent-glow)' : 'transparent',
@@ -434,7 +434,7 @@ export const MusicGenerator = () => {
                   <label className="flex items-center gap-2 cursor-pointer select-none">
                     <div
                       onClick={() => !isGenerating && setInstrumental((v) => !v)}
-                      className="w-9 h-5 rounded-full relative transition-colors"
+                      className="w-9 h-5 rounded-none relative transition-colors"
                       style={{
                         backgroundColor: instrumental
                           ? 'var(--color-accent)'
@@ -442,7 +442,7 @@ export const MusicGenerator = () => {
                       }}
                     >
                       <div
-                        className="absolute top-0.5 left-0.5 w-4 h-4 rounded-full transition-transform"
+                        className="absolute top-0.5 left-0.5 w-4 h-4 rounded-none transition-transform"
                         style={{
                           backgroundColor: '#fff',
                           transform: instrumental ? 'translateX(16px)' : 'translateX(0)'
@@ -456,7 +456,7 @@ export const MusicGenerator = () => {
 
                   <button
                     onClick={() => setShowLyrics((v) => !v)}
-                    className="flex items-center gap-1 text-xs rounded-lg px-2 py-1 transition-colors"
+                    className="flex items-center gap-1 text-xs rounded-none px-2 py-1 transition-colors"
                     style={{ color: 'var(--color-text-muted)' }}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.color = 'var(--color-text-secondary)'
@@ -498,7 +498,7 @@ export const MusicGenerator = () => {
                           placeholder={`[Verse]\nYour lyrics here...\n\n[Chorus]\nHook goes here...`}
                           disabled={isGenerating}
                           rows={5}
-                          className="w-full resize-none rounded-xl px-3 py-2.5 text-sm outline-none transition-colors font-mono"
+                          className="w-full resize-none rounded-none px-3 py-2.5 text-sm outline-none transition-colors font-mono"
                           style={{
                             backgroundColor: 'var(--color-surface-3)',
                             border: '1px solid var(--color-border-subtle)',
@@ -513,7 +513,7 @@ export const MusicGenerator = () => {
                 {/* Error */}
                 {generationError && (
                   <div
-                    className="rounded-xl px-4 py-3 text-sm"
+                    className="rounded-none px-4 py-3 text-sm"
                     style={{
                       backgroundColor: 'rgba(239,68,68,0.1)',
                       border: '1px solid rgba(239,68,68,0.3)',
@@ -527,7 +527,7 @@ export const MusicGenerator = () => {
                 {/* Generating state */}
                 {isGenerating && (
                   <div
-                    className="rounded-xl px-4 py-4 flex flex-col items-center gap-2"
+                    className="rounded-none px-4 py-4 flex flex-col items-center gap-2"
                     style={{
                       backgroundColor: 'var(--color-surface-3)',
                       border: '1px solid var(--color-border-subtle)'
@@ -553,7 +553,7 @@ export const MusicGenerator = () => {
                 {/* Result */}
                 {currentTrack && !isGenerating && (
                   <div
-                    className="rounded-xl overflow-hidden"
+                    className="rounded-none overflow-hidden"
                     style={{ border: '1px solid var(--color-border-subtle)' }}
                   >
                     <div
@@ -562,7 +562,7 @@ export const MusicGenerator = () => {
                     >
                       <button
                         onClick={handlePlayPause}
-                        className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-colors"
+                        className="w-9 h-9 rounded-none flex items-center justify-center shrink-0 transition-colors"
                         style={{ backgroundColor: 'var(--color-accent)', color: '#0a0a0c' }}
                         onMouseEnter={(e) => {
                           e.currentTarget.style.backgroundColor = 'var(--color-accent-bright)'
@@ -598,7 +598,7 @@ export const MusicGenerator = () => {
                         max={100}
                         value={lyriaVolume}
                         onChange={(e) => setLyriaVolume(Number(e.target.value))}
-                        className="w-16 h-1 appearance-none cursor-pointer rounded-full"
+                        className="w-16 h-1 appearance-none cursor-pointer rounded-none"
                         style={{
                           background: `linear-gradient(to right, var(--color-accent) 0%, var(--color-accent) ${lyriaVolume}%, rgba(255,255,255,0.1) ${lyriaVolume}%, rgba(255,255,255,0.1) 100%)`
                         }}
@@ -606,7 +606,7 @@ export const MusicGenerator = () => {
 
                       <button
                         onClick={handleSave}
-                        className="btn-ghost rounded-lg p-1.5"
+                        className="btn-ghost rounded-none p-1.5"
                         title="Save to disk"
                       >
                         <Download size={14} />
@@ -675,7 +675,7 @@ export const MusicGenerator = () => {
                             {trackHistory.map((track) => (
                               <div
                                 key={track.id}
-                                className="flex items-center gap-2 rounded-lg px-3 py-2 group"
+                                className="flex items-center gap-2 rounded-none px-3 py-2 group"
                                 style={{ backgroundColor: 'var(--color-surface-3)' }}
                               >
                                 <button
@@ -720,7 +720,7 @@ export const MusicGenerator = () => {
                 {isGenerating ? (
                   <button
                     onClick={handleAbort}
-                    className="flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors"
+                    className="flex-1 py-2.5 rounded-none text-sm font-medium transition-colors"
                     style={{
                       backgroundColor: 'rgba(239,68,68,0.15)',
                       color: '#f87171',
@@ -734,7 +734,7 @@ export const MusicGenerator = () => {
                     {currentTrack && (
                       <button
                         onClick={clearCurrentTrack}
-                        className="btn-ghost px-3 py-2.5 rounded-xl text-sm"
+                        className="btn-ghost px-3 py-2.5 rounded-none text-sm"
                       >
                         Clear
                       </button>
@@ -745,7 +745,7 @@ export const MusicGenerator = () => {
                         !prompt.trim() ||
                         (!useSettingsStore.getState().geminiOAuthActive && !lyriaApiKey.trim())
                       }
-                      className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-all"
+                      className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-none text-sm font-medium transition-all"
                       style={{
                         backgroundColor:
                           prompt.trim() &&
@@ -777,3 +777,4 @@ export const MusicGenerator = () => {
     </AnimatePresence>
   )
 }
+

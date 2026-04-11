@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { ActivityBar } from './ActivityBar'
 import { Sidebar } from './Sidebar'
@@ -25,6 +25,9 @@ import { GlobalDialogs } from '../ui/GlobalDialogs'
 import { GitDiffEditor } from '../git/GitDiffEditor'
 import { useZenStore } from '../../store/useZenStore'
 import { ZenOrchestrator } from '../activity/ZenOrchestrator'
+import { SnippetLibrary } from '../ui/SnippetLibrary'
+import { FocusAnalyticsDashboard } from '../activity/FocusAnalyticsDashboard'
+import { AgentOrchestratorDashboard } from '../terminal/AgentOrchestratorDashboard'
 
 export const AppLayout = () => {
   const { workspaceDir, fileTree, setFileTree, reloadFileFromDisk, markFileDeleted } =
@@ -32,6 +35,7 @@ export const AppLayout = () => {
   const {
     isSidebarOpen,
     activeView,
+    activeDiffFile,
     sidebarWidth,
     chatWidth,
     isChatOpen,
@@ -40,9 +44,52 @@ export const AppLayout = () => {
     setCommandPaletteOpen
   } = useUIStore()
   const { activeWorkspaceId } = useTerminalStore()
-  const { autoPlayVibe } = useSettingsStore()
+  const {
+    autoPlayVibe,
+    agentBudgetLimit,
+    autoPauseAgentBudget,
+    adaptiveAmbientEnabled
+  } = useSettingsStore()
   const isWorkspaceActive = activeWorkspaceId !== null
-  const { errorCount, isZenMode } = useZenStore()
+  const { isZenMode, currentWpm, errorCount } = useZenStore()
+  const adaptiveAmbientRef = useRef<{ vibe: 'lofi' | 'rain' | null; changedAt: number }>({
+    vibe: null,
+    changedAt: 0
+  })
+
+  const pauseActiveWorkspacesForBudget = async () => {
+    const terminalStore = useTerminalStore.getState()
+    const activeWorkspaces = terminalStore.workspaces.filter((workspace) => workspace.status === 'active')
+    if (activeWorkspaces.length === 0) {
+      return
+    }
+
+    const results = await Promise.all(
+      activeWorkspaces.map((workspace) => terminalStore.pauseWorkspace(workspace.id))
+    )
+    const failures = results.filter((result) => !result.success)
+
+    if (failures.length === 0) {
+      useUIStore
+        .getState()
+        .addToast(
+          `Paused ${activeWorkspaces.length} workspace${activeWorkspaces.length === 1 ? '' : 's'} after budget limit.`,
+          'warning'
+        )
+      return
+    }
+
+    if (failures.some((result) => result.reason === 'unsupported-platform')) {
+      useUIStore
+        .getState()
+        .addToast('Budget limit reached, but workspace auto-pause is not supported on this platform.', 'warning')
+      return
+    }
+
+    useUIStore
+      .getState()
+      .addToast('Budget limit reached, but some workspaces could not be auto-paused.', 'warning')
+  }
 
   useEffect(() => {
     if (autoPlayVibe) {
@@ -53,6 +100,32 @@ export const AppLayout = () => {
       useMediaStore.getState().setIsPlaying(false)
     }
   }, [autoPlayVibe])
+
+  useEffect(() => {
+    useCostStore.getState().setBudgetLimit(agentBudgetLimit)
+  }, [agentBudgetLimit])
+
+  useEffect(() => {
+    useCostStore.getState().setAutoPauseOnLimit(autoPauseAgentBudget)
+  }, [autoPauseAgentBudget])
+
+  useEffect(() => {
+    if (agentBudgetLimit === null || agentBudgetLimit <= 0) {
+      return
+    }
+
+    const costState = useCostStore.getState()
+    if (costState.totalCost >= agentBudgetLimit && !costState.limitTriggered) {
+      useCostStore.getState().setLimitTriggered(true)
+      useUIStore
+        .getState()
+        .addToast(`AI budget limit reached at $${agentBudgetLimit.toFixed(2)}.`, 'error')
+
+      if (autoPauseAgentBudget) {
+        void pauseActiveWorkspacesForBudget()
+      }
+    }
+  }, [agentBudgetLimit, autoPauseAgentBudget])
 
   useEffect(() => {
     if (workspaceDir && fileTree.length === 0) {
@@ -72,11 +145,69 @@ export const AppLayout = () => {
     const unsub = window.api.terminal.onActivity((raw) => {
       useActivityStore.getState().addEvent(raw as any)
       if (raw.costValue) {
-        useCostStore.getState().addCost(raw.costValue)
+        const before = useCostStore.getState()
+        before.addTerminalCost(raw.terminalId, raw.costValue)
+        const after = useCostStore.getState()
+
+        if (after.budgetLimit !== null && after.budgetLimit > 0) {
+          if (!before.warnedAt80 && after.warnedAt80 && after.totalCost < after.budgetLimit) {
+            useUIStore
+              .getState()
+              .addToast(`AI budget is ${Math.round((after.totalCost / after.budgetLimit) * 100)}% used.`, 'warning')
+          }
+
+          if (!before.limitTriggered && after.totalCost >= after.budgetLimit) {
+            useCostStore.getState().setLimitTriggered(true)
+            useUIStore
+              .getState()
+              .addToast(`AI budget limit reached at $${after.budgetLimit.toFixed(2)}.`, 'error')
+
+            if (after.autoPauseOnLimit) {
+              void pauseActiveWorkspacesForBudget()
+            }
+          }
+        }
       }
     })
     return unsub
   }, [])
+
+  useEffect(() => {
+    if (!adaptiveAmbientEnabled) {
+      adaptiveAmbientRef.current = { vibe: null, changedAt: 0 }
+      return
+    }
+
+    const mediaState = useMediaStore.getState()
+    const now = Date.now()
+    let nextVibe: 'lofi' | 'rain' | null = null
+
+    if (errorCount >= 4 || (currentWpm > 0 && currentWpm < 18)) {
+      nextVibe = 'rain'
+    } else if (currentWpm >= 18) {
+      nextVibe = 'lofi'
+    }
+
+    if (!nextVibe) {
+      return
+    }
+
+    const cooldownMs = 45000
+    const lastAdaptive = adaptiveAmbientRef.current
+    if (lastAdaptive.vibe === nextVibe && now - lastAdaptive.changedAt < cooldownMs) {
+      return
+    }
+
+    if (mediaState.currentVibe === nextVibe && mediaState.isPlaying) {
+      adaptiveAmbientRef.current = { vibe: nextVibe, changedAt: now }
+      return
+    }
+
+    useMediaStore.getState().setCurrentVibe(nextVibe)
+    useMediaStore.getState().setIsPlaying(true)
+    useUIStore.getState().setVibePlayerOpen(true)
+    adaptiveAmbientRef.current = { vibe: nextVibe, changedAt: now }
+  }, [adaptiveAmbientEnabled, currentWpm, errorCount])
 
   // Start/stop file watcher when workspace changes
   useEffect(() => {
@@ -201,30 +332,47 @@ export const AppLayout = () => {
   // In zen mode, hide sidebar and chat regardless of their state
   const showSidebar = isSidebarOpen && !isZenMode && activeView !== 'settings'
   const showChat = isChatOpen && !isZenMode
+  const showTerminalView = activeView === 'terminal' || isWorkspaceActive
+  const showFocusView = !isWorkspaceActive && activeView === 'focus'
+  const showOrchestratorView = !isWorkspaceActive && activeView === 'orchestrator'
+  const showGitDiffView = !isWorkspaceActive && activeView === 'git' && activeDiffFile !== null
+  const showEditorView =
+    !showTerminalView && !showFocusView && !showOrchestratorView && !showGitDiffView
+
+  useEffect(() => {
+    if (!showTerminalView) {
+      return
+    }
+
+    const timer = window.setTimeout(() => {
+      window.dispatchEvent(new Event('terminal:force-fit'))
+    }, 0)
+
+    return () => window.clearTimeout(timer)
+  }, [showTerminalView])
 
   const themeStyles = {
-    '--color-bg-warm': '#000000',
-    '--color-surface-warm': '#050505',
-    '--color-border-warm': 'rgba(255, 255, 255, 0.04)',
+    '--color-bg-warm': '#050505',
+    '--color-surface-warm': '#0a0a0a',
+    '--color-border-warm': '#222222',
 
-    '--color-bg-cold': '#000000',
-    '--color-surface-cold': '#050505',
-    '--color-border-cold': 'rgba(255, 255, 255, 0.04)',
+    '--color-bg-cold': '#050505',
+    '--color-surface-cold': '#0a0a0a',
+    '--color-border-cold': '#222222',
 
-    '--color-surface-0': errorCount > 0 ? 'var(--color-bg-cold)' : 'var(--color-bg-warm)',
-    '--color-surface-1': errorCount > 0 ? 'var(--color-surface-cold)' : 'var(--color-surface-warm)',
-    '--color-border-subtle':
-      errorCount > 0 ? 'var(--color-border-cold)' : 'var(--color-border-warm)',
+    '--color-surface-0': '#050505',
+    '--color-surface-1': '#0a0a0a',
+    '--color-border-subtle': '#222222',
 
-    '--color-text-primary': '#E4E4E7',
-    '--color-selection-bg': 'rgba(255, 255, 255, 0.1)',
+    '--color-text-primary': '#cccccc',
+    '--color-selection-bg': '#333333',
     '--font-primary':
-      '"Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+      '"Space Mono", "JetBrains Mono", Consolas, Menlo, monospace'
   } as React.CSSProperties
 
   return (
     <div
-      className="flex h-screen w-screen overflow-hidden transition-colors duration-700 custom-selection"
+      className="flex h-screen w-screen overflow-hidden custom-selection"
       style={{
         ...themeStyles,
         backgroundColor: 'var(--color-surface-0)',
@@ -245,7 +393,7 @@ export const AppLayout = () => {
 
       {/* Main Workspace Frame */}
       <div
-        className="flex-1 flex flex-col overflow-hidden relative transition-colors duration-700"
+        className="flex-1 flex flex-col overflow-hidden relative"
         style={{
           backgroundColor: 'var(--color-surface-1)'
         }}
@@ -276,15 +424,15 @@ export const AppLayout = () => {
 
           {/* Main Content Area */}
           <div
-            className={`flex-1 min-w-0 flex flex-col relative z-0 overflow-hidden shadow-[inset_0_0_20px_rgba(0,0,0,0.8)] transition-colors duration-700 bg-[#000000]`}
+            className={`flex-1 min-w-0 flex flex-col relative z-0 overflow-hidden bg-[#050505]`}
           >
-            {activeView === 'terminal' || isWorkspaceActive ? (
+            <div className="flex-1 min-h-0" style={{ display: showTerminalView ? 'flex' : 'none' }}>
               <FocusTerminal />
-            ) : activeView === 'git' && useUIStore.getState().activeDiffFile ? (
-              <GitDiffEditor />
-            ) : (
-              <MonacoEditor />
-            )}
+            </div>
+            {showFocusView ? <FocusAnalyticsDashboard /> : null}
+            {showOrchestratorView ? <AgentOrchestratorDashboard /> : null}
+            {showGitDiffView ? <GitDiffEditor /> : null}
+            {showEditorView ? <MonacoEditor /> : null}
           </div>
 
           {/* Chat Panel with smooth animation */}
@@ -321,6 +469,7 @@ export const AppLayout = () => {
       {/* Global UI overlays */}
       <CommandPalette />
       <PromptLibrary />
+      <SnippetLibrary />
       <GlobalDialogs />
       <ToastContainer />
     </div>

@@ -57,7 +57,7 @@ describe('fileWatcher', () => {
     await handlers['fs:watchWorkspace'](null, dirPath)
 
     expect(chokidar.watch).toHaveBeenCalledWith(
-      dirPath,
+      expect.stringMatching(/[\\/]test[\\/]path$/),
       expect.objectContaining({
         persistent: true,
         ignoreInitial: true

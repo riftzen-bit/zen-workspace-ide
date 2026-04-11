@@ -1,7 +1,7 @@
 import { ipcMain, dialog, IpcMainInvokeEvent } from 'electron'
 import { writeFile } from 'fs/promises'
 import { GoogleGenAI } from '@google/genai'
-import { getGeminiOAuthCredential } from '../oauth/googleOAuth'
+import { getGeminiOAuthAccess } from '../oauth/googleOAuth'
 
 export interface LyriaGenerateParams {
   model: 'lyria-3-clip-preview' | 'lyria-3-pro-preview'
@@ -22,10 +22,48 @@ export interface LyriaProgressChunk {
 
 let currentAbortController: AbortController | null = null
 
+function summarizeGeminiOAuthError(status: number, errText: string): string {
+  const trimmed = errText.trim()
+  let parsedMessage = ''
+  let reason = ''
+
+  if (trimmed) {
+    try {
+      const parsed = JSON.parse(trimmed) as {
+        error?: {
+          message?: string
+          status?: string
+          details?: Array<{ reason?: string }>
+        }
+      }
+      parsedMessage = parsed.error?.message ?? ''
+      reason = parsed.error?.details?.find((detail) => detail.reason)?.reason ?? ''
+      if (!reason && parsed.error?.status) reason = parsed.error.status
+    } catch {
+      // ignore parse errors
+    }
+  }
+
+  const lower = `${reason} ${parsedMessage} ${trimmed}`.toLowerCase()
+  if (status === 401) {
+    return 'Gemini rejected the OAuth token. Sign out and sign back in via Settings.'
+  }
+  if (lower.includes('access_token_scope_insufficient')) {
+    return 'Gemini OAuth is missing required API scopes. Sign out, then sign in again so Zen Workspace can request the updated permissions.'
+  }
+  if (lower.includes('user_project_denied') || lower.includes('x-goog-user-project')) {
+    return 'Google accepted the sign-in, but the linked Cloud project cannot be used for Gemini quota. Use the same project for your OAuth client and the Generative Language API.'
+  }
+  if (lower.includes('api has not been used') || lower.includes('api is disabled')) {
+    return 'The Generative Language API is not enabled for the Cloud project linked to this OAuth client.'
+  }
+  return parsedMessage || trimmed || `Gemini OAuth error ${status}`
+}
+
 async function generateWithOAuth(
   params: LyriaGenerateParams,
   token: string,
-  projectId: string,
+  quotaProject: string | undefined,
   signal: AbortSignal
 ): Promise<{ lyrics?: string; audioBase64?: string; mimeType?: string }> {
   let promptText = params.prompt
@@ -54,8 +92,8 @@ async function generateWithOAuth(
     Authorization: `Bearer ${token}`,
     'Content-Type': 'application/json'
   }
-  if (projectId) {
-    headers['x-goog-user-project'] = projectId
+  if (quotaProject) {
+    headers['x-goog-user-project'] = quotaProject
   }
 
   const response = await fetch(
@@ -70,10 +108,8 @@ async function generateWithOAuth(
 
   if (!response.ok) {
     const errText = await response.text().catch(() => '')
-    if (response.status === 403) {
-      throw new Error(
-        `Gemini auth error (403): ${errText || 'Sign out and re-sign in with Google in Settings to grant AI access'}`
-      )
+    if (response.status === 401 || response.status === 403) {
+      throw new Error(summarizeGeminiOAuthError(response.status, errText))
     }
     throw new Error(`Gemini OAuth error ${response.status}: ${errText}`)
   }
@@ -171,23 +207,27 @@ export function setupLyriaHandlers(): void {
       try {
         let result: { lyrics?: string; audioBase64?: string; mimeType?: string }
 
-        if (params.useGeminiOAuth) {
-          const cred = await getGeminiOAuthCredential()
-          if (!cred) {
-            send({
-              type: 'error',
-              error: 'Not signed in to Gemini. Please connect in Settings to use Zen Vibe Mode.'
-            })
-            return
-          }
-          const [token, projectId] = cred.split('|')
-          result = await generateWithOAuth(params, token, projectId, signal)
+        const oauthAccess = await getGeminiOAuthAccess()
+
+        if (oauthAccess) {
+          result = await generateWithOAuth(
+            params,
+            oauthAccess.accessToken,
+            oauthAccess.quotaProject,
+            signal
+          )
+        } else if (params.useGeminiOAuth) {
+          send({
+            type: 'error',
+            error: 'Not signed in to Gemini. Open Setup Guide in Settings to configure your credentials.'
+          })
+          return
         } else {
           if (!params.apiKey) {
             send({
               type: 'error',
               error:
-                'Lyria requires a Gemini API key. Get one free at aistudio.google.com/apikey, then paste it into the Music Generator panel.'
+                'Lyria requires a Gemini API key. Open Setup Guide in Settings or get one free at aistudio.google.com/apikey.'
             })
             return
           }

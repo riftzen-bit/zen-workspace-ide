@@ -28,8 +28,8 @@ interface TerminalState {
   deleteWorkspace: (id: string) => void
   setActiveWorkspace: (id: string | null) => void
   renameWorkspace: (id: string, newName: string) => void
-  pauseWorkspace: (id: string) => Promise<void>
-  resumeWorkspace: (id: string) => Promise<void>
+  pauseWorkspace: (id: string) => Promise<{ success: boolean; reason?: string }>
+  resumeWorkspace: (id: string) => Promise<{ success: boolean; reason?: string }>
   reorderWorkspaces: (workspaceIds: string[]) => void
 }
 
@@ -118,28 +118,36 @@ export const useTerminalStore = create<TerminalState>()(
 
       pauseWorkspace: async (id) => {
         const ws = get().workspaces.find((w) => w.id === id)
-        if (!ws || ws.status === 'paused') return
+        if (!ws || ws.status === 'paused') return { success: false, reason: 'not-found-or-paused' }
 
         const terminalIds = ws.terminals.map((t) => t.id)
-        await window.api.terminal.pauseWorkspace(terminalIds).catch(() => {})
+        const result = await window.api.terminal.pauseWorkspace(terminalIds).catch(() => null)
+        if (!result?.success || result.reason === 'unsupported-platform') {
+          return { success: false, reason: result?.reason ?? 'pause-failed' }
+        }
 
         set((state) => ({
           workspaces: state.workspaces.map((w) => (w.id === id ? { ...w, status: 'paused' } : w)),
           activeWorkspaceId: state.activeWorkspaceId === id ? null : state.activeWorkspaceId
         }))
+        return { success: true }
       },
 
       resumeWorkspace: async (id) => {
         const ws = get().workspaces.find((w) => w.id === id)
-        if (!ws) return
+        if (!ws) return { success: false, reason: 'not-found' }
 
         const terminalIds = ws.terminals.map((t) => t.id)
-        await window.api.terminal.resumeWorkspace(terminalIds).catch(() => {})
+        const result = await window.api.terminal.resumeWorkspace(terminalIds).catch(() => null)
+        if (!result?.success || result.reason === 'unsupported-platform') {
+          return { success: false, reason: result?.reason ?? 'resume-failed' }
+        }
 
         set((state) => ({
           workspaces: state.workspaces.map((w) => (w.id === id ? { ...w, status: 'active' } : w)),
           activeWorkspaceId: id
         }))
+        return { success: true }
       },
 
       reorderWorkspaces: (workspaceIds) => {

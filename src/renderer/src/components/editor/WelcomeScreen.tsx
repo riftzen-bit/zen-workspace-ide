@@ -1,67 +1,47 @@
-import { motion } from 'framer-motion'
-import { FolderOpen, FilePlus, Terminal, MessageSquare, ChevronRight, Folder } from 'lucide-react'
+﻿import { FolderOpen, Terminal, MessageSquare, Folder, Plus } from 'lucide-react'
 import { useFileStore } from '../../store/useFileStore'
 import { useUIStore } from '../../store/useUIStore'
-import { useProjectStore } from '../../store/useProjectStore'
+import { useProjectStore, Project } from '../../store/useProjectStore'
 import { WeatherTimeWidget } from '../ui/WeatherTimeWidget'
+import { motion } from 'framer-motion'
 
 const isMac = navigator.platform.toLowerCase().includes('mac')
 const mod = isMac ? '⌘' : 'Ctrl'
 
-const getGreeting = (): string => {
-  const hour = new Date().getHours()
-  if (hour >= 5 && hour < 12) return 'Good morning'
-  if (hour >= 12 && hour < 18) return 'Good afternoon'
-  return 'Good evening'
-}
-
-interface MenuButtonProps {
-  icon: any
-  title: string
-  subtitle: string
-  shortcut?: string
-  onClick: () => void
-  isLast?: boolean
-}
-
-function MenuButton({ icon: Icon, title, subtitle, shortcut, onClick, isLast }: MenuButtonProps) {
-  return (
-    <button
-      onClick={onClick}
-      className={`group flex items-center justify-between w-full p-4 hover:bg-white/[0.02] transition-all text-left outline-none focus-visible:bg-white/[0.03] ${
-        !isLast ? 'border-b border-white/[0.04]' : ''
-      }`}
+const GeometricCube = () => (
+  <div className="perspective-[1000px] w-20 h-20">
+    <motion.div
+      animate={{ rotateX: [0, 360], rotateY: [0, 360] }}
+      transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
+      className="relative w-full h-full [transform-style:preserve-3d]"
     >
-      <div className="flex items-center gap-4">
-        <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-white/[0.03] text-zinc-400 group-hover:text-zinc-200 transition-colors border border-white/[0.02] shadow-sm">
-          <Icon size={16} strokeWidth={1.5} />
+      {[
+        'translateZ(40px)',
+        'rotateY(180deg) translateZ(40px)',
+        'rotateY(90deg) translateZ(40px)',
+        'rotateY(-90deg) translateZ(40px)',
+        'rotateX(90deg) translateZ(40px)',
+        'rotateX(-90deg) translateZ(40px)'
+      ].map((transform, i) => (
+        <div
+          key={i}
+          className="absolute inset-0 border border-[333333] bg-[#0a0a0a]/80 backdrop-blur-md flex/items-center justify-center"
+          style={{ transform }}
+        >
+          <div className="w-2 h-2 bg-[#444444]" />
         </div>
-        <div className="flex flex-col">
-          <span className="text-[13px] font-medium text-zinc-200 transition-colors group-hover:text-white">
-            {title}
-          </span>
-          <span className="text-[12px] text-zinc-500 mt-0.5">{subtitle}</span>
-        </div>
-      </div>
-      <div className="flex items-center gap-3">
-        {shortcut && (
-          <span className="text-[10px] font-mono text-zinc-500 bg-white/[0.03] px-1.5 py-0.5 rounded border border-white/[0.04]">
-            {shortcut}
-          </span>
-        )}
-        <ChevronRight
-          size={14}
-          strokeWidth={1.5}
-          className="text-zinc-600 group-hover:text-zinc-400 transition-all group-hover:translate-x-0.5 duration-300"
-        />
-      </div>
-    </button>
-  )
-}
+      ))}
+    </motion.div>
+  </div>
+)
 
 export const WelcomeScreen = () => {
-  const { workspaceDir, setWorkspaceDir, setFileTree } = useFileStore()
-  const { setActiveView, setSidebarOpen, setChatOpen } = useUIStore()
+  const { setWorkspaceDir, setFileTree } = useFileStore()
+  const { setActiveView, setChatOpen } = useUIStore()
+  const projects = useProjectStore((s) => s.projects)
+  const setActiveProject = useProjectStore((s) => s.setActiveProject)
+
+  const recentProjects = [...projects].sort((a, b) => b.lastOpenedAt - a.lastOpenedAt).slice(0, 8)
 
   const handleOpenFolder = async () => {
     const dirPath = await window.api.openDirectory()
@@ -73,107 +53,165 @@ export const WelcomeScreen = () => {
     }
   }
 
-  const greeting = getGreeting()
+  const handleOpenRecent = async (project: Project) => {
+    setActiveProject(project.id)
+    setWorkspaceDir(project.path)
+    const tree = await window.api.readDirectory(project.path)
+    setFileTree(tree)
+  }
 
   return (
-    <div className="h-full w-full relative flex flex-col items-center justify-center overflow-hidden bg-transparent text-zinc-200">
-      <WeatherTimeWidget />
-
-      {/* Ultra-minimalist Background */}
-      <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden flex justify-center">
-        {/* Top radial glow simulating a subtle spotlight */}
+    <div className="relative h-full w-full bg-[#050505] text-[#cccccc] overflow-hidden selection:bg-[#333333] flex items-center justify-center px-6 md:px-12">
+      {/* Architectural Perspective Grid Background */}
+      <div className="absolute inset-0 pointer-events-none opacity-30">
         <div
-          className="absolute top-[-20%] w-[800px] h-[600px] opacity-30 pointer-events-none"
-          style={{
-            background:
-              'radial-gradient(circle at 50% 50%, rgba(255,255,255,0.04) 0%, transparent 70%)'
-          }}
-        />
-        {/* Noise overlay for premium texture */}
-        <div
-          className="absolute inset-0 opacity-[0.015] mix-blend-overlay pointer-events-none"
+          className="absolute inset-[-100%] [transform:perspective(1000px)_rotateX(75deg)_translateY(-100px)_scale(2)]"
           style={{
             backgroundImage:
-              "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E\")"
+              'linear-gradient(to right, #333 1px, transparent 1px), linear-gradient(to bottom, #333 1px, transparent 1px)',
+            backgroundSize: '4rem 4rem',
+            maskImage: 'radial-gradient(ellipse 60% 60% at 50% 10%, #000 40%, transparent 100%)'
           }}
         />
       </div>
 
-      <div className="relative z-10 flex flex-col items-center w-full px-6 max-w-[420px]">
-        {/* Header */}
-        <motion.div
-          className="flex flex-col items-center mb-10 text-center"
-          initial={{ opacity: 0, y: 15 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-        >
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-b from-white/[0.08] to-white/[0.02] border border-white/10 flex items-center justify-center mb-6 shadow-lg shadow-black/50">
-            <Terminal size={20} className="text-zinc-200" strokeWidth={1.5} />
+      <WeatherTimeWidget />
+
+      {/* Main Studio Frame */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+        className="relative z-10 w-full max-w-[900px] bg-[#0a0a0a]/80 backdrop-blur-2xl border border-[#222222] p-10 md:p-16 shadow-2xl flex flex-col md:flex-row gap-16 md:gap-24"
+      >
+        {/* Engineering Corner Accents (Crosshairs) */}
+        <Plus
+          className="absolute -top-3 -left-3 text-[#555] opacity-50"
+          size={24}
+          strokeWidth={1}
+        />
+        <Plus
+          className="absolute -top-3 -right-3 text-[#555] opacity-50"
+          size={24}
+          strokeWidth={1}
+        />
+        <Plus
+          className="absolute -bottom-3 -left-3 text-[#555] opacity-50"
+          size={24}
+          strokeWidth={1}
+        />
+        <Plus
+          className="absolute -bottom-3 -right-3 text-[#555] opacity-50"
+          size={24}
+          strokeWidth={1}
+        />
+
+        {/* Left Column: Start Actions */}
+        <div className="flex-1 min-w-[280px]">
+          <div className="mb-12 flex items-start gap-8">
+            <div>
+              <h1 className="text-[32px] font-normal tracking-tight text-[#eeeeee] leading-tight">
+                Vibe Studio
+              </h1>
+              <p className="text-[13px] text-[3777777] mt-3 font-mono flex/items-center gap-2">
+                <span className="w-1.5 h-1.5 bg-[3444] rounded-none animate-pulse" />
+                System initialized.
+              </p>
+            </div>
+            <div className="hidden md:block ml-auto opacity-80">
+              <GeometricCube />
+            </div>
           </div>
 
-          <h2 className="text-[12px] font-medium text-zinc-500 tracking-widest uppercase mb-2">
-            {greeting}
+          <h2 className="text-[11px] font-medium text-[#555555] tracking-widest uppercase mb-4">
+            Initialize
           </h2>
-          <h1 className="text-[28px] font-semibold tracking-tight text-white leading-tight">
-            Zen Workspace
-          </h1>
-          <p className="text-[14px] text-zinc-400 mt-2">Your distraction-free command center</p>
-        </motion.div>
+          <div className="flex flex-col space-y-1">
+            <button
+              onClick={handleOpenFolder}
+              className="flex items-center gap-4 px-4 py-3 border border-transparent border-l-[#222222] rounded-none hover:bg-[#111111] hover:border-l-[#eeeeee] transition-all duration-200 text-[13px] text-[999999] group text-left cursor-pointer outline-none focus-visible:bg-[#111111] focus-visible:border-l-[#eeeeee]"
+            >
+              <FolderOpen
+                size={16}
+                strokeWidth={1}
+                className="text-[#666666] group-hover:text-[#eeeeee] transition-colors duration-200"
+              />
+              <span className="flex-1 font-light">Open Folder...</span>
+              <span className="text-[11px] text-[#555555] font-mono group-hover:text-[#999999] transition-colors">
+                {mod} O
+              </span>
+            </button>
+            <button
+              onClick={() => setActiveView('terminal')}
+              className="flex items-center gap-4 px-4 py-3 border border-transparent border-l-[#222222] rounded-none hover:bg-[#111111] hover:border-l-[3eeeeee] transition-all duration-200 text-[13px] text-[#999999] group text-left cursor-pointer outline-none focus-visible:bg-[3111111] focus-visible:border-l-[3eeeeee]"
+            >
+              <Terminal
+                size={16}
+                strokeWidth={1}
+                className="text-[#666666] group-hover:text-[#eeeeee] transition-colors duration-200"
+              />
+              <span className="flex-1 font-light">New Terminal Session</span>
+              <span className="text-[11px] text-[#555555] font-mono group-hover:text-[#999999] transition-colors">
+                {mod} `
+              </span>
+            </button>
+            <button
+              onClick={() => setChatOpen(true)}
+              className="flex items-center gap-4 px-4 py-3 border border-transparent border-l-[#222222] rounded-none hover:bg-[3111111] hover:border-l-[#eeeeee] transition-all duration-200 text-[13px] text-[#999999] group text-left cursor-pointer outline-none focus-visible:bg-[#111111] focus-visible:border-l-[#eeeeee]"
+            >
+              <MessageSquare
+                size={16}
+                strokeWidth={1}
+                className="text-[#666666] group-hover:text-[#eeeeee] transition-colors duration-200"
+              />
+              <span className="flex-1 font-light">Chat Assistant</span>
+              <span className="text-[11px] text-[#555555] font-mono group-hover:text-[#999999] transition-colors">
+                {mod} I
+              </span>
+            </button>
+          </div>
+        </div>
 
-        {/* Command Menu */}
-        <motion.div
-          className="w-full flex flex-col bg-[#0A0A0A] rounded-2xl border border-white/[0.06] shadow-2xl shadow-black/50 overflow-hidden"
-          initial={{ opacity: 0, y: 15 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
-        >
-          <MenuButton
-            icon={FolderOpen}
-            title="Open Folder"
-            subtitle="Select a workspace directory"
-            onClick={handleOpenFolder}
-          />
-          <MenuButton
-            icon={FilePlus}
-            title="Browse Files"
-            subtitle="Explore your project tree"
-            shortcut={`${mod} B`}
-            onClick={() => {
-              setSidebarOpen(true)
-              setActiveView('explorer')
-            }}
-          />
-          <MenuButton
-            icon={Terminal}
-            title="Open Terminal"
-            subtitle="Start a local shell session"
-            onClick={() => setActiveView('terminal')}
-          />
-          <MenuButton
-            icon={MessageSquare}
-            title="AI Assistant"
-            subtitle="Chat with your coding partner"
-            shortcut={`${mod} I`}
-            onClick={() => setChatOpen(true)}
-            isLast
-          />
-        </motion.div>
-
-        {/* Footer Path */}
-        {workspaceDir && (
-          <motion.div
-            className="flex items-center justify-center gap-2 mt-8 text-zinc-500 bg-white/[0.02] border border-white/[0.04] px-3 py-1.5 rounded-lg"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-          >
-            <Folder size={12} strokeWidth={1.5} />
-            <span className="text-[11px] font-mono tracking-tight truncate max-w-[280px]">
-              {workspaceDir}
-            </span>
-          </motion.div>
-        )}
-      </div>
+        {/* Right Column: Recent */}
+        <div className="flex-1 min-w-[280px]">
+          <h2 className="text-[11px] font-medium text-[#555555] tracking-widest uppercase mb-4 mt-2 md:mt-[124px]">
+            Active Workspaces
+          </h2>
+          {recentProjects.length > 0 ? (
+            <div className="flex flex-col space-y-1">
+              {recentProjects.map((project) => (
+                <button
+                  key={project.id}
+                  onClick={() => handleOpenRecent(project)}
+                  className="flex items-start gap-4 px-4 py-3 border border-transparent border-l-[#222222] rounded-none hover:bg-[#111111] hover:border-l-[3eeeeee] transition-all duration-200 text-left cursor-pointer outline-none group focus-visible:bg-[3111111] focus-visible:border-l-[3eeeeee]"
+                >
+                  <Folder
+                    size={16}
+                    strokeWidth={1}
+                    className="text-[#666666] mt-0.5 group-hover:text-[#eeeeee] transition-colors duration-200"
+                  />
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-[13px] font-light text-[#999999] group-hover:text-[#eeeeee] transition-colors duration-200 truncate">
+                      {project.name}
+                    </span>
+                    <span
+                      className="text-[11px] text-[#555555] truncate mt-1 font-mono group-hover:text-[3777777] transition-colors duration-200"
+                      title={project.path}
+                    >
+                      {project.path}
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="px-4 py-3 text-[13px] text-[#555555] font-light border-l border-[#222222]">
+              No recent workspaces found.
+            </div>
+          )}
+        </div>
+      </motion.div>
     </div>
   )
 }
+

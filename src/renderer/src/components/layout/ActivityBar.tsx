@@ -15,25 +15,34 @@ import {
   Command,
   Activity,
   GitBranch,
+  CheckSquare,
+  BarChart3,
+  LayoutDashboard,
   type LucideIcon
 } from 'lucide-react'
 
 type ActivityView =
   | 'explorer'
   | 'search'
+  | 'tasks'
   | 'settings'
   | 'terminal'
+  | 'orchestrator'
   | 'projects'
   | 'activity'
   | 'git'
+  | 'focus'
 
 const TOOLTIPS: Partial<Record<ActivityView | 'chat' | 'vibe' | 'zen' | 'palette', string>> = {
   projects: 'Projects',
   explorer: 'Explorer',
   search: 'Search',
+  tasks: 'Tasks',
   git: 'Source Control',
   terminal: 'Terminal',
+  orchestrator: 'Orchestrator',
   activity: 'Agent Activity',
+  focus: 'Focus Analytics',
   settings: 'Settings',
   chat: 'Assistant',
   vibe: 'Vibe Player',
@@ -64,16 +73,7 @@ const IconWrapper = ({
   const isActive = isActiveOverride !== undefined ? isActiveOverride : view === activeView
 
   return (
-    <div className="relative flex items-center">
-      {/* Active indicator — thin 2px left line */}
-      {isActive && (
-        <motion.div
-          layoutId="activity-indicator"
-          className="absolute -left-[12px] w-[2px] h-5 rounded-r-full bg-[#EAB308] shadow-[0_0_8px_rgba(234,179,8,0.5)]"
-          transition={{ duration: 0.18, ease: [0.32, 0.72, 0, 1] }}
-        />
-      )}
-
+    <div className="relative flex items-center w-full">
       <button
         onClick={(): void => {
           if (onClick) onClick()
@@ -81,26 +81,26 @@ const IconWrapper = ({
         }}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
-        className={`relative w-9 h-9 rounded-[10px] flex items-center justify-center cursor-pointer transition-all duration-200 ${
+        className={`relative w-full h-[52px] flex items-center justify-center cursor-pointer transition-none outline-none ${
           isActive
-            ? 'bg-white/[0.06] text-white shadow-sm border border-white/[0.04]'
-            : 'text-zinc-500 hover:bg-white/[0.03] hover:text-zinc-300'
+            ? 'bg-[#111111] text-[#eeeeee] border-l-[2px] border-l-[#eeeeee]'
+            : 'text-[#666666] border-l-[2px] border-l-transparent hover:bg-[#111111] hover:text-[#cccccc]'
         }`}
       >
         <Icon
-          size={18}
-          strokeWidth={isActive ? 2 : 1.5}
-          className={`transition-all duration-200 ${hovered && !isActive ? 'scale-110' : ''}`}
+          size={20}
+          strokeWidth={1}
+          className={`transition-none ${hovered && !isActive ? 'scale-110' : ''}`}
         />
         {/* Unread badge */}
         {badge != null && badge > 0 && (
-          <span className="absolute -top-1 -right-1 min-w-[14px] h-[14px] rounded-full flex items-center justify-center text-[9px] font-bold bg-[#EAB308] text-black px-1 shadow-[0_0_8px_rgba(234,179,8,0.5)]">
+          <span className="absolute top-2 right-2 min-w-[14px] h-[14px] flex items-center justify-center text-[9px] font-mono bg-[#eeeeee] text-[#050505] px-1">
             {badge > 99 ? '99+' : badge}
           </span>
         )}
       </button>
 
-      {/* Tooltip — snappy easing */}
+      {/* Tooltip */}
       <AnimatePresence>
         {hovered && (
           <motion.div
@@ -108,9 +108,9 @@ const IconWrapper = ({
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -6 }}
             transition={transition.tooltip}
-            className="absolute left-[calc(100%+14px)] z-50 pointer-events-none whitespace-nowrap"
+            className="absolute left-[calc(100%+8px)] z-50 pointer-events-none whitespace-nowrap"
           >
-            <div className="px-2.5 py-1.5 rounded-lg bg-[#0A0A0A] border border-white/[0.06] shadow-xl text-zinc-300 text-[11.5px] font-medium tracking-wide">
+            <div className="px-3 py-1.5 bg-[#050505] border border-[#222222] shadow-2xl text-[#cccccc] text-[11px] font-mono tracking-wide uppercase">
               {tooltip}
             </div>
           </motion.div>
@@ -135,8 +135,8 @@ export const ActivityBar = () => {
   const { unreadCount } = useActivityStore()
 
   return (
-    <div className="w-[52px] h-full rounded-2xl flex flex-col justify-between shrink-0 py-4 items-center bg-[#050505] border border-white/[0.06] shadow-xl shadow-black/50">
-      <div className="flex flex-col w-full items-center gap-1.5 px-[10px]">
+    <div className="w-[52px] h-full flex flex-col justify-between shrink-0 py-0 items-center bg-[#050505] border-r border-[#222222] shadow-none">
+      <div className="flex flex-col w-full items-center">
         <IconWrapper
           view="projects"
           tooltip={TOOLTIPS.projects!}
@@ -166,9 +166,23 @@ export const ActivityBar = () => {
           setActiveView={setActiveView}
         />
         <IconWrapper
+          view="tasks"
+          tooltip={TOOLTIPS.tasks!}
+          Icon={CheckSquare}
+          activeView={activeView}
+          setActiveView={setActiveView}
+        />
+        <IconWrapper
           view="terminal"
           tooltip={TOOLTIPS.terminal!}
-          Icon={Terminal}
+          Icon={TerminalSquare}
+          activeView={activeView}
+          setActiveView={setActiveView}
+        />
+        <IconWrapper
+          view="orchestrator"
+          tooltip={TOOLTIPS.orchestrator!}
+          Icon={LayoutDashboard}
           activeView={activeView}
           setActiveView={setActiveView}
         />
@@ -182,40 +196,42 @@ export const ActivityBar = () => {
         />
       </div>
 
-      <div className="flex flex-col w-full items-center gap-1.5 px-[10px]">
+      <div className="flex flex-col w-full items-center">
         <IconWrapper
           tooltip={TOOLTIPS.palette!}
           Icon={Command}
+          activeView={activeView}
+          setActiveView={setActiveView}
           onClick={() => setCommandPaletteOpen(true)}
-          isActiveOverride={false}
-          activeView={activeView}
-          setActiveView={setActiveView}
-        />
-        <IconWrapper
-          tooltip={TOOLTIPS.chat!}
-          Icon={TerminalSquare}
-          onClick={toggleChat}
-          isActiveOverride={isChatOpen}
-          activeView={activeView}
-          setActiveView={setActiveView}
-        />
-        <IconWrapper
-          tooltip={TOOLTIPS.vibe!}
-          Icon={Disc}
-          onClick={toggleVibePlayer}
-          isActiveOverride={isVibePlayerOpen}
-          activeView={activeView}
-          setActiveView={setActiveView}
-        />
-        <div
-          className="w-6 h-px my-1 rounded-full"
-          style={{ backgroundColor: 'var(--color-border-subtle)' }}
         />
         <IconWrapper
           tooltip={TOOLTIPS.zen!}
           Icon={Maximize2}
-          onClick={() => enterZenMode()}
+          activeView={activeView}
+          setActiveView={setActiveView}
+          onClick={enterZenMode}
           isActiveOverride={isZenMode}
+        />
+        <IconWrapper
+          tooltip={TOOLTIPS.chat!}
+          Icon={Terminal}
+          activeView={activeView}
+          setActiveView={setActiveView}
+          onClick={toggleChat}
+          isActiveOverride={isChatOpen}
+        />
+        <IconWrapper
+          tooltip={TOOLTIPS.vibe!}
+          Icon={Disc}
+          activeView={activeView}
+          setActiveView={setActiveView}
+          onClick={toggleVibePlayer}
+          isActiveOverride={isVibePlayerOpen}
+        />
+        <IconWrapper
+          view="focus"
+          tooltip={TOOLTIPS.focus!}
+          Icon={BarChart3}
           activeView={activeView}
           setActiveView={setActiveView}
         />

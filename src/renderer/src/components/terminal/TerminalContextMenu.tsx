@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+﻿import { useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { Copy, Send, MessageSquare } from 'lucide-react'
 import { useTerminalStore } from '../../store/useTerminalStore'
@@ -54,7 +54,10 @@ export const TerminalContextMenu = ({
   }
 
   const handleSendToTerminal = (targetTerminalId: string, workspaceName: string) => {
-    const text = selection.endsWith('\n') ? selection : selection + '\n'
+    const normalizedSelection = selection.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+    const text = normalizedSelection.endsWith('\n')
+      ? normalizedSelection.slice(0, -1).replace(/\n/g, '\r') + '\r'
+      : normalizedSelection.replace(/\n/g, '\r') + '\r'
     window.api.terminal.write(targetTerminalId, text)
     useUIStore.getState().addToast(`Sent to ${workspaceName}`, 'info')
     onClose()
@@ -88,7 +91,7 @@ export const TerminalContextMenu = ({
       initial={{ opacity: 0, scale: 0.97, y: -4 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
       transition={transition.tooltip}
-      className="fixed z-[9999] rounded-xl overflow-hidden shadow-2xl"
+      className="fixed z-[9999] rounded-none overflow-hidden shadow-2xl"
       style={{
         left: adjustedX,
         top: adjustedY,
@@ -182,3 +185,4 @@ export const TerminalContextMenu = ({
     </motion.div>
   )
 }
+

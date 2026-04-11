@@ -38,6 +38,9 @@ jobs:
           npx tsc --noEmit -p tsconfig.node.json --composite false
           npx tsc --noEmit -p tsconfig.web.json --composite false
 
+      - name: Test
+        run: npm test
+
       - name: Lint
         run: npx eslint src/
 

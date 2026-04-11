@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+﻿import { useState, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { MapPin, Cloud, Sun, CloudRain, CloudLightning, Snowflake, Edit2 } from 'lucide-react'
 import { useSettingsStore } from '../../store/useSettingsStore'
@@ -156,7 +156,7 @@ export const WeatherTimeWidget = () => {
       animate={{ opacity: 1, x: 0 }}
       transition={{ duration: 0.6, delay: 0.3 }}
     >
-      <div className="flex items-center gap-4 bg-black/20 backdrop-blur-md border border-white/5 px-4 py-2.5 rounded-2xl shadow-xl">
+      <div className="flex items-center gap-4 bg-black/20 backdrop-blur-md border border-white/5 px-4 py-2.5 rounded-none shadow-xl">
         {/* Time */}
         <div className="flex flex-col items-end">
           <span className="text-[22px] font-semibold tracking-tight text-white leading-none">
@@ -207,3 +207,4 @@ export const WeatherTimeWidget = () => {
     </motion.div>
   )
 }
+

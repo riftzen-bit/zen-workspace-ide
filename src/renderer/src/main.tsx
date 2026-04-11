@@ -19,7 +19,11 @@ console.info = (...args) => {
 }
 
 createRoot(document.getElementById('root')!).render(
-  <StrictMode>
+  import.meta.env.DEV ? (
     <App />
-  </StrictMode>
+  ) : (
+    <StrictMode>
+      <App />
+    </StrictMode>
+  )
 )

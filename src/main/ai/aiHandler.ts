@@ -1,11 +1,26 @@
 import { ipcMain, IpcMainInvokeEvent } from 'electron'
 import fs from 'fs'
 import path from 'path'
-import { AIChatParams, AIMessage, AIGenerateTestParams } from './types'
+import {
+  AIChatParams,
+  AIMessage,
+  AIGenerateTestParams,
+  AICompleteParams,
+  AIReviewParams,
+  AIProviderType
+} from './types'
 import { getProvider } from './providerRegistry'
-import { getAntigravityCredential, getGeminiOAuthCredential } from '../oauth/googleOAuth'
+import { getGeminiOAuthAccess } from '../oauth/googleOAuth'
+import { isTrustedIpcSender, resolvePathWithinRoot } from '../security'
 
 import { executeTool } from './tools'
+
+function encodeGeminiOAuthCredential(accessToken: string, quotaProject?: string): string {
+  const payload = Buffer.from(JSON.stringify({ accessToken, quotaProject }), 'utf8').toString(
+    'base64url'
+  )
+  return `oauth-json:${payload}`
+}
 
 const SYSTEM_PROMPT = `You are "Zen AI", a sharp coding companion built into the Zen Workspace IDE. You help developers write better code while keeping the vibe relaxed and focused.
 
@@ -96,6 +111,7 @@ function buildSystemPrompt(provider: string, model: string): string {
 }
 
 let currentAbortController: AbortController | null = null
+const MAX_TOOL_CALL_ITERATIONS = 8
 
 // Block known cloud metadata endpoints to prevent SSRF from user-configured Ollama URLs
 function isAllowedOllamaUrl(urlStr: string): boolean {
@@ -110,14 +126,181 @@ function isAllowedOllamaUrl(urlStr: string): boolean {
   }
 }
 
+type CredentialParams = {
+  provider: AIProviderType
+  apiKey?: string
+  ollamaUrl?: string
+  useGeminiOAuth?: boolean
+}
+
+async function resolveCredential(params: CredentialParams): Promise<string> {
+  if (params.provider === 'ollama') {
+    const ollamaUrl = params.ollamaUrl ?? 'http://localhost:11434'
+    if (!isAllowedOllamaUrl(ollamaUrl)) {
+      throw new Error('Invalid Ollama URL')
+    }
+    return ollamaUrl
+  }
+
+  if (params.provider === 'gemini' && params.useGeminiOAuth) {
+    const oauthAccess = await getGeminiOAuthAccess()
+    if (!oauthAccess) {
+      throw new Error(
+        'Not signed in to Gemini. Open Setup Guide in Settings to configure your credentials, then sign in with Google.'
+      )
+    }
+    return encodeGeminiOAuthCredential(oauthAccess.accessToken, oauthAccess.quotaProject)
+  }
+
+  const credential = params.apiKey ?? ''
+  if (!credential) {
+    throw new Error(
+      `No API key configured for ${params.provider}. Open Settings to add your credentials.`
+    )
+  }
+  return credential
+}
+
+async function collectProviderText(
+  params: CredentialParams & {
+    model: string
+    messages: AIMessage[]
+    signal?: AbortSignal
+  }
+): Promise<string> {
+  const provider = getProvider(params.provider)
+  const credential = await resolveCredential(params)
+  let accumulatedText = ''
+  let chunkError: string | null = null
+
+  await provider.streamChat(
+    params.messages,
+    params.model,
+    credential,
+    (chunk) => {
+      if (chunk.type === 'text' && chunk.text) {
+        accumulatedText += chunk.text
+      } else if (chunk.type === 'error') {
+        chunkError = chunk.error ?? 'Unknown AI error'
+      }
+    },
+    params.signal
+  )
+
+  if (chunkError) {
+    throw new Error(chunkError)
+  }
+
+  return accumulatedText.trim()
+}
+
+function extractJsonPayload(text: string): string | null {
+  const trimmed = text.trim()
+  if (!trimmed) return null
+
+  const blockMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i)
+  if (blockMatch) {
+    return blockMatch[1].trim()
+  }
+
+  const start = trimmed.indexOf('{')
+  const end = trimmed.lastIndexOf('}')
+  if (start !== -1 && end !== -1 && end > start) {
+    return trimmed.slice(start, end + 1)
+  }
+
+  return null
+}
+
+function parseReviewResult(text: string): {
+  summary: string
+  findings: Array<{
+    id: string
+    severity: 'critical' | 'warning' | 'info' | 'suggestion'
+    title: string
+    summary: string
+    lineStart: number
+    lineEnd: number
+    suggestion?: string
+    replacement?: string
+    canApply: boolean
+  }>
+} {
+  const jsonPayload = extractJsonPayload(text)
+  if (!jsonPayload) {
+    return { summary: text.trim() || 'Review complete.', findings: [] }
+  }
+
+  try {
+    const parsed = JSON.parse(jsonPayload) as {
+      summary?: string
+      findings?: Array<{
+        severity?: string
+        title?: string
+        summary?: string
+        lineStart?: number
+        lineEnd?: number
+        suggestion?: string
+        replacement?: string
+        canApply?: boolean
+      }>
+    }
+
+    const findings = (parsed.findings ?? [])
+      .map((finding, index) => {
+        const severity: 'critical' | 'warning' | 'info' | 'suggestion' =
+          finding.severity === 'critical' ||
+          finding.severity === 'warning' ||
+          finding.severity === 'info' ||
+          finding.severity === 'suggestion'
+            ? finding.severity
+            : 'warning'
+
+        const lineStart = Number.isFinite(finding.lineStart)
+          ? Math.max(1, Number(finding.lineStart))
+          : 1
+        const lineEnd = Number.isFinite(finding.lineEnd)
+          ? Math.max(lineStart, Number(finding.lineEnd))
+          : lineStart
+
+        return {
+          id: `review-${Date.now()}-${index}`,
+          severity,
+          title: finding.title?.trim() || 'Review finding',
+          summary: finding.summary?.trim() || '',
+          lineStart,
+          lineEnd,
+          suggestion: finding.suggestion?.trim() || undefined,
+          replacement: finding.replacement?.trim() || undefined,
+          canApply:
+            Boolean(finding.canApply) &&
+            typeof finding.replacement === 'string' &&
+            finding.replacement.trim().length > 0
+        }
+      })
+      .filter((finding) => finding.summary.length > 0)
+      .slice(0, 12)
+
+    return {
+      summary: parsed.summary?.trim() || 'Review complete.',
+      findings
+    }
+  } catch {
+    return {
+      summary: text.trim() || 'Review complete.',
+      findings: []
+    }
+  }
+}
+
 export function setupAIHandlers(): void {
   ipcMain.handle('ai:chat', async (event: IpcMainInvokeEvent, params: AIChatParams) => {
+    if (!isTrustedIpcSender(event)) return
+
     // Abort any in-flight request
     currentAbortController?.abort()
     currentAbortController = new AbortController()
     const signal = currentAbortController.signal
-
-    let provider = getProvider(params.provider)
 
     // Build messages with system prompt prepended
     const messages: AIMessage[] = [
@@ -125,57 +308,14 @@ export function setupAIHandlers(): void {
       ...params.messages
     ]
 
-    // Determine credential: Ollama uses URL, Antigravity/Gemini OAuth use token|projectId
-    let credential: string
-    if (params.provider === 'ollama') {
-      const ollamaUrl = params.ollamaUrl ?? 'http://localhost:11434'
-      if (!isAllowedOllamaUrl(ollamaUrl)) {
-        if (!event.sender.isDestroyed()) {
-          event.sender.send('ai:chunk', { type: 'error', error: 'Invalid Ollama URL' })
-        }
-        return
-      }
-      credential = ollamaUrl
-    } else if (params.provider === 'antigravity') {
-      const agCredential = await getAntigravityCredential()
-      if (!agCredential) {
-        if (!event.sender.isDestroyed()) {
-          event.sender.send('ai:chunk', {
-            type: 'error',
-            error: 'Not signed in to Antigravity — sign in via Settings → Antigravity'
-          })
-        }
-        return
-      }
-      credential = agCredential
-    } else if (params.provider === 'gemini') {
-      if (params.useGeminiOAuth) {
-        const geminiCred = await getGeminiOAuthCredential()
-        if (geminiCred) {
-          credential = `gemini-cli:${geminiCred}`
-          provider = getProvider('antigravity')
-        } else {
-          if (!event.sender.isDestroyed()) {
-            event.sender.send('ai:chunk', {
-              type: 'error',
-              error: 'Not signed in to Gemini. Please connect in Settings.'
-            })
-          }
-          return
-        }
-      } else {
-        credential = params.apiKey ?? ''
-      }
-    } else {
-      credential = params.apiKey ?? ''
-    }
-
-    // Reject requests without credentials early (except Ollama/Antigravity)
-    if (params.provider !== 'ollama' && params.provider !== 'antigravity' && !credential) {
+    let credential = ''
+    try {
+      credential = await resolveCredential(params)
+    } catch (error) {
       if (!event.sender.isDestroyed()) {
         event.sender.send('ai:chunk', {
           type: 'error',
-          error: `No API key configured for ${params.provider}`
+          error: error instanceof Error ? error.message : 'Failed to resolve credentials'
         })
       }
       return
@@ -184,12 +324,14 @@ export function setupAIHandlers(): void {
     let isDone = false
     const currentMessages = [...messages]
 
+    let toolCallIterations = 0
+
     while (!isDone && !signal.aborted) {
       let accumulatedText = ''
       let chunkError: unknown = null
 
       try {
-        await provider.streamChat(
+        await getProvider(params.provider).streamChat(
           currentMessages,
           params.model,
           credential,
@@ -216,6 +358,7 @@ export function setupAIHandlers(): void {
 
       if (chunkError) {
         const message = chunkError instanceof Error ? chunkError.message : 'Unknown error'
+
         if (!event.sender.isDestroyed()) {
           event.sender.send('ai:chunk', { type: 'error', error: message })
         }
@@ -226,6 +369,17 @@ export function setupAIHandlers(): void {
 
       const toolCallMatch = accumulatedText.match(/<tool_call>([\s\S]*?)<\/tool_call>/)
       if (toolCallMatch) {
+        toolCallIterations += 1
+        if (toolCallIterations > MAX_TOOL_CALL_ITERATIONS) {
+          if (!event.sender.isDestroyed()) {
+            event.sender.send('ai:chunk', {
+              type: 'error',
+              error: 'Tool call limit reached. Please refine the request and try again.'
+            })
+          }
+          break
+        }
+
         try {
           let jsonString = toolCallMatch[1].trim()
           if (jsonString.startsWith('```json')) {
@@ -246,14 +400,18 @@ export function setupAIHandlers(): void {
             })
           }
 
-          const result = await executeTool(toolCall.name, toolCall.args || {}, params.workspaceDir)
+          const toolArgs =
+            toolCall && typeof toolCall.args === 'object' && toolCall.args !== null
+              ? (toolCall.args as Record<string, unknown>)
+              : {}
+          const result = await executeTool(toolCall.name, toolArgs, params.workspaceDir)
 
           currentMessages.push({ role: 'assistant', content: accumulatedText })
           // Add truncation for large outputs to prevent token limit errors
           const maxResponseLength = 30000
           const truncatedResult =
             result.length > maxResponseLength
-              ? result.substring(0, maxResponseLength) + '\\n... (truncated)'
+              ? result.substring(0, maxResponseLength) + '\n... (truncated)'
               : result
           currentMessages.push({
             role: 'user',
@@ -278,19 +436,104 @@ export function setupAIHandlers(): void {
     }
   })
 
-  ipcMain.handle('ai:abort', () => {
+  ipcMain.handle('ai:abort', (event: IpcMainInvokeEvent) => {
+    if (!isTrustedIpcSender(event)) return
     currentAbortController?.abort()
     currentAbortController = null
   })
 
+  ipcMain.handle('ai:complete', async (event: IpcMainInvokeEvent, params: AICompleteParams) => {
+    if (!isTrustedIpcSender(event)) {
+      return { text: '', error: 'Untrusted sender' }
+    }
+
+    try {
+      const text = await collectProviderText({
+        ...params,
+        messages: [
+          {
+            role: 'system',
+            content:
+              params.systemPrompt?.trim() ||
+              'You are a precise coding assistant. Return only the requested text. Do not wrap your answer in markdown fences.'
+          },
+          {
+            role: 'user',
+            content: params.prompt
+          }
+        ]
+      })
+      return { text }
+    } catch (error) {
+      return {
+        text: '',
+        error: error instanceof Error ? error.message : 'Failed to complete request'
+      }
+    }
+  })
+
+  ipcMain.handle('ai:review', async (event: IpcMainInvokeEvent, params: AIReviewParams) => {
+    if (!isTrustedIpcSender(event)) {
+      return { summary: 'Untrusted sender', findings: [] }
+    }
+
+    try {
+      const reviewText = await collectProviderText({
+        ...params,
+        messages: [
+          {
+            role: 'system',
+            content:
+              'You are a strict senior code reviewer. Return valid JSON only. Focus on correctness, security, maintainability, performance, and developer experience.'
+          },
+          {
+            role: 'user',
+            content:
+              `Review the following file diff and return JSON with this exact shape:\n` +
+              `{"summary":"string","findings":[{"severity":"critical|warning|info|suggestion","title":"string","summary":"string","lineStart":1,"lineEnd":1,"suggestion":"string optional","replacement":"string optional","canApply":true}]}\n` +
+              `Rules:\n` +
+              `- Use line numbers from the MODIFIED file only.\n` +
+              `- Keep findings actionable and concise.\n` +
+              `- Set canApply=true only when replacement contains a complete replacement for the referenced line range.\n` +
+              `- Return at most 8 findings.\n` +
+              `- If the code looks good, return an empty findings array.\n\n` +
+              `File: ${params.filePath}\n\n` +
+              `ORIGINAL:\n\`\`\`\n${params.original}\n\`\`\`\n\n` +
+              `MODIFIED:\n\`\`\`\n${params.modified}\n\`\`\``
+          }
+        ]
+      })
+
+      return parseReviewResult(reviewText)
+    } catch (error) {
+      return {
+        summary: error instanceof Error ? error.message : 'Review failed',
+        findings: []
+      }
+    }
+  })
+
   ipcMain.handle(
     'ai:generateTest',
-    async (_event: IpcMainInvokeEvent, params: AIGenerateTestParams) => {
-      try {
-        const sourceCode = await fs.promises.readFile(params.filePath, 'utf-8')
-        const parsed = path.parse(params.filePath)
+    async (event: IpcMainInvokeEvent, params: AIGenerateTestParams) => {
+      if (!isTrustedIpcSender(event)) {
+        return { success: false, error: 'Untrusted sender' }
+      }
 
-        let targetPath = params.filePath
+      try {
+        if (!params.workspaceDir) {
+          return { success: false, error: 'Workspace directory is required' }
+        }
+
+        const safeSourcePath = resolvePathWithinRoot(params.workspaceDir, params.filePath)
+        if (!safeSourcePath) {
+          return { success: false, error: 'Source file path is outside workspace' }
+        }
+
+        const sourceCode = await fs.promises.readFile(safeSourcePath, 'utf-8')
+        const parsed = path.parse(safeSourcePath)
+
+        let targetPath = safeSourcePath
         const srcDirMatch = path.sep + 'src' + path.sep
         const testsDirMatch = path.sep + 'tests' + path.sep
         if (targetPath.includes(srcDirMatch)) {
@@ -307,7 +550,11 @@ export function setupAIHandlers(): void {
         else if (ext === '.jsx') ext = '.test.jsx'
         else ext = '.test' + ext
 
-        const finalTargetPath = path.join(targetParsed.dir, targetParsed.name + ext)
+        const unsafeTargetPath = path.join(targetParsed.dir, targetParsed.name + ext)
+        const finalTargetPath = resolvePathWithinRoot(params.workspaceDir, unsafeTargetPath, true)
+        if (!finalTargetPath) {
+          return { success: false, error: 'Target test path resolves outside workspace' }
+        }
 
         const messages: AIMessage[] = [
           {
@@ -321,53 +568,12 @@ export function setupAIHandlers(): void {
           }
         ]
 
-        let provider = getProvider(params.provider)
-        let credential = ''
-
-        if (params.provider === 'ollama') {
-          credential = params.ollamaUrl ?? 'http://localhost:11434'
-        } else if (params.provider === 'antigravity') {
-          const agCredential = await getAntigravityCredential()
-          if (!agCredential) throw new Error('Not signed in to Antigravity')
-          credential = agCredential
-        } else if (params.provider === 'gemini') {
-          if (params.useGeminiOAuth) {
-            const geminiCred = await getGeminiOAuthCredential()
-            if (geminiCred) {
-              credential = `gemini-cli:${geminiCred}`
-              provider = getProvider('antigravity')
-            } else {
-              throw new Error('Not signed in to Gemini. Please connect in Settings.')
-            }
-          } else {
-            credential = params.apiKey ?? ''
-            if (!credential) throw new Error(`No API key configured for ${params.provider}`)
-          }
-        } else {
-          credential = params.apiKey ?? ''
-          if (!credential) throw new Error(`No API key configured for ${params.provider}`)
-        }
-
-        let generatedCode = ''
-        const abortController = new AbortController()
-
-        const onChunk = (chunk: import('./types').AIStreamChunk) => {
-          if (chunk.type === 'text' && chunk.text) {
-            generatedCode += chunk.text
-          } else if (chunk.type === 'error' && chunk.error) {
-            throw new Error(chunk.error)
-          }
-        }
-
-        await provider.streamChat(
+        let generatedCode = await collectProviderText({
+          ...params,
           messages,
-          params.model,
-          credential,
-          onChunk,
-          abortController.signal
-        )
+          signal: new AbortController().signal
+        })
 
-        generatedCode = generatedCode.trim()
         if (generatedCode.startsWith('```')) {
           const lines = generatedCode.split('\n')
           if (lines[0].startsWith('```')) lines.shift()

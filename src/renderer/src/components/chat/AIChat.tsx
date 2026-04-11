@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
+﻿import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   TerminalSquare,
@@ -9,7 +9,10 @@ import {
   Copy,
   Check,
   ChevronRight,
-  Code2
+  Code2,
+  GitBranch,
+  X,
+  Link2
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -23,14 +26,16 @@ import { useFileStore } from '../../store/useFileStore'
 import { useMediaStore } from '../../store/useMediaStore'
 import { useSettingsStore, AIProviderType } from '../../store/useSettingsStore'
 import { useMusicStore } from '../../store/useMusicStore'
+import type { ContextFile } from '../../types'
+import { buildSmartContext, formatContextForPrompt } from '../../lib/chatContext'
+import { basename, normalizePath } from '../../lib/pathUtils'
 
 const PROVIDER_LABELS: Record<AIProviderType, string> = {
   gemini: 'Gemini',
   openai: 'OpenAI',
   anthropic: 'Claude',
   groq: 'Groq',
-  ollama: 'Ollama',
-  antigravity: 'Antigravity'
+  ollama: 'Ollama'
 }
 
 const isMac = navigator.platform.toLowerCase().includes('mac')
@@ -50,7 +55,7 @@ const CodeBlock = ({ children, className }: { children?: React.ReactNode; classN
   }, [codeText])
 
   return (
-    <div className="relative group my-4 rounded-xl overflow-hidden border border-white/[0.06] bg-[#0A0A0A] shadow-sm">
+    <div className="relative group my-4 rounded-none overflow-hidden border border-[#222222] bg-[#050505] shadow-none">
       <div className="absolute right-2 top-2 z-10 flex items-center">
         {language && (
           <span className="text-[10px] text-zinc-500 font-mono mr-3 opacity-0 group-hover:opacity-100 transition-opacity select-none uppercase tracking-wider">
@@ -59,7 +64,7 @@ const CodeBlock = ({ children, className }: { children?: React.ReactNode; classN
         )}
         <button
           onClick={handleCopy}
-          className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-zinc-200"
+          className="p-1.5 rounded-none opacity-0 group-hover:opacity-100 transition-all bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-zinc-200"
           title="Copy code"
         >
           {copied ? <Check size={14} className="text-zinc-300" /> : <Copy size={14} />}
@@ -95,7 +100,7 @@ const markdownComponents: Components = {
       return (
         <code
           {...props}
-          className="px-1.5 py-0.5 rounded-md bg-white/[0.03] text-zinc-200 font-mono text-[12px] border border-white/5"
+          className="px-1.5 py-0.5 rounded-none bg-[#111111] text-[#cccccc] font-mono text-[12px] border border-[#222222]"
         >
           {children}
         </code>
@@ -145,7 +150,7 @@ const markdownComponents: Components = {
   },
   blockquote({ children }) {
     return (
-      <blockquote className="border-l-2 border-white/10 pl-4 py-1 my-4 text-zinc-400 italic bg-white/[0.02] rounded-r-lg">
+      <blockquote className="border-l-2 border-white/10 pl-4 py-1 my-4 text-zinc-400 italic bg-white/[0.02] rounded-none">
         {children}
       </blockquote>
     )
@@ -172,12 +177,12 @@ const ThinkingIndicator = () => {
   }, [])
 
   return (
-    <div className="flex gap-3 items-center text-[13px] text-zinc-500 italic font-mono bg-white/[0.02] border border-white/5 px-4 py-2 rounded-xl w-fit">
+    <div className="flex gap-3 items-center text-[13px] text-zinc-500 italic font-mono bg-white/[0.02] border border-white/5 px-4 py-2 rounded-none border-[#222222] w-fit">
       <span className="flex space-x-1.5">
         {[0, 0.15, 0.3].map((delay, i) => (
           <motion.span
             key={i}
-            className="w-1.5 h-1.5 rounded-full bg-zinc-500"
+            className="w-1.5 h-1.5 rounded-none bg-zinc-500"
             animate={{ y: [-2, 2, -2], opacity: [0.3, 1, 0.3] }}
             transition={{ duration: 0.8, repeat: Infinity, ease: 'easeInOut', delay }}
           />
@@ -192,6 +197,10 @@ export const AIChat = () => {
   const [input, setInput] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const [viewMode, setViewMode] = useState<'chat' | 'history'>('chat')
+  const [contextFiles, setContextFiles] = useState<ContextFile[]>([])
+  const [excludedContextPaths, setExcludedContextPaths] = useState<string[]>([])
+  const [extraContextPaths, setExtraContextPaths] = useState<string[]>([])
+  const [isPreparingContext, setIsPreparingContext] = useState(false)
 
   const settings = useSettingsStore()
   const {
@@ -202,12 +211,14 @@ export const AIChat = () => {
     groqApiKey,
     ollamaUrl,
     modelPerProvider,
-    geminiOAuthActive
+    geminiOAuthActive,
+    smartContextEnabled
   } = settings
 
   const {
     sessions,
     activeSessionId,
+    branchFromMessage,
     addMessage,
     updateLastMessage,
     isStreaming,
@@ -222,7 +233,7 @@ export const AIChat = () => {
     return sessions.find((s) => s.id === activeSessionId)?.messages || []
   }, [sessions, activeSessionId])
 
-  const { activeFile, fileContents } = useFileStore()
+  const { activeFile, fileContents, fileTree, workspaceDir, openFiles } = useFileStore()
   const { chatWidth, setChatWidth, setActiveView } = useUIStore()
   const { width, startResizing, isResizing } = useResizable(
     chatWidth,
@@ -245,27 +256,93 @@ export const AIChat = () => {
     return () => window.removeEventListener('zen:set-chat-input', handler)
   }, [])
 
+  useEffect(() => {
+    let cancelled = false
+
+    const refreshContext = async () => {
+      if (!smartContextEnabled || !activeFile) {
+        setContextFiles([])
+        return
+      }
+
+      setIsPreparingContext(true)
+      try {
+        const nextContext = await buildSmartContext({
+          activeFile,
+          workspaceDir,
+          fileTree,
+          fileContents,
+          extraPaths,
+          excludedPaths: excludedContextPaths
+        })
+        if (!cancelled) {
+          setContextFiles(nextContext)
+        }
+      } catch {
+        if (!cancelled) {
+          setContextFiles([])
+        }
+      } finally {
+        if (!cancelled) {
+          setIsPreparingContext(false)
+        }
+      }
+    }
+
+    const extraPaths = extraContextPaths
+    void refreshContext()
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    activeFile,
+    excludedContextPaths,
+    extraContextPaths,
+    fileContents,
+    fileTree,
+    smartContextEnabled,
+    workspaceDir
+  ])
+
+  const removableContextFiles = useMemo(
+    () => contextFiles.filter((file) => file.reason !== 'Active file'),
+    [contextFiles]
+  )
+
+  const availableOpenFiles = useMemo(() => {
+    const current = new Set(contextFiles.map((file) => normalizePath(file.path)))
+    return openFiles.filter((file) => !current.has(normalizePath(file.path)))
+  }, [contextFiles, openFiles])
+
+  const handleRemoveContextFile = (path: string) => {
+    setExcludedContextPaths((current) => Array.from(new Set([...current, normalizePath(path)])))
+    setExtraContextPaths((current) => current.filter((item) => normalizePath(item) !== normalizePath(path)))
+  }
+
+  const handleAddContextFile = (path: string) => {
+    setExcludedContextPaths((current) => current.filter((item) => normalizePath(item) !== normalizePath(path)))
+    setExtraContextPaths((current) => Array.from(new Set([...current, normalizePath(path)])))
+  }
+
   const handleSend = async () => {
     if (!input.trim() || isStreaming) return
     const userText = input.trim()
     setInput('')
 
-    // Add file context to the message if a file is open
-    const MAX_CONTEXT_CHARS = 30_000
     let messageText = userText
-    if (activeFile && fileContents[activeFile]) {
-      let contextContent = fileContents[activeFile]
-      // Strip music command patterns to prevent prompt injection from file contents
-      contextContent = contextContent.replace(/\[PLAY_MUSIC:[^\]]*\]/g, '[PLAY_MUSIC:REDACTED]')
-      contextContent = contextContent.replace(
-        /\[GENERATE_MUSIC:[^\]]*\]/g,
-        '[GENERATE_MUSIC:REDACTED]'
-      )
-      // Truncate very large files to avoid excessive token usage and API errors
-      if (contextContent.length > MAX_CONTEXT_CHARS) {
-        contextContent = contextContent.slice(0, MAX_CONTEXT_CHARS) + '\n... (truncated)'
+    if (smartContextEnabled && contextFiles.length > 0) {
+      messageText = `${formatContextForPrompt(contextFiles)}\n\n${userText}`
+    } else if (activeFile && fileContents[activeFile]) {
+      const singleFileContext = await buildSmartContext({
+        activeFile,
+        workspaceDir,
+        fileTree,
+        fileContents
+      })
+      if (singleFileContext.length > 0) {
+        messageText = `${formatContextForPrompt(singleFileContext.slice(0, 1))}\n\n${userText}`
       }
-      messageText = `[Context: ${activeFile}]\n\`\`\`\n${contextContent}\n\`\`\`\n\n${userText}`
     }
 
     // Build API messages BEFORE mutating store (avoid stale closure bug)
@@ -276,8 +353,29 @@ export const AIChat = () => {
     }))
     const apiMessages = [...historyMessages, { role: 'user' as const, content: messageText }]
 
-    addMessage({ id: crypto.randomUUID(), role: 'user', text: userText })
-    addMessage({ id: crypto.randomUUID(), role: 'assistant', text: '' })
+    const previousMessage = currentMessages[currentMessages.length - 1]
+    const userMessageId = crypto.randomUUID()
+    const assistantMessageId = crypto.randomUUID()
+
+    addMessage({
+      id: userMessageId,
+      role: 'user',
+      text: userText,
+      createdAt: Date.now(),
+      parentId: previousMessage?.id ?? null,
+      contextFiles: contextFiles.map((file) => ({
+        path: file.path,
+        label: file.label,
+        reason: file.reason
+      }))
+    })
+    addMessage({
+      id: assistantMessageId,
+      role: 'assistant',
+      text: '',
+      createdAt: Date.now(),
+      parentId: userMessageId
+    })
     setIsStreaming(true)
 
     // Determine credential
@@ -407,7 +505,7 @@ export const AIChat = () => {
       <div className="h-14 px-5 flex justify-between items-center border-b border-white/5 shrink-0 bg-transparent">
         <div className="flex items-center gap-3">
           <div
-            className={`w-1.5 h-1.5 rounded-full transition-colors duration-500 ${
+            className={`w-1.5 h-1.5 rounded-none transition-colors duration-500 ${
               isStreaming ? 'bg-zinc-300' : 'bg-zinc-600'
             }`}
           />
@@ -427,14 +525,14 @@ export const AIChat = () => {
               createNewSession()
               setViewMode('chat')
             }}
-            className="w-7 h-7 flex items-center justify-center rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.04] transition-all"
+            className="w-7 h-7 flex items-center justify-center rounded-none text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.04] transition-all"
             title="New session"
           >
             <Plus size={15} strokeWidth={1.5} />
           </button>
           <button
             onClick={() => setViewMode(viewMode === 'history' ? 'chat' : 'history')}
-            className={`w-7 h-7 flex items-center justify-center rounded-lg transition-all ${
+            className={`w-7 h-7 flex items-center justify-center rounded-none transition-all ${
               viewMode === 'history'
                 ? 'text-zinc-200 bg-white/[0.06]'
                 : 'text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.04]'
@@ -445,7 +543,7 @@ export const AIChat = () => {
           </button>
           <button
             onClick={() => setActiveView('settings')}
-            className="w-7 h-7 flex items-center justify-center rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.04] transition-all"
+            className="w-7 h-7 flex items-center justify-center rounded-none text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.04] transition-all"
             title="AI settings"
           >
             <Settings size={14} strokeWidth={1.5} />
@@ -454,7 +552,7 @@ export const AIChat = () => {
             onClick={() => {
               if (viewMode === 'chat') clearChat()
             }}
-            className="w-7 h-7 flex items-center justify-center rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.04] transition-all"
+            className="w-7 h-7 flex items-center justify-center rounded-none text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.04] transition-all"
             title="Clear chat"
           >
             <Trash2 size={14} strokeWidth={1.5} />
@@ -485,7 +583,7 @@ export const AIChat = () => {
                   setActiveSession(s.id)
                   setViewMode('chat')
                 }}
-                className={`p-4 rounded-xl flex flex-col gap-2 cursor-pointer transition-colors duration-200 group ${
+                className={`p-4 rounded-none flex flex-col gap-2 cursor-pointer transition-colors duration-200 group ${
                   s.id === activeSessionId
                     ? 'bg-white/[0.04]'
                     : 'bg-transparent hover:bg-white/[0.02]'
@@ -506,11 +604,16 @@ export const AIChat = () => {
                       e.stopPropagation()
                       deleteSession(s.id)
                     }}
-                    className="opacity-0 group-hover:opacity-100 p-1.5 -m-1.5 rounded-md text-zinc-500 hover:text-zinc-300 transition-all shrink-0"
+                    className="opacity-0 group-hover:opacity-100 p-1.5 -m-1.5 rounded-none text-zinc-500 hover:text-zinc-300 transition-all shrink-0"
                   >
                     <Trash2 size={14} strokeWidth={1.5} />
                   </button>
                 </div>
+                  {s.title.includes('(Branch)') && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded border border-white/[0.06] text-zinc-500 w-fit">
+                      Branch
+                    </span>
+                  )}
                 <div className="flex items-center justify-between text-[11px] text-zinc-600">
                   <span>{s.messages.length} messages</span>
                   <span>{new Date(s.updatedAt).toLocaleDateString()}</span>
@@ -525,7 +628,7 @@ export const AIChat = () => {
           <div className="flex-1 overflow-y-auto px-5 py-6 flex flex-col gap-6 hide-scrollbar relative">
             {messages.length === 0 && (
               <div className="h-full flex flex-col items-center justify-center gap-4 opacity-80">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-b from-white/[0.08] to-white/[0.02] border border-white/10 flex items-center justify-center shadow-lg shadow-black/50">
+                <div className="w-12 h-12 rounded-none bg-gradient-to-b from-white/[0.08] to-white/[0.02] border border-white/10 flex items-center justify-center shadow-lg shadow-black/50">
                   <TerminalSquare size={20} className="text-zinc-200" strokeWidth={1.5} />
                 </div>
                 <p className="text-[13px] text-zinc-500 font-medium tracking-wide">
@@ -546,7 +649,7 @@ export const AIChat = () => {
                     className={`flex gap-3 w-full ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
                     {msg.role === 'assistant' && (
-                      <div className="w-7 h-7 rounded-lg bg-white/[0.03] border border-white/5 flex items-center justify-center shrink-0 mt-1 shadow-sm">
+                      <div className="w-7 h-7 rounded-none bg-white/[0.03] border border-white/5 flex items-center justify-center shrink-0 mt-1 shadow-sm">
                         <Code2 size={13} className="text-zinc-400" strokeWidth={1.5} />
                       </div>
                     )}
@@ -554,12 +657,44 @@ export const AIChat = () => {
                     <div
                       className={`max-w-[88%] text-[13.5px] leading-relaxed ${
                         msg.role === 'user'
-                          ? 'whitespace-pre-wrap px-4 py-2.5 rounded-2xl bg-[#111] border border-white/[0.04] shadow-sm text-zinc-200'
+                          ? 'whitespace-pre-wrap px-4 py-2.5 rounded-none bg-[#111] border border-white/[0.04] shadow-sm text-zinc-200'
                           : 'text-zinc-300 pt-1'
                       }`}
                     >
+                      <div className="flex items-center justify-end gap-2 mb-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => {
+                            const branchId = branchFromMessage(msg.id)
+                            if (branchId) {
+                              setViewMode('chat')
+                            }
+                          }}
+                          className="text-[10px] uppercase tracking-wide text-zinc-600 hover:text-zinc-300 transition-colors"
+                          title="Branch from this message"
+                        >
+                          <span className="inline-flex items-center gap-1">
+                            <GitBranch size={11} />
+                            Branch
+                          </span>
+                        </button>
+                      </div>
                       {msg.role === 'user' ? (
-                        msg.text || null
+                        <>
+                          {msg.text || null}
+                          {msg.contextFiles && msg.contextFiles.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 mt-3">
+                              {msg.contextFiles.map((file) => (
+                                <span
+                                  key={`${msg.id}:${file.path}`}
+                                  className="inline-flex items-center gap-1 rounded-none px-2 py-1 text-[10px] border border-white/[0.05] bg-black/20 text-zinc-400"
+                                >
+                                  <Link2 size={10} />
+                                  {file.label}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </>
                       ) : msg.text ? (
                         <MarkdownMessage text={msg.text} />
                       ) : isStreaming ? (
@@ -575,8 +710,67 @@ export const AIChat = () => {
 
           {/* Input area */}
           <div className="p-4 pt-2 bg-[#050505] shrink-0 border-t border-white/[0.04]">
+            {smartContextEnabled && (
+              <div className="mb-3 flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] uppercase tracking-wider text-zinc-600">
+                    Smart Context
+                  </span>
+                  <span className="text-[10px] text-zinc-600">
+                    {isPreparingContext ? 'Preparing...' : `${contextFiles.length} file(s) attached`}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {contextFiles.map((file) => (
+                    <span
+                      key={file.path}
+                      className="inline-flex items-center gap-1.5 px-2 py-1 rounded-none border border-white/[0.05] bg-white/[0.02] text-[10px] text-zinc-400"
+                      title={`${file.path} • ${file.reason}`}
+                    >
+                      <Link2 size={10} />
+                      {basename(file.path)}
+                      <span className="text-zinc-600">{file.reason}</span>
+                      {file.reason !== 'Active file' && (
+                        <button
+                          onClick={() => handleRemoveContextFile(file.path)}
+                          className="text-zinc-600 hover:text-zinc-300 transition-colors"
+                          title="Remove from context"
+                        >
+                          <X size={10} />
+                        </button>
+                      )}
+                    </span>
+                  ))}
+                </div>
+                {availableOpenFiles.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {availableOpenFiles.slice(0, 4).map((file) => (
+                      <button
+                        key={file.path}
+                        onClick={() => handleAddContextFile(file.path)}
+                        className="px-2 py-1 rounded-none border border-dashed border-white/[0.06] text-[10px] text-zinc-500 hover:text-zinc-300 hover:border-white/[0.14] transition-colors"
+                        title={`Add ${file.name} to context`}
+                      >
+                        + {file.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {removableContextFiles.length > 0 && (
+                  <button
+                    onClick={() => {
+                      setExcludedContextPaths([])
+                      setExtraContextPaths([])
+                    }}
+                    className="self-start text-[10px] uppercase tracking-wide text-zinc-600 hover:text-zinc-300 transition-colors"
+                  >
+                    Reset Context
+                  </button>
+                )}
+              </div>
+            )}
             <div className="relative group">
-              <div className="relative flex items-end rounded-2xl bg-[#0A0A0A] border border-white/[0.06] shadow-xl shadow-black/50 transition-colors duration-300 focus-within:border-white/[0.15]">
+              <div className="relative flex items-end rounded-none bg-[#0A0A0A] border border-white/[0.06] shadow-xl shadow-black/50 transition-colors duration-300 focus-within:border-white/[0.15]">
                 <textarea
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
@@ -602,7 +796,7 @@ export const AIChat = () => {
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.8 }}
                       onClick={handleSend}
-                      className="absolute right-2 bottom-2 w-8 h-8 flex items-center justify-center rounded-lg bg-white/10 text-zinc-300 hover:bg-white/20 hover:text-white transition-all duration-200"
+                      className="absolute right-2 bottom-2 w-8 h-8 flex items-center justify-center rounded-none bg-white/10 text-zinc-300 hover:bg-white/20 hover:text-white transition-all duration-200"
                     >
                       <ChevronRight size={18} strokeWidth={2} />
                     </motion.button>
@@ -622,3 +816,4 @@ export const AIChat = () => {
     </div>
   )
 }
+

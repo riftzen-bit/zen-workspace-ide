@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+﻿import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Terminal as TerminalIcon,
@@ -90,7 +90,7 @@ export const WorkspaceCard = ({
       transition={{ duration: 0.25, ease: 'easeOut' }}
       onClick={handleCardClick}
       className={`
-        group relative flex flex-col rounded-xl border transition-all duration-200 cursor-pointer overflow-hidden
+        group relative flex flex-col rounded-none border transition-all duration-200 cursor-pointer overflow-hidden
         ${
           isPaused
             ? 'bg-[#111113] border-amber-500/10 hover:border-amber-500/20'
@@ -100,7 +100,7 @@ export const WorkspaceCard = ({
     >
       {/* Status accent line */}
       <div
-        className={`absolute top-0 left-0 right-0 h-[2px] rounded-t-xl transition-opacity ${
+        className={`absolute top-0 left-0 right-0 h-[2px] rounded-none transition-opacity ${
           isPaused
             ? 'bg-amber-500/50 opacity-100'
             : 'bg-emerald-500/30 opacity-0 group-hover:opacity-100'
@@ -113,7 +113,7 @@ export const WorkspaceCard = ({
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2.5 min-w-0">
             <div
-              className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+              className={`w-8 h-8 rounded-none flex items-center justify-center shrink-0 ${
                 isPaused ? 'bg-amber-500/10' : 'bg-white/5'
               }`}
             >
@@ -160,14 +160,14 @@ export const WorkspaceCard = ({
 
           {/* Status badge */}
           <div
-            className={`flex items-center gap-1.5 px-2 py-1 rounded-full border shrink-0 ${
+            className={`flex items-center gap-1.5 px-2 py-1 rounded-none border shrink-0 ${
               isPaused
                 ? 'bg-amber-500/10 border-amber-500/20 text-amber-400'
                 : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
             }`}
           >
             <div
-              className={`w-1.5 h-1.5 rounded-full ${isPaused ? 'bg-amber-400' : 'bg-emerald-400 animate-pulse'}`}
+              className={`w-1.5 h-1.5 rounded-none ${isPaused ? 'bg-amber-400' : 'bg-emerald-400 animate-pulse'}`}
             />
             <span className="text-[10px] font-medium">{isPaused ? 'Paused' : 'Running'}</span>
           </div>
@@ -204,7 +204,7 @@ export const WorkspaceCard = ({
           {isPaused ? (
             <button
               onClick={() => onResume(workspace.id)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 text-[11px] font-medium transition-colors"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-none bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 text-[11px] font-medium transition-colors"
             >
               <RotateCcw size={11} />
               Resume
@@ -212,7 +212,7 @@ export const WorkspaceCard = ({
           ) : (
             <button
               onClick={() => onOpen(workspace.id)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-300 text-[11px] font-medium transition-colors"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-none bg-white/5 hover:bg-white/10 text-zinc-300 text-[11px] font-medium transition-colors"
             >
               <Play size={11} />
               Open
@@ -226,7 +226,7 @@ export const WorkspaceCard = ({
             <button
               onClick={() => onPause(workspace.id)}
               title="Pause workspace"
-              className="w-7 h-7 flex items-center justify-center rounded-lg text-zinc-500 hover:bg-white/5 hover:text-zinc-300 transition-colors"
+              className="w-7 h-7 flex items-center justify-center rounded-none text-zinc-500 hover:bg-white/5 hover:text-zinc-300 transition-colors"
             >
               <Pause size={13} />
             </button>
@@ -237,7 +237,7 @@ export const WorkspaceCard = ({
               setEditName(workspace.name)
             }}
             title="Rename"
-            className="w-7 h-7 flex items-center justify-center rounded-lg text-zinc-500 hover:bg-white/5 hover:text-zinc-300 transition-colors"
+            className="w-7 h-7 flex items-center justify-center rounded-none text-zinc-500 hover:bg-white/5 hover:text-zinc-300 transition-colors"
           >
             <Pencil size={13} />
           </button>
@@ -272,13 +272,13 @@ export const WorkspaceCard = ({
               >
                 <button
                   onClick={() => onDelete(workspace.id)}
-                  className="px-2 py-1 text-[10px] font-medium bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg transition-colors"
+                  className="px-2 py-1 text-[10px] font-medium bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-none transition-colors"
                 >
                   Delete
                 </button>
                 <button
                   onClick={() => setConfirmDelete(false)}
-                  className="px-2 py-1 text-[10px] font-medium bg-white/5 hover:bg-white/10 text-zinc-400 rounded-lg transition-colors"
+                  className="px-2 py-1 text-[10px] font-medium bg-white/5 hover:bg-white/10 text-zinc-400 rounded-none transition-colors"
                 >
                   Cancel
                 </button>
@@ -291,7 +291,7 @@ export const WorkspaceCard = ({
                 exit={{ opacity: 0 }}
                 onClick={() => setConfirmDelete(true)}
                 title="Delete"
-                className="w-7 h-7 flex items-center justify-center rounded-lg text-zinc-600 hover:bg-red-500/10 hover:text-red-400 transition-colors"
+                className="w-7 h-7 flex items-center justify-center rounded-none text-zinc-600 hover:bg-red-500/10 hover:text-red-400 transition-colors"
               >
                 <Trash2 size={13} />
               </motion.button>
@@ -302,3 +302,4 @@ export const WorkspaceCard = ({
     </motion.div>
   )
 }
+

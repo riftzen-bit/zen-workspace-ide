@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+﻿import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Folder, FolderOpen, Pin, PinOff, X, Plus } from 'lucide-react'
 import { useProjectStore } from '../../store/useProjectStore'
@@ -42,7 +42,7 @@ const ProjectItem = ({ project, isActive }: ProjectItemProps) => {
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.96 }}
-      className={`relative flex items-center group cursor-pointer px-3 py-2.5 my-[2px] mx-2 rounded-lg transition-all duration-200 ${
+      className={`relative flex items-center group cursor-pointer px-3 py-2.5 my-[2px] mx-2 rounded-none transition-all duration-200 ${
         isActive
           ? 'bg-white/[0.06] text-white shadow-sm border border-white/[0.04]'
           : 'text-zinc-500 hover:bg-white/[0.02] hover:text-zinc-300 border border-transparent'
@@ -65,7 +65,7 @@ const ProjectItem = ({ project, isActive }: ProjectItemProps) => {
       }}
     >
       {isActive && (
-        <div className="absolute left-0 top-2 bottom-2 w-[2px] rounded-r-full bg-[#EAB308] shadow-[0_0_8px_rgba(234,179,8,0.5)]" />
+        <div className="absolute left-0 top-2 bottom-2 w-[2px] rounded-none bg-[#EAB308] shadow-[0_0_8px_rgba(234,179,8,0.5)]" />
       )}
 
       <div
@@ -94,7 +94,7 @@ const ProjectItem = ({ project, isActive }: ProjectItemProps) => {
                 }
               }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full bg-[#000000] border border-white/[0.12] text-[13px] font-medium tracking-wide px-2 py-1 rounded-md outline-none text-white shadow-inner"
+              className="w-full bg-[#000000] border border-white/[0.12] text-[13px] font-medium tracking-wide px-2 py-1 rounded-none outline-none text-white shadow-inner"
             />
           ) : (
             <span
@@ -130,7 +130,7 @@ const ProjectItem = ({ project, isActive }: ProjectItemProps) => {
                   e.stopPropagation()
                   removeProject(project.id)
                 }}
-                className="px-2 py-1 text-[10px] font-bold tracking-widest uppercase bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-md transition-colors"
+                className="px-2 py-1 text-[10px] font-bold tracking-widest uppercase bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-none transition-colors"
               >
                 Remove?
               </button>
@@ -139,7 +139,7 @@ const ProjectItem = ({ project, isActive }: ProjectItemProps) => {
                   e.stopPropagation()
                   setConfirmDelete(false)
                 }}
-                className="px-2 py-1 text-[10px] font-bold tracking-widest uppercase bg-white/[0.04] hover:bg-white/[0.08] text-zinc-400 rounded-md transition-colors"
+                className="px-2 py-1 text-[10px] font-bold tracking-widest uppercase bg-white/[0.04] hover:bg-white/[0.08] text-zinc-400 rounded-none transition-colors"
               >
                 Cancel
               </button>
@@ -159,7 +159,7 @@ const ProjectItem = ({ project, isActive }: ProjectItemProps) => {
                     e.stopPropagation()
                     togglePin(project.id)
                   }}
-                  className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors hover:bg-white/[0.06] ${project.pinned ? 'text-zinc-300' : 'text-zinc-500'}`}
+                  className={`w-7 h-7 flex items-center justify-center rounded-none transition-colors hover:bg-white/[0.06] ${project.pinned ? 'text-zinc-300' : 'text-zinc-500'}`}
                   title={project.pinned ? 'Unpin' : 'Pin'}
                 >
                   {project.pinned ? (
@@ -173,7 +173,7 @@ const ProjectItem = ({ project, isActive }: ProjectItemProps) => {
                     e.stopPropagation()
                     setConfirmDelete(true)
                   }}
-                  className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors hover:bg-red-500/10 hover:text-red-400 text-zinc-500"
+                  className="w-7 h-7 flex items-center justify-center rounded-none transition-colors hover:bg-red-500/10 hover:text-red-400 text-zinc-500"
                   title="Remove"
                 >
                   <X size={13} strokeWidth={2} />
@@ -228,14 +228,14 @@ export const ProjectList = () => {
             Projects
           </span>
           {projects.length > 0 && (
-            <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-white/[0.03] text-zinc-500 border border-white/[0.04]">
+            <span className="px-1.5 py-0.5 rounded-none text-[9px] font-bold bg-white/[0.03] text-zinc-500 border border-white/[0.04]">
               {projects.length}
             </span>
           )}
         </div>
         <button
           onClick={handleAddProject}
-          className="w-7 h-7 flex items-center justify-center rounded-lg transition-colors hover:bg-white/[0.04] text-zinc-500 hover:text-zinc-300"
+          className="w-7 h-7 flex items-center justify-center rounded-none transition-colors hover:bg-white/[0.04] text-zinc-500 hover:text-zinc-300"
           title="Add Project"
         >
           <Plus size={14} strokeWidth={2} />
@@ -250,13 +250,13 @@ export const ProjectList = () => {
             animate={{ opacity: 1 }}
             className="flex flex-col items-center justify-center h-full gap-4 px-6 text-center mt-[-10%]"
           >
-            <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-1 bg-white/[0.02] border border-white/[0.04] shadow-inner">
+            <div className="w-12 h-12 rounded-none flex items-center justify-center mb-1 bg-white/[0.02] border border-white/[0.04] shadow-inner">
               <FolderOpen size={20} className="text-zinc-500" strokeWidth={1.5} />
             </div>
             <p className="text-[13px] text-zinc-500 font-medium tracking-wide">No projects yet</p>
             <button
               onClick={handleAddProject}
-              className="mt-2 px-4 py-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.05] text-[13px] text-zinc-300 font-medium transition-all duration-200 hover:scale-105 active:scale-95"
+              className="mt-2 px-4 py-2 rounded-none bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.05] text-[13px] text-zinc-300 font-medium transition-all duration-200 hover:scale-105 active:scale-95"
             >
               Add your first project
             </button>
@@ -308,3 +308,4 @@ export const ProjectList = () => {
     </div>
   )
 }
+

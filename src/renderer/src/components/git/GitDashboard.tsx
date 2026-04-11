@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+﻿import { useState, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { GitBranch, Wand2, Check, RefreshCw, Plus, Minus } from 'lucide-react'
 import { useFileStore } from '../../store/useFileStore'
@@ -23,12 +23,12 @@ export const GitDashboard = () => {
   const model = modelPerProvider[provider]
 
   let apiKey = ''
-  if (provider === 'gemini') apiKey = geminiApiKey
+  if (provider === 'gemini') apiKey = geminiOAuthActive ? '' : geminiApiKey
   if (provider === 'openai') apiKey = openaiApiKey
   if (provider === 'anthropic') apiKey = anthropicApiKey
   if (provider === 'groq') apiKey = groqApiKey
 
-  const useGeminiOAuth = geminiOAuthActive
+  const useGeminiOAuth = provider === 'gemini' && geminiOAuthActive
 
   const [branch, setBranch] = useState<string | null>(null)
   const [stagedFiles, setStagedFiles] = useState<{ file: string; status: string }[]>([])
@@ -162,7 +162,7 @@ export const GitDashboard = () => {
     return (
       <div className="flex flex-col h-full bg-[#050505]">
         <div className="flex-1 flex flex-col items-center justify-center gap-4 opacity-50 pb-20">
-          <div className="w-12 h-12 rounded-2xl bg-white/[0.02] border border-white/[0.04] shadow-inner flex items-center justify-center mb-1">
+          <div className="w-12 h-12 rounded-none bg-white/[0.02] border border-white/[0.04] shadow-inner flex items-center justify-center mb-1">
             <GitBranch size={20} strokeWidth={1.5} className="text-zinc-500" />
           </div>
           <p className="text-[13px] font-medium tracking-wide text-zinc-500 text-center">
@@ -188,7 +188,7 @@ export const GitDashboard = () => {
         </div>
         <button
           onClick={loadGitState}
-          className="p-1.5 rounded-lg hover:bg-white/[0.04] text-zinc-500 hover:text-zinc-300 transition-colors"
+          className="p-1.5 rounded-none hover:bg-white/[0.04] text-zinc-500 hover:text-zinc-300 transition-colors"
           title="Refresh"
         >
           <RefreshCw size={13} />
@@ -213,7 +213,7 @@ export const GitDashboard = () => {
                 <div
                   key={`staged-${file}`}
                   onClick={() => setActiveDiffFile({ file, staged: true })}
-                  className={`group flex items-center justify-between px-2 py-1.5 rounded-md cursor-pointer transition-colors ${activeDiffFile?.file === file && activeDiffFile?.staged ? 'bg-amber-400/10 border-amber-400/20' : 'hover:bg-white/5 border-transparent'} border`}
+                  className={`group flex items-center justify-between px-2 py-1.5 rounded-none cursor-pointer transition-colors ${activeDiffFile?.file === file && activeDiffFile?.staged ? 'bg-amber-400/10 border-amber-400/20' : 'hover:bg-white/5 border-transparent'} border`}
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     <span
@@ -266,7 +266,7 @@ export const GitDashboard = () => {
                 <div
                   key={`unstaged-${file}`}
                   onClick={() => setActiveDiffFile({ file, staged: false })}
-                  className={`group flex items-center justify-between px-2 py-1.5 rounded-md cursor-pointer transition-colors ${activeDiffFile?.file === file && !activeDiffFile?.staged ? 'bg-amber-400/10 border-amber-400/20' : 'hover:bg-white/5 border-transparent'} border`}
+                  className={`group flex items-center justify-between px-2 py-1.5 rounded-none cursor-pointer transition-colors ${activeDiffFile?.file === file && !activeDiffFile?.staged ? 'bg-amber-400/10 border-amber-400/20' : 'hover:bg-white/5 border-transparent'} border`}
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     <span
@@ -313,7 +313,7 @@ export const GitDashboard = () => {
             whileTap={{ scale: 0.98 }}
             onClick={handleGenerate}
             disabled={!hasChanges || isGenerating || isCommitting}
-            className="relative group w-full py-2 rounded-lg flex items-center justify-center gap-2 overflow-hidden transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="relative group w-full py-2 rounded-none flex items-center justify-center gap-2 overflow-hidden transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
             style={{
               background:
                 'linear-gradient(135deg, rgba(212,160,23,0.15) 0%, rgba(212,160,23,0.05) 100%)',
@@ -342,7 +342,7 @@ export const GitDashboard = () => {
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             placeholder="Commit message..."
-            className="w-full h-24 bg-transparent border rounded-lg p-2.5 text-[12.5px] leading-relaxed resize-none focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+            className="w-full h-24 bg-transparent border rounded-none p-2.5 text-[12.5px] leading-relaxed resize-none focus:outline-none focus:ring-1 focus:ring-amber-500/50"
             style={{
               borderColor: 'var(--color-border-subtle)',
               backgroundColor: 'var(--color-surface-2)',
@@ -353,7 +353,7 @@ export const GitDashboard = () => {
           <button
             onClick={handleCommit}
             disabled={!message.trim() || isCommitting || isGenerating}
-            className="w-full py-2 rounded-lg flex items-center justify-center gap-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full py-2 rounded-none flex items-center justify-center gap-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
             style={{
               backgroundColor: message.trim() ? 'var(--color-accent)' : 'var(--color-surface-3)',
               color: message.trim() ? '#000' : 'var(--color-text-muted)',
@@ -369,3 +369,4 @@ export const GitDashboard = () => {
     </div>
   )
 }
+

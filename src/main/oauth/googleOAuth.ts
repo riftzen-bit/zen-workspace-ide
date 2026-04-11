@@ -3,204 +3,64 @@ import { randomBytes, createHash } from 'crypto'
 import { createServer, IncomingMessage, ServerResponse } from 'http'
 import { AddressInfo } from 'net'
 import StoreModule from 'electron-store'
-import { getSecureValue } from '../safeStore'
+import { deleteSecureValue, getSecureValue, setSecureValue } from '../safeStore'
+import { isTrustedIpcSender } from '../security'
 
 const Store = ((StoreModule as { default?: typeof StoreModule }).default ||
   StoreModule) as typeof StoreModule
 const store = new Store()
 
-const OAUTH_STORE_KEY = 'oauth-tokens'
-const SCOPE = 'openid email profile'
+const GEMINI_OAUTH_SECURE_KEY = 'geminiOAuthTokens'
+const LEGACY_GEMINI_OAUTH_STORE_KEY = 'gemini-oauth-tokens'
+const GEMINI_OAUTH_TOKEN_VERSION = 2
+const GEMINI_CLOUD_SCOPE = 'https://www.googleapis.com/auth/cloud-platform'
+const GEMINI_RETRIEVER_SCOPE = 'https://www.googleapis.com/auth/generative-language.retriever'
 
-// ─── Antigravity (Google VS Code extension OAuth client) ─────────────────────
-const AG_CLIENT_ID =
-  process.env.AG_CLIENT_ID ||
-  '1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com'
-const AG_CLIENT_SECRET = process.env.AG_CLIENT_SECRET || ''
-const AG_SCOPE =
-  'https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile'
-const AG_STORE_KEY = 'antigravity-tokens'
-
-// ─── Gemini OAuth (real Gemini API via generativelanguage.googleapis.com) ────
-const GEMINI_CLI_CLIENT_ID =
-  process.env.GEMINI_CLI_CLIENT_ID ||
-  '681255809395-oo8ft2oprdrnp9e3aqf' + '6av3hmdib135j.apps.googleusercontent.com'
-const GEMINI_CLI_CLIENT_SECRET =
-  process.env.GEMINI_CLI_CLIENT_SECRET || 'GOCSPX-4uHgMPm-1o7Sk' + '-geV6Cu5clXFsxl'
-const GEMINI_CLI_SCOPE =
-  'https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile'
-const GEMINI_OAUTH_STORE_KEY = 'gemini-oauth-tokens'
-
-interface AgTokens {
-  accessToken: string
-  refreshToken: string
-  expiresAt: number
-  email?: string
-  projectId?: string
-}
-
-function getAgTokens(): AgTokens | null {
-  return (store.get(AG_STORE_KEY) as AgTokens) ?? null
-}
-
-async function refreshAgToken(refreshToken: string): Promise<AgTokens | null> {
-  try {
-    const res = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_id: AG_CLIENT_ID,
-        client_secret: AG_CLIENT_SECRET,
-        grant_type: 'refresh_token',
-        refresh_token: refreshToken
-      })
-    })
-    if (!res.ok) return null
-    const data = (await res.json()) as {
-      access_token: string
-      expires_in: number
-      refresh_token?: string
-    }
-    const existing = getAgTokens()
-    const updated: AgTokens = {
-      accessToken: data.access_token,
-      refreshToken: data.refresh_token ?? refreshToken,
-      expiresAt: Date.now() + data.expires_in * 1000,
-      email: existing?.email,
-      projectId: existing?.projectId
-    }
-    store.set(AG_STORE_KEY, updated)
-    return updated
-  } catch {
-    return null
-  }
-}
-
-async function getValidAgToken(): Promise<string | null> {
-  const tokens = getAgTokens()
-  if (!tokens) return null
-  if (Date.now() > tokens.expiresAt - 60_000) {
-    const refreshed = await refreshAgToken(tokens.refreshToken)
-    return refreshed?.accessToken ?? null
-  }
-  return tokens.accessToken
-}
-
-async function loadAgProjectId(token: string): Promise<string | null> {
-  for (const ideType of ['VSCODE', 'JETBRAINS', 'CLOUD_SHELL', 'IDE_UNSPECIFIED']) {
-    try {
-      const res = await fetch('https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'User-Agent': 'antigravity/1.15.8 darwin/arm64',
-          'X-Goog-Api-Client': 'google-cloud-sdk vscode/1.96.0'
-        },
-        body: JSON.stringify({
-          metadata: { ideType, platform: 'PLATFORM_UNSPECIFIED', pluginType: 'GEMINI' }
-        })
-      })
-      if (res.ok) {
-        const data = (await res.json()) as {
-          cloudaicompanionProject?: string | { id?: string }
-        }
-        const project = data?.cloudaicompanionProject
-        const id = typeof project === 'string' ? project : project?.id
-        if (id) return id
-      }
-    } catch {
-      /* try next ideType */
-    }
-  }
-  return null
-}
-
-// ─── Gemini OAuth token helpers ──────────────────────────────────────────────
-
-function getGeminiOAuthTokens(): AgTokens | null {
-  return (store.get(GEMINI_OAUTH_STORE_KEY) as AgTokens) ?? null
-}
-
-async function refreshGeminiOAuthToken(refreshToken: string): Promise<AgTokens | null> {
-  try {
-    const body = new URLSearchParams({
-      client_id: GEMINI_CLI_CLIENT_ID,
-      grant_type: 'refresh_token',
-      refresh_token: refreshToken
-    })
-    if (GEMINI_CLI_CLIENT_SECRET) {
-      body.append('client_secret', GEMINI_CLI_CLIENT_SECRET)
-    }
-
-    const res = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body
-    })
-    if (!res.ok) return null
-    const data = (await res.json()) as {
-      access_token: string
-      expires_in: number
-      refresh_token?: string
-    }
-    const existing = getGeminiOAuthTokens()
-    const updated: AgTokens = {
-      accessToken: data.access_token,
-      refreshToken: data.refresh_token ?? refreshToken,
-      expiresAt: Date.now() + data.expires_in * 1000,
-      email: existing?.email
-    }
-    store.set(GEMINI_OAUTH_STORE_KEY, updated)
-    return updated
-  } catch {
-    return null
-  }
-}
-
-export async function getValidGeminiOAuthToken(): Promise<string | null> {
-  const tokens = getGeminiOAuthTokens()
-  if (!tokens) return null
-  if (Date.now() > tokens.expiresAt - 60_000) {
-    const refreshed = await refreshGeminiOAuthToken(tokens.refreshToken)
-    return refreshed?.accessToken ?? null
-  }
-  return tokens.accessToken
-}
-
-export async function getGeminiOAuthCredential(): Promise<string | null> {
-  const token = await getValidGeminiOAuthToken()
-  if (!token) return null
-  const tokens = getGeminiOAuthTokens()
-  const projectId = tokens?.projectId ?? (await loadAgProjectId(token))
-  if (!projectId) return null
-  if (tokens && !tokens.projectId) store.set(GEMINI_OAUTH_STORE_KEY, { ...tokens, projectId })
-  return `${token}|${projectId}`
-}
-
-export async function getAntigravityCredential(): Promise<string | null> {
-  const token = await getValidAgToken()
-  if (!token) return null
-  const tokens = getAgTokens()
-  const projectId = tokens?.projectId ?? (await loadAgProjectId(token))
-  if (!projectId) return null
-  if (tokens && !tokens.projectId) store.set(AG_STORE_KEY, { ...tokens, projectId })
-  return `${token}|${projectId}`
-}
-
-function getClientId(): string {
-  return process.env.GOOGLE_OAUTH_CLIENT_ID ?? getSecureValue('googleClientId') ?? ''
-}
-
-function getClientSecret(): string {
-  return process.env.GOOGLE_OAUTH_CLIENT_SECRET ?? getSecureValue('googleClientSecret') ?? ''
-}
+const GEMINI_SCOPES = [
+  GEMINI_CLOUD_SCOPE,
+  GEMINI_RETRIEVER_SCOPE,
+  'https://www.googleapis.com/auth/userinfo.email',
+  'https://www.googleapis.com/auth/userinfo.profile'
+].join(' ')
 
 interface OAuthTokens {
+  version?: number
   accessToken: string
   refreshToken: string
   expiresAt: number
   email?: string
+  clientId?: string
+  quotaProject?: string
+}
+
+function readSecureJson<T>(key: string): T | null {
+  const raw = getSecureValue(key)
+  if (!raw) return null
+  try {
+    return JSON.parse(raw) as T
+  } catch {
+    return null
+  }
+}
+
+function writeSecureJson(key: string, value: unknown): void {
+  setSecureValue(key, JSON.stringify(value))
+}
+
+function clearSecureJson(key: string): void {
+  deleteSecureValue(key)
+}
+
+function readTokenSetWithMigration<T>(legacyKey: string, secureKey: string): T | null {
+  const secureValue = readSecureJson<T>(secureKey)
+  if (secureValue) return secureValue
+
+  const legacyValue = (store.get(legacyKey) as T | undefined) ?? null
+  if (!legacyValue) return null
+
+  writeSecureJson(secureKey, legacyValue)
+  store.delete(legacyKey)
+  return legacyValue
 }
 
 function generatePKCE(): { verifier: string; challenge: string } {
@@ -209,74 +69,154 @@ function generatePKCE(): { verifier: string; challenge: string } {
   return { verifier, challenge }
 }
 
-function getStoredTokens(): OAuthTokens | null {
-  return (store.get(OAUTH_STORE_KEY) as OAuthTokens) ?? null
+function deriveQuotaProjectFromClientId(clientId?: string): string | undefined {
+  const trimmed = clientId?.trim()
+  if (!trimmed) return undefined
+  const match = trimmed.match(/^(\d+)-/)
+  return match?.[1]
 }
 
-function saveTokens(tokens: OAuthTokens): void {
-  store.set(OAUTH_STORE_KEY, tokens)
+function normalizeGeminiOAuthTokens(tokens: OAuthTokens): OAuthTokens {
+  const normalizedClientId = tokens.clientId || getUserClientId() || undefined
+  const normalizedQuotaProject =
+    tokens.quotaProject ?? deriveQuotaProjectFromClientId(normalizedClientId)
+
+  if (
+    normalizedClientId === tokens.clientId &&
+    normalizedQuotaProject === tokens.quotaProject
+  ) {
+    return tokens
+  }
+
+  return {
+    ...tokens,
+    clientId: normalizedClientId,
+    quotaProject: normalizedQuotaProject
+  }
 }
 
-function clearTokens(): void {
-  store.delete(OAUTH_STORE_KEY)
+function getGeminiOAuthTokens(): OAuthTokens | null {
+  const stored = readTokenSetWithMigration<OAuthTokens>(
+    LEGACY_GEMINI_OAUTH_STORE_KEY,
+    GEMINI_OAUTH_SECURE_KEY
+  )
+  if (!stored) return null
+
+  if ((stored.version ?? 0) < GEMINI_OAUTH_TOKEN_VERSION) {
+    clearSecureJson(GEMINI_OAUTH_SECURE_KEY)
+    return null
+  }
+
+  const normalized = normalizeGeminiOAuthTokens(stored)
+  if (
+    normalized.clientId !== stored.clientId ||
+    normalized.quotaProject !== stored.quotaProject
+  ) {
+    writeSecureJson(GEMINI_OAUTH_SECURE_KEY, normalized)
+  }
+
+  return normalized
 }
 
-async function refreshAccessToken(refreshToken: string): Promise<OAuthTokens | null> {
+function getUserClientId(): string {
+  return getSecureValue('googleClientId') ?? ''
+}
+
+function getUserClientSecret(): string {
+  return getSecureValue('googleClientSecret') ?? ''
+}
+
+async function refreshGeminiOAuthToken(tokens: OAuthTokens): Promise<OAuthTokens | null> {
+  const clientId = tokens.clientId ?? getUserClientId()
+  const clientSecret = getUserClientSecret()
+
+  if (!clientId) return null
+
   try {
-    const response = await fetch('https://oauth2.googleapis.com/token', {
+    const body = new URLSearchParams({
+      client_id: clientId,
+      grant_type: 'refresh_token',
+      refresh_token: tokens.refreshToken
+    })
+    if (clientSecret) {
+      body.append('client_secret', clientSecret)
+    }
+
+    const res = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_id: getClientId(),
-        client_secret: getClientSecret(),
-        grant_type: 'refresh_token',
-        refresh_token: refreshToken
-      })
+      body
     })
 
-    if (!response.ok) return null
+    if (!res.ok) {
+      clearSecureJson(GEMINI_OAUTH_SECURE_KEY)
+      return null
+    }
 
-    const data = (await response.json()) as {
+    const data = (await res.json()) as {
       access_token: string
       expires_in: number
       refresh_token?: string
     }
-    const existing = getStoredTokens()
     const updated: OAuthTokens = {
+      version: GEMINI_OAUTH_TOKEN_VERSION,
       accessToken: data.access_token,
-      refreshToken: data.refresh_token ?? refreshToken,
+      refreshToken: data.refresh_token ?? tokens.refreshToken,
       expiresAt: Date.now() + data.expires_in * 1000,
-      email: existing?.email
+      email: tokens.email,
+      clientId,
+      quotaProject: tokens.quotaProject ?? deriveQuotaProjectFromClientId(clientId)
     }
-    saveTokens(updated)
+    writeSecureJson(GEMINI_OAUTH_SECURE_KEY, updated)
     return updated
   } catch {
+    clearSecureJson(GEMINI_OAUTH_SECURE_KEY)
     return null
   }
 }
 
-export async function getValidAccessToken(): Promise<string | null> {
-  const tokens = getStoredTokens()
+async function getValidGeminiOAuthTokens(): Promise<OAuthTokens | null> {
+  const tokens = getGeminiOAuthTokens()
   if (!tokens) return null
-
   if (Date.now() > tokens.expiresAt - 60_000) {
-    const refreshed = await refreshAccessToken(tokens.refreshToken)
-    return refreshed?.accessToken ?? null
+    return await refreshGeminiOAuthToken(tokens)
   }
+  return tokens
+}
 
-  return tokens.accessToken
+export interface GeminiOAuthAccess {
+  accessToken: string
+  quotaProject?: string
+}
+
+export async function getGeminiOAuthAccess(): Promise<GeminiOAuthAccess | null> {
+  const tokens = await getValidGeminiOAuthTokens()
+  if (!tokens) return null
+  return {
+    accessToken: tokens.accessToken,
+    quotaProject: tokens.quotaProject
+  }
+}
+
+export async function getValidGeminiOAuthToken(): Promise<string | null> {
+  const access = await getGeminiOAuthAccess()
+  return access?.accessToken ?? null
+}
+
+export async function getGeminiOAuthCredential(): Promise<string | null> {
+  return getValidGeminiOAuthToken()
 }
 
 function startLoopbackServer(): Promise<{
   port: number
-  waitForCode: () => Promise<string>
+  waitForCode: () => Promise<{ code: string; state: string | null }>
   close: () => void
 }> {
   return new Promise((resolve, reject) => {
-    let resolveCode: (code: string) => void
+    let resolveCode: (result: { code: string; state: string | null }) => void
     let rejectCode: (err: Error) => void
 
-    const codePromise = new Promise<string>((res, rej) => {
+    const codePromise = new Promise<{ code: string; state: string | null }>((res, rej) => {
       resolveCode = res
       rejectCode = rej
     })
@@ -284,6 +224,7 @@ function startLoopbackServer(): Promise<{
     const server = createServer((req: IncomingMessage, res: ServerResponse) => {
       const url = new URL(req.url ?? '/', `http://127.0.0.1`)
       const code = url.searchParams.get('code')
+      const state = url.searchParams.get('state')
       const error = url.searchParams.get('error')
 
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
@@ -296,12 +237,11 @@ function startLoopbackServer(): Promise<{
       )
 
       if (code) {
-        resolveCode(code)
+        resolveCode({ code, state })
       } else {
         rejectCode(new Error(error ?? 'OAuth error'))
       }
 
-      // Close the server after responding
       server.close()
     })
 
@@ -321,18 +261,27 @@ function startLoopbackServer(): Promise<{
 let oauthInProgress = false
 
 export function setupOAuthHandlers(): void {
-  ipcMain.handle('oauth:google:start', async () => {
-    const clientId = getClientId()
+  // Gemini OAuth with user-supplied credentials
+  ipcMain.handle('oauth:gemini:start', async (event) => {
+    if (!isTrustedIpcSender(event)) {
+      return { success: false, error: 'Untrusted sender', errorCode: 'untrusted_sender' }
+    }
+
+    const clientId = getUserClientId()
     if (!clientId) {
       return {
         success: false,
-        error:
-          'Google OAuth not configured. Enter your Google Client ID in Settings → Gemini → Google Account.'
+        error: 'No OAuth Client ID configured. Open the Setup Guide in Settings to configure your Google credentials.',
+        errorCode: 'not_configured'
       }
     }
 
     if (oauthInProgress) {
-      return { success: false, error: 'OAuth flow already in progress' }
+      return {
+        success: false,
+        error: 'A sign-in flow is already running. Please wait and try again.',
+        errorCode: 'oauth_in_progress'
+      }
     }
 
     oauthInProgress = true
@@ -342,6 +291,7 @@ export function setupOAuthHandlers(): void {
       loopback = await startLoopbackServer()
       const redirectUri = `http://127.0.0.1:${loopback.port}`
       const { verifier, challenge } = generatePKCE()
+      const expectedState = randomBytes(24).toString('hex')
 
       const authUrl =
         `https://accounts.google.com/o/oauth2/v2/auth?` +
@@ -349,7 +299,8 @@ export function setupOAuthHandlers(): void {
           client_id: clientId,
           redirect_uri: redirectUri,
           response_type: 'code',
-          scope: SCOPE,
+          scope: GEMINI_SCOPES,
+          state: expectedState,
           code_challenge: challenge,
           code_challenge_method: 'S256',
           access_type: 'offline',
@@ -358,36 +309,56 @@ export function setupOAuthHandlers(): void {
 
       await shell.openExternal(authUrl)
 
-      // Race: code arrives vs timeout
-      const code = await Promise.race([
+      const authResult = await Promise.race([
         loopback.waitForCode(),
         new Promise<never>((_, reject) => {
-          setTimeout(() => reject(new Error('OAuth timeout (10 minutes)')), 10 * 60 * 1000)
+          setTimeout(() => reject(new Error('OAuth timeout')), 10 * 60 * 1000)
         })
       ])
+
+      if (authResult.state !== expectedState) {
+        return { success: false, error: 'Sign-in verification failed. Please retry.', errorCode: 'state_mismatch' }
+      }
+
+      const clientSecret = getUserClientSecret()
+      const body = new URLSearchParams({
+        code: authResult.code,
+        client_id: clientId,
+        redirect_uri: redirectUri,
+        grant_type: 'authorization_code',
+        code_verifier: verifier
+      })
+      if (clientSecret) {
+        body.append('client_secret', clientSecret)
+      }
 
       const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          code,
-          client_id: clientId,
-          client_secret: getClientSecret(),
-          redirect_uri: redirectUri,
-          grant_type: 'authorization_code',
-          code_verifier: verifier
-        })
+        body
       })
 
       if (!tokenRes.ok) {
-        const errBody = await tokenRes.text().catch(() => '')
-        return { success: false, error: `Token exchange failed: ${tokenRes.status} ${errBody}` }
+        await tokenRes.text().catch(() => '')
+        return {
+          success: false,
+          error: `Token exchange failed (${tokenRes.status}). Check your Client ID and Secret in the Setup Guide.`,
+          errorCode: 'token_exchange'
+        }
       }
 
       const tokenData = (await tokenRes.json()) as {
         access_token: string
-        refresh_token: string
+        refresh_token?: string
         expires_in: number
+      }
+
+      if (!tokenData.refresh_token) {
+        return {
+          success: false,
+          error: 'No refresh token returned. Please try signing in again.',
+          errorCode: 'missing_refresh_token'
+        }
       }
 
       let email: string | undefined
@@ -403,279 +374,98 @@ export function setupOAuthHandlers(): void {
         // email is optional
       }
 
-      saveTokens({
+      writeSecureJson(GEMINI_OAUTH_SECURE_KEY, {
+        version: GEMINI_OAUTH_TOKEN_VERSION,
         accessToken: tokenData.access_token,
         refreshToken: tokenData.refresh_token,
         expiresAt: Date.now() + tokenData.expires_in * 1000,
-        email
-      })
+        email,
+        clientId,
+        quotaProject: deriveQuotaProjectFromClientId(clientId)
+      } as OAuthTokens)
 
       return { success: true, email }
     } catch (err) {
       loopback?.close()
       const message = err instanceof Error ? err.message : 'Unknown error'
-      return { success: false, error: message }
+      if (message.includes('OAuth timeout')) {
+        return { success: false, error: 'Google sign-in timed out. Please try again.', errorCode: 'timeout' }
+      }
+      if (message.includes('access_denied')) {
+        return {
+          success: false,
+          error: 'Google blocked the sign-in. You must add your Gmail address as a Test User in Google Cloud Console: go to APIs & Services → OAuth consent screen → Audience → Test users → Add your email. Then try signing in again.',
+          errorCode: 'access_denied'
+        }
+      }
+      return { success: false, error: message, errorCode: 'unknown' }
     } finally {
       oauthInProgress = false
     }
   })
 
-  ipcMain.handle('oauth:google:logout', () => {
-    clearTokens()
+  ipcMain.handle('oauth:gemini:logout', (event) => {
+    if (!isTrustedIpcSender(event)) return
+    clearSecureJson(GEMINI_OAUTH_SECURE_KEY)
+    store.delete(LEGACY_GEMINI_OAUTH_STORE_KEY)
+    // Also clean up legacy keys
+    store.delete('oauth-tokens')
+    store.delete('antigravity-tokens')
   })
 
-  ipcMain.handle('oauth:google:status', () => {
-    const isConfigured = !!getClientId()
-    const tokens = getStoredTokens()
-    if (!tokens) return { active: false, isConfigured }
-    return { active: true, email: tokens.email, isConfigured }
-  })
-
-  ipcMain.handle('oauth:google:getToken', async () => {
-    return getValidAccessToken()
-  })
-
-  ipcMain.handle('oauth:antigravity:start', async () => {
-    if (oauthInProgress) return { success: false, error: 'OAuth already in progress' }
-    oauthInProgress = true
-    let loopback: Awaited<ReturnType<typeof startLoopbackServer>> | null = null
-
-    try {
-      loopback = await startLoopbackServer()
-      const redirectUri = `http://127.0.0.1:${loopback.port}`
-      const { verifier, challenge } = generatePKCE()
-
-      const authUrl =
-        `https://accounts.google.com/o/oauth2/v2/auth?` +
-        new URLSearchParams({
-          client_id: AG_CLIENT_ID,
-          redirect_uri: redirectUri,
-          response_type: 'code',
-          scope: AG_SCOPE,
-          code_challenge: challenge,
-          code_challenge_method: 'S256',
-          access_type: 'offline',
-          prompt: 'consent'
-        }).toString()
-
-      await shell.openExternal(authUrl)
-
-      const code = await Promise.race([
-        loopback.waitForCode(),
-        new Promise<never>((_, reject) => {
-          setTimeout(() => reject(new Error('OAuth timeout (10 minutes)')), 10 * 60 * 1000)
-        })
-      ])
-      const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          code,
-          client_id: AG_CLIENT_ID,
-          client_secret: AG_CLIENT_SECRET,
-          redirect_uri: redirectUri,
-          grant_type: 'authorization_code',
-          code_verifier: verifier
-        })
-      })
-      if (!tokenRes.ok) {
-        const err = await tokenRes.text().catch(() => '')
-        return { success: false, error: `Token exchange failed: ${tokenRes.status} ${err}` }
-      }
-      const tokenData = (await tokenRes.json()) as {
-        access_token: string
-        refresh_token: string
-        expires_in: number
-      }
-      let email: string | undefined
-      try {
-        const u = await fetch('https://www.googleapis.com/oauth2/v1/userinfo', {
-          headers: { Authorization: `Bearer ${tokenData.access_token}` }
-        })
-        if (u.ok) email = ((await u.json()) as { email?: string }).email
-      } catch {
-        /* optional */
-      }
-      const projectId = await loadAgProjectId(tokenData.access_token)
-      store.set(AG_STORE_KEY, {
-        accessToken: tokenData.access_token,
-        refreshToken: tokenData.refresh_token,
-        expiresAt: Date.now() + tokenData.expires_in * 1000,
-        email,
-        projectId
-      } as AgTokens)
-      return { success: true, email, hasProject: !!projectId }
-    } catch (err) {
-      loopback?.close()
-      return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
-    } finally {
-      oauthInProgress = false
-    }
-  })
-
-  ipcMain.handle('oauth:antigravity:logout', () => {
-    store.delete(AG_STORE_KEY)
-  })
-
-  ipcMain.handle('oauth:antigravity:status', () => {
-    const tokens = getAgTokens()
-    if (!tokens) return { active: false }
-    return { active: true, email: tokens.email, hasProject: !!tokens.projectId }
-  })
-
-  // ─── Gemini OAuth (real Gemini API via generativelanguage.googleapis.com) ───
-  ipcMain.handle('oauth:gemini:start', async () => {
-    if (oauthInProgress) return { success: false, error: 'OAuth already in progress' }
-    oauthInProgress = true
-    let loopback: Awaited<ReturnType<typeof startLoopbackServer>> | null = null
-
-    try {
-      loopback = await startLoopbackServer()
-      const redirectUri = `http://127.0.0.1:${loopback.port}`
-      const { verifier, challenge } = generatePKCE()
-
-      const authUrl =
-        `https://accounts.google.com/o/oauth2/v2/auth?` +
-        new URLSearchParams({
-          client_id: GEMINI_CLI_CLIENT_ID,
-          redirect_uri: redirectUri,
-          response_type: 'code',
-          scope: GEMINI_CLI_SCOPE,
-          code_challenge: challenge,
-          code_challenge_method: 'S256',
-          access_type: 'offline',
-          prompt: 'consent'
-        }).toString()
-
-      await shell.openExternal(authUrl)
-
-      const code = await Promise.race([
-        loopback.waitForCode(),
-        new Promise<never>((_, reject) => {
-          setTimeout(() => reject(new Error('OAuth timeout (10 minutes)')), 10 * 60 * 1000)
-        })
-      ])
-      const bodyParams = new URLSearchParams({
-        code,
-        client_id: GEMINI_CLI_CLIENT_ID,
-        redirect_uri: redirectUri,
-        grant_type: 'authorization_code',
-        code_verifier: verifier
-      })
-      if (GEMINI_CLI_CLIENT_SECRET) {
-        bodyParams.append('client_secret', GEMINI_CLI_CLIENT_SECRET)
-      }
-
-      const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: bodyParams
-      })
-      if (!tokenRes.ok) {
-        const err = await tokenRes.text().catch(() => '')
-        return { success: false, error: `Token exchange failed: ${tokenRes.status} ${err}` }
-      }
-      const tokenData = (await tokenRes.json()) as {
-        access_token: string
-        refresh_token: string
-        expires_in: number
-      }
-      let email: string | undefined
-      try {
-        const u = await fetch('https://www.googleapis.com/oauth2/v1/userinfo', {
-          headers: { Authorization: `Bearer ${tokenData.access_token}` }
-        })
-        if (u.ok) email = ((await u.json()) as { email?: string }).email
-      } catch {
-        /* optional */
-      }
-      const projectId = await loadAgProjectId(tokenData.access_token)
-      store.set(GEMINI_OAUTH_STORE_KEY, {
-        accessToken: tokenData.access_token,
-        refreshToken: tokenData.refresh_token,
-        expiresAt: Date.now() + tokenData.expires_in * 1000,
-        email,
-        projectId: projectId ?? undefined
-      } as AgTokens)
-      return { success: true, email }
-    } catch (err) {
-      loopback?.close()
-      return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
-    } finally {
-      oauthInProgress = false
-    }
-  })
-
-  ipcMain.handle('oauth:gemini:logout', () => {
-    store.delete(GEMINI_OAUTH_STORE_KEY)
-  })
-
-  ipcMain.handle('oauth:gemini:status', () => {
-    const tokens = getGeminiOAuthTokens()
+  ipcMain.handle('oauth:gemini:status', async (event) => {
+    if (!isTrustedIpcSender(event)) return { active: false }
+    const tokens = await getValidGeminiOAuthTokens()
     if (!tokens) return { active: false }
     return { active: true, email: tokens.email }
   })
 
-  ipcMain.handle('oauth:gemini:checkCli', async () => {
+  // Setup guide server
+  ipcMain.handle('oauth:openSetupGuide', async (event) => {
+    if (!isTrustedIpcSender(event)) return { success: false }
+
     try {
-      const { homedir } = await import('os')
-      const { access } = await import('fs/promises')
-      const { join } = await import('path')
-      await access(join(homedir(), '.gemini', 'oauth_creds.json'))
-      return { available: true }
-    } catch {
-      return { available: false }
+      const { startSetupGuideServer } = await import('./setupGuide')
+      const url = await startSetupGuideServer()
+      await shell.openExternal(url)
+      return { success: true }
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'Failed to open setup guide' }
     }
   })
 
-  ipcMain.handle('oauth:gemini:importCli', async () => {
-    try {
-      const { homedir } = await import('os')
-      const { readFile } = await import('fs/promises')
-      const { join } = await import('path')
-      const home = homedir()
-      const credsPath = join(home, '.gemini', 'oauth_creds.json')
-      const credsRaw = await readFile(credsPath, 'utf-8')
-      const creds = JSON.parse(credsRaw) as {
-        access_token?: string
-        refresh_token?: string
-        expiry_date?: number
+  // Save credentials from setup guide
+  ipcMain.handle(
+    'oauth:saveCredentials',
+    (event, params: { apiKey?: string; clientId?: string; clientSecret?: string }) => {
+      if (!isTrustedIpcSender(event)) return { success: false }
+
+      const previousClientId = getUserClientId()
+      const previousClientSecret = getUserClientSecret()
+
+      if (params.apiKey) {
+        setSecureValue('geminiApiKey', params.apiKey)
       }
-      if (!creds.access_token || !creds.refresh_token) {
-        return { success: false, error: 'No valid credentials in ~/.gemini/oauth_creds.json' }
+      if (params.clientId) {
+        setSecureValue('googleClientId', params.clientId)
       }
-      let email: string | undefined
-      try {
-        const accountsRaw = await readFile(join(home, '.gemini', 'google_accounts.json'), 'utf-8')
-        const accounts = JSON.parse(accountsRaw) as { active?: string }
-        email = accounts.active
-      } catch {
-        /* optional */
-      }
-      if (!email) {
-        try {
-          const u = await fetch('https://www.googleapis.com/oauth2/v1/userinfo', {
-            headers: { Authorization: `Bearer ${creds.access_token}` }
-          })
-          if (u.ok) email = ((await u.json()) as { email?: string }).email
-        } catch {
-          /* optional */
+      if (params.clientSecret !== undefined) {
+        if (params.clientSecret) {
+          setSecureValue('googleClientSecret', params.clientSecret)
+        } else {
+          deleteSecureValue('googleClientSecret')
         }
       }
-      const projectId = await loadAgProjectId(creds.access_token)
-      store.set(GEMINI_OAUTH_STORE_KEY, {
-        accessToken: creds.access_token,
-        refreshToken: creds.refresh_token,
-        expiresAt: creds.expiry_date ?? Date.now() + 3600 * 1000,
-        email,
-        projectId: projectId ?? undefined
-      } as AgTokens)
-      return { success: true, email }
-    } catch (err) {
-      return {
-        success: false,
-        error: err instanceof Error ? err.message : 'Failed to read Gemini CLI credentials'
+
+      const clientIdChanged =
+        params.clientId !== undefined && params.clientId !== previousClientId
+      const clientSecretChanged =
+        params.clientSecret !== undefined && params.clientSecret !== previousClientSecret
+      if (clientIdChanged || clientSecretChanged) {
+        clearSecureJson(GEMINI_OAUTH_SECURE_KEY)
       }
+
+      return { success: true }
     }
-  })
+  )
 }

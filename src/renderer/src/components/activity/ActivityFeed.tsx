@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+﻿import { useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   FileEdit,
@@ -10,7 +10,8 @@ import {
   ShieldQuestion,
   Trash2,
   Folder,
-  LucideIcon
+  LucideIcon,
+  Activity
 } from 'lucide-react'
 import { useActivityStore, ActivityEvent, ActivityEventType } from '../../store/useActivityStore'
 import { useTerminalStore } from '../../store/useTerminalStore'
@@ -26,7 +27,9 @@ const EVENT_CONFIG: Record<ActivityEventType, { label: string; color: string; Ic
     error: { label: 'Error', color: '#f87171', Icon: AlertCircle },
     cost: { label: 'Cost', color: '#a78bfa', Icon: DollarSign },
     task_done: { label: 'Done', color: '#34d399', Icon: CheckCircle2 },
-    permission: { label: 'Waiting', color: '#fbbf24', Icon: ShieldQuestion }
+    permission: { label: 'Waiting', color: '#fbbf24', Icon: ShieldQuestion },
+    status: { label: 'Status', color: '#60a5fa', Icon: Activity },
+    command: { label: 'Command', color: '#fbbf24', Icon: Activity }
   }
 
 function formatTime(ts: number): string {
@@ -71,7 +74,7 @@ const ActivityItem = ({ event }: { event: ActivityEvent }) => {
       exit={{ opacity: 0, scale: 0.97 }}
       transition={transition.micro}
       onClick={event.filePath ? handleClick : undefined}
-      className={`flex items-start gap-2.5 px-3 py-2.5 rounded-lg border transition-colors ${event.filePath ? 'cursor-pointer' : ''}`}
+      className={`flex items-start gap-2.5 px-3 py-2.5 rounded-none border transition-colors ${event.filePath ? 'cursor-pointer' : ''}`}
       style={{
         backgroundColor: 'var(--color-surface-3)',
         borderColor: 'var(--color-border-subtle)'
@@ -149,7 +152,7 @@ export const ActivityFeed = () => {
         {events.length > 0 && (
           <button
             onClick={clearEvents}
-            className="btn-ghost p-1.5 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.04] transition-colors"
+            className="btn-ghost p-1.5 rounded-none text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.04] transition-colors"
             title="Clear all"
           >
             <Trash2 size={13} />
@@ -161,7 +164,7 @@ export const ActivityFeed = () => {
       <div className="flex-1 overflow-y-auto hide-scrollbar p-3 flex flex-col gap-2">
         {events.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center gap-4 opacity-50 pb-20">
-            <div className="w-12 h-12 rounded-2xl bg-white/[0.02] border border-white/[0.04] shadow-inner flex items-center justify-center mb-1">
+            <div className="w-12 h-12 rounded-none bg-white/[0.02] border border-white/[0.04] shadow-inner flex items-center justify-center mb-1">
               <Folder size={20} strokeWidth={1.2} className="text-zinc-500" />
             </div>
             <p className="text-[13px] font-medium tracking-wide text-zinc-500 text-center">
@@ -179,3 +182,4 @@ export const ActivityFeed = () => {
     </div>
   )
 }
+

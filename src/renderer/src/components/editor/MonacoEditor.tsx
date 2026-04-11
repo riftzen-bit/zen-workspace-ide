@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react'
+﻿import { useRef, useEffect } from 'react'
 import Editor, { useMonaco, type OnMount } from '@monaco-editor/react'
 import type { editor } from 'monaco-editor'
 import { useFileStore } from '../../store/useFileStore'
@@ -7,19 +7,25 @@ import { useUIStore } from '../../store/useUIStore'
 import { useZenStore } from '../../store/useZenStore'
 import { X } from 'lucide-react'
 import { WelcomeScreen } from './WelcomeScreen'
+import { useSnippetStore } from '../../store/useSnippetStore'
+import { extractSnippetPlaceholders } from '../../lib/snippets'
+import { resolveAIRequestConfig, hasUsableAICredentials } from '../../lib/aiCredentials'
 
 export const MonacoEditor = () => {
   const {
     activeFile,
     activeSearchQuery,
+    pendingLocation,
     openFiles,
     fileContents,
     updateFileContent,
     closeFile,
     setActiveFile,
-    setIsSaving
+    setIsSaving,
+    clearPendingLocation,
+    setEditorSelection
   } = useFileStore()
-  const { fontSize, wordWrap } = useSettingsStore()
+  const { fontSize, wordWrap, inlineCompletionEnabled } = useSettingsStore()
   const monaco = useMonaco()
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null)
   const keystrokesRef = useRef<number[]>([])
@@ -81,12 +87,47 @@ export const MonacoEditor = () => {
       useUIStore.getState().setCursorPosition(e.position.lineNumber, e.position.column)
     })
 
+    editor.onDidChangeCursorSelection(() => {
+      setEditorSelection(editor.getModel()?.getValueInRange(editor.getSelection()!) ?? '')
+    })
+
     editor.onKeyDown(() => {
       const now = Date.now()
       keystrokesRef.current.push(now)
       keystrokesRef.current = keystrokesRef.current.filter((time) => now - time <= 60000)
       const wpm = Math.round(keystrokesRef.current.length / 5)
       useZenStore.getState().setWpm(wpm)
+      if (activeFile) {
+        useZenStore.getState().recordFileTouch(activeFile)
+      }
+    })
+
+    editor.addAction({
+      id: 'zen-create-snippet',
+      label: 'Create Snippet from Selection',
+      contextMenuGroupId: 'navigation',
+      contextMenuOrder: 1.5,
+      run: async () => {
+        const selection = editor.getModel()?.getValueInRange(editor.getSelection()!)
+        if (!selection?.trim()) {
+          useUIStore.getState().addToast('Select code before creating a snippet.', 'warning')
+          return
+        }
+
+        const label = await useUIStore.getState().showPrompt('Snippet name:')
+        if (!label?.trim()) return
+
+        useSnippetStore.getState().addSnippet({
+          id: `snippet-${Date.now()}`,
+          label: label.trim(),
+          category: 'Custom',
+          description: 'Saved from editor selection',
+          body: selection,
+          placeholders: extractSnippetPlaceholders(selection),
+          createdAt: Date.now()
+        })
+        useUIStore.getState().addToast(`Saved snippet "${label.trim()}"`, 'success')
+      }
     })
 
     if (activeSearchQuery) {
@@ -103,7 +144,13 @@ export const MonacoEditor = () => {
 
   const handleEditorChange = (value: string | undefined) => {
     if (value !== undefined && activeFile) {
+      const previousContent = fileContents[activeFile] ?? ''
+      const lineDelta = Math.max(0, value.split('\n').length - previousContent.split('\n').length)
       updateFileContent(activeFile, value)
+      if (lineDelta > 0) {
+        useZenStore.getState().recordLineChange(lineDelta)
+      }
+      useZenStore.getState().recordFileTouch(activeFile)
     }
   }
 
@@ -119,6 +166,113 @@ export const MonacoEditor = () => {
       }
     }
   }, [activeSearchQuery, activeFile])
+
+  useEffect(() => {
+    if (!editorRef.current || !monaco || !activeFile || !pendingLocation) return
+    if (pendingLocation.path !== activeFile) return
+
+    const range = new monaco.Range(
+      pendingLocation.line,
+      pendingLocation.column,
+      pendingLocation.line,
+      pendingLocation.column
+    )
+    editorRef.current.setSelection(range)
+    editorRef.current.revealLineInCenter(pendingLocation.line)
+    editorRef.current.focus()
+    clearPendingLocation()
+  }, [activeFile, clearPendingLocation, monaco, pendingLocation])
+
+  useEffect(() => {
+    if (!monaco || !inlineCompletionEnabled) return
+
+    const aiConfig = resolveAIRequestConfig()
+    if (!hasUsableAICredentials(aiConfig)) return
+
+    const provider = {
+      provideInlineCompletions: async (
+        model: editor.ITextModel,
+        position: { lineNumber: number; column: number },
+        _context: unknown,
+        token: { isCancellationRequested: boolean }
+      ) => {
+        if (!activeFile) return { items: [] }
+
+        const beforeText = model.getValueInRange(
+          new monaco.Range(
+            Math.max(1, position.lineNumber - 30),
+            1,
+            position.lineNumber,
+            position.column
+          )
+        )
+        const afterText = model.getValueInRange(
+          new monaco.Range(
+            position.lineNumber,
+            position.column,
+            Math.min(model.getLineCount(), position.lineNumber + 20),
+            model.getLineMaxColumn(Math.min(model.getLineCount(), position.lineNumber + 20))
+          )
+        )
+
+        if (beforeText.trim().length < 5) {
+          return { items: [] }
+        }
+
+        const result = await window.api.ai.complete({
+          provider: aiConfig.provider,
+          model: aiConfig.model,
+          workspaceDir: useFileStore.getState().workspaceDir ?? undefined,
+          apiKey: aiConfig.apiKey,
+          ollamaUrl: aiConfig.ollamaUrl,
+          useGeminiOAuth: aiConfig.useGeminiOAuth,
+          systemPrompt:
+            'You are an inline code completion engine. Return only the code that should be inserted at the cursor. Do not repeat surrounding context. Do not use markdown fences.',
+          prompt:
+            `Complete the code at the cursor.\n` +
+            `File: ${activeFile}\n` +
+            `Language: ${model.getLanguageId()}\n\n` +
+            `Before cursor:\n${beforeText}\n\n` +
+            `After cursor:\n${afterText}`
+        })
+
+        if (token.isCancellationRequested || result.error || !result.text.trim()) {
+          return { items: [] }
+        }
+
+        const insertText = result.text
+          .replace(/^```[a-zA-Z0-9_-]*\s*/g, '')
+          .replace(/```$/g, '')
+          .trimEnd()
+
+        if (!insertText) {
+          return { items: [] }
+        }
+        return {
+          items: [
+            {
+              insertText,
+              range: new monaco.Range(
+                position.lineNumber,
+                position.column,
+                position.lineNumber,
+                position.column
+              )
+            }
+          ]
+        }
+      },
+      disposeInlineCompletions: () => {}
+    }
+
+    const languages = ['typescript', 'javascript', 'json', 'markdown', 'python', 'html', 'css']
+    const disposables = languages.map((language) =>
+      monaco.languages.registerInlineCompletionsProvider(language, provider)
+    )
+    return () => {
+      disposables.forEach((disposable) => disposable.dispose())
+    }
+  }, [activeFile, inlineCompletionEnabled, monaco])
 
   const getLanguage = (path: string) => {
     const ext = path.split('.').pop()?.toLowerCase()
@@ -152,7 +306,7 @@ export const MonacoEditor = () => {
             <div
               key={file.path}
               onClick={() => setActiveFile(file.path)}
-              className="flex items-center min-w-[120px] max-w-[200px] h-[36px] px-4 cursor-pointer group rounded-t-lg transition-colors relative"
+              className="flex items-center min-w-[120px] max-w-[200px] h-[36px] px-4 cursor-pointer group rounded-none transition-colors relative"
               style={{
                 backgroundColor: isActive ? 'var(--color-surface-3)' : 'transparent',
                 color: isActive ? 'var(--color-text-primary)' : 'var(--color-text-muted)',
@@ -230,3 +384,4 @@ export const MonacoEditor = () => {
     </div>
   )
 }
+

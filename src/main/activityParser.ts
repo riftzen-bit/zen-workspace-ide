@@ -1,7 +1,7 @@
 // Strip ANSI escape codes from terminal output
 /* eslint-disable no-control-regex */
 const ANSI_REGEX =
-  /\x1B\[[0-9;]*[A-Za-z]|\x1B\][^\x07]*\x07|\x1B[PX^_][^\x1B]*\x1B\\|\x1B[^@-Z\\-_]/g
+  /\x1B\[[0-?]*[ -/]*[@-~]|\x1B\][^\x07\x1B]*(?:\x07|\x1B\\)|\x1B[PX^_][\s\S]*?\x1B\\|\x1B[@-_]/g
 /* eslint-enable no-control-regex */
 
 export function stripAnsi(str: string): string {
@@ -16,6 +16,10 @@ export type ActivityEventType =
   | 'cost'
   | 'task_done'
   | 'permission'
+  | 'status'
+  | 'command'
+
+export type AgentStatus = 'idle' | 'working' | 'waiting' | 'error' | 'done' | 'paused'
 
 export interface ActivityEvent {
   id: string
@@ -24,11 +28,13 @@ export interface ActivityEvent {
   message: string
   filePath?: string // For file events
   costValue?: string // For cost events
+  agentStatus?: AgentStatus
+  agentName?: string
   timestamp: number
 }
 
-// File path extraction — capture absolute paths
-const PATH_PATTERN = /(?:^|\s)(\/[^\s'")\]>]+)/
+// File path extraction — capture Unix and Windows absolute paths
+const PATH_PATTERN = /(?:^|\s)((?:[A-Za-z]:[\\/]|\/)[^\s'")\]>]+)/
 
 function extractPath(line: string): string | undefined {
   const m = line.match(PATH_PATTERN)
@@ -51,6 +57,7 @@ interface ParseResult {
   message: string
   filePath?: string
   costValue?: string
+  agentStatus?: AgentStatus
 }
 
 // Returns null if no significant event detected in this line
@@ -67,7 +74,7 @@ export function parseLine(line: string): ParseResult | null {
     const fp = extractPath(clean)
     return { type: 'file_write', message: clean.slice(0, 120), filePath: fp }
   }
-  if (/\b(updated|modified)\b.*\//i.test(clean) && clean.includes('/')) {
+  if (/\b(updated|modified)\b.*[/\\]/i.test(clean) && /[/\\]/.test(clean)) {
     const fp = extractPath(clean)
     return { type: 'file_write', message: clean.slice(0, 120), filePath: fp }
   }
@@ -75,7 +82,7 @@ export function parseLine(line: string): ParseResult | null {
     const fp = extractPath(clean)
     return { type: 'file_create', message: clean.slice(0, 120), filePath: fp }
   }
-  if (/\b(deleted|removed|deleting|removing)\b.*\//i.test(clean)) {
+  if (/\b(deleted|removed|deleting|removing)\b.*[/\\]/i.test(clean)) {
     const fp = extractPath(clean)
     return { type: 'file_delete', message: clean.slice(0, 120), filePath: fp }
   }
@@ -87,6 +94,21 @@ export function parseLine(line: string): ParseResult | null {
   // Checkmark completions (Claude CLI output)
   if (/^[✓✔]\s+/u.test(clean) && clean.length < 100) {
     return { type: 'task_done', message: clean.slice(0, 120) }
+  }
+
+  // --- Agent status ---
+  if (
+    /\b(thinking|analyzing|reviewing|writing|editing|running|executing|patching|searching|planning)\b/i.test(
+      lower
+    )
+  ) {
+    return { type: 'status', message: clean.slice(0, 120), agentStatus: 'working' }
+  }
+  if (/\b(waiting|awaiting|blocked|press enter to continue|input required)\b/i.test(lower)) {
+    return { type: 'status', message: clean.slice(0, 120), agentStatus: 'waiting' }
+  }
+  if (/\b(idle|standing by|ready for next task)\b/i.test(lower)) {
+    return { type: 'status', message: clean.slice(0, 120), agentStatus: 'idle' }
   }
 
   // --- Permission / confirmation requests ---
@@ -105,10 +127,10 @@ export function parseLine(line: string): ParseResult | null {
 
   // --- Errors (conservative — avoid false positives) ---
   if (/^(error:|fatal:|npm err!|[✗✘]\s)/iu.test(clean)) {
-    return { type: 'error', message: clean.slice(0, 120) }
+    return { type: 'error', message: clean.slice(0, 120), agentStatus: 'error' }
   }
   if (/\b(FAILED|BUILD FAILED|compilation error)\b/.test(clean)) {
-    return { type: 'error', message: clean.slice(0, 120) }
+    return { type: 'error', message: clean.slice(0, 120), agentStatus: 'error' }
   }
 
   return null
@@ -132,7 +154,7 @@ export function processChunk(terminalId: string, data: string): ActivityEvent[] 
   lineBuffers[terminalId] = (lineBuffers[terminalId] ?? '') + data
 
   // Split on newlines, keeping partial last line in buffer
-  const parts = lineBuffers[terminalId].split(/\r?\n/)
+  const parts = lineBuffers[terminalId].split(/\r\n|[\r\n]/)
   lineBuffers[terminalId] = parts.pop() ?? ''
 
   for (const line of parts) {

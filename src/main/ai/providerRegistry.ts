@@ -4,7 +4,6 @@ import { OpenAIProvider } from './providers/openai'
 import { AnthropicProvider } from './providers/anthropic'
 import { GroqProvider } from './providers/groq'
 import { OllamaProvider } from './providers/ollama'
-import { AntigravityProvider } from './providers/antigravity'
 
 const registry = new Map<AIProviderType, AIProvider>()
 
@@ -25,9 +24,6 @@ export function getProvider(type: AIProviderType): AIProvider {
         break
       case 'ollama':
         registry.set(type, new OllamaProvider())
-        break
-      case 'antigravity':
-        registry.set(type, new AntigravityProvider())
         break
       default:
         throw new Error(`Unknown provider: ${type}`)

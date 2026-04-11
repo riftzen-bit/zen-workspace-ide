@@ -7,6 +7,7 @@ const api = {
   readDirectory: (dirPath: string) => ipcRenderer.invoke('fs:readDirectory', dirPath),
   readFile: (filePath: string) => ipcRenderer.invoke('fs:readFile', filePath),
   searchFiles: (query: string, dir: string) => ipcRenderer.invoke('fs:searchFiles', query, dir),
+  scanTodos: (dir: string) => ipcRenderer.invoke('fs:scanTodos', dir),
   saveFile: (filePath: string, content: string) =>
     ipcRenderer.invoke('fs:saveFile', filePath, content),
   createFile: (filePath: string) =>
@@ -81,8 +82,13 @@ const api = {
       ipcRenderer.invoke('terminal:create', id, cols, rows, commandStr, cwd),
     exists: (id: string) => ipcRenderer.invoke('terminal:exists', id),
     resize: (id: string, cols: number, rows: number) =>
-      ipcRenderer.invoke('terminal:resize', id, cols, rows),
-    write: (id: string, data: string) => ipcRenderer.invoke('terminal:write', id, data),
+      ipcRenderer.send('terminal:resize', id, cols, rows),
+    write: (id: string, data: string) => ipcRenderer.send('terminal:write', id, data),
+    broadcast: (terminalIds: string[], data: string) =>
+      ipcRenderer.invoke('terminal:broadcast', terminalIds, data) as Promise<{
+        dispatched: string[]
+        unavailable: Array<{ id: string; reason: string }>
+      }>,
     kill: (id: string) => ipcRenderer.invoke('terminal:kill', id),
     pause: (id: string) => ipcRenderer.invoke('terminal:pause', id),
     resume: (id: string) => ipcRenderer.invoke('terminal:resume', id),
@@ -108,6 +114,8 @@ const api = {
         message: string
         filePath?: string
         costValue?: string
+        agentStatus?: 'idle' | 'working' | 'waiting' | 'error' | 'done' | 'paused'
+        agentName?: string
         timestamp: number
       }) => void
     ) => {
@@ -127,8 +135,48 @@ const api = {
       useGeminiOAuth?: boolean
       messages: { role: string; content: string }[]
     }) => ipcRenderer.invoke('ai:chat', params),
+    complete: (params: {
+      provider: string
+      model: string
+      prompt: string
+      workspaceDir?: string
+      apiKey?: string
+      ollamaUrl?: string
+      useGeminiOAuth?: boolean
+      systemPrompt?: string
+    }) =>
+      ipcRenderer.invoke('ai:complete', params) as Promise<{
+        text: string
+        error?: string
+      }>,
+    review: (params: {
+      provider: string
+      model: string
+      workspaceDir?: string
+      apiKey?: string
+      ollamaUrl?: string
+      useGeminiOAuth?: boolean
+      filePath: string
+      original: string
+      modified: string
+    }) =>
+      ipcRenderer.invoke('ai:review', params) as Promise<{
+        findings: Array<{
+          id: string
+          severity: 'critical' | 'warning' | 'info' | 'suggestion'
+          title: string
+          summary: string
+          lineStart: number
+          lineEnd: number
+          suggestion?: string
+          replacement?: string
+          canApply: boolean
+        }>
+        summary: string
+      }>,
     generateTest: (params: {
       filePath: string
+      workspaceDir?: string
       provider: string
       model: string
       apiKey?: string
@@ -151,39 +199,12 @@ const api = {
     }
   },
   oauth: {
-    googleStart: () =>
-      ipcRenderer.invoke('oauth:google:start') as Promise<{
-        success: boolean
-        email?: string
-        error?: string
-      }>,
-    googleLogout: () => ipcRenderer.invoke('oauth:google:logout'),
-    googleStatus: () =>
-      ipcRenderer.invoke('oauth:google:status') as Promise<{
-        active: boolean
-        email?: string
-        isConfigured?: boolean
-      }>,
-    googleGetToken: () => ipcRenderer.invoke('oauth:google:getToken') as Promise<string | null>,
-    antigravityStart: () =>
-      ipcRenderer.invoke('oauth:antigravity:start') as Promise<{
-        success: boolean
-        email?: string
-        hasProject?: boolean
-        error?: string
-      }>,
-    antigravityLogout: () => ipcRenderer.invoke('oauth:antigravity:logout'),
-    antigravityStatus: () =>
-      ipcRenderer.invoke('oauth:antigravity:status') as Promise<{
-        active: boolean
-        email?: string
-        hasProject?: boolean
-      }>,
     geminiStart: () =>
       ipcRenderer.invoke('oauth:gemini:start') as Promise<{
         success: boolean
         email?: string
         error?: string
+        errorCode?: string
       }>,
     geminiLogout: () => ipcRenderer.invoke('oauth:gemini:logout'),
     geminiStatus: () =>
@@ -191,14 +212,21 @@ const api = {
         active: boolean
         email?: string
       }>,
-    geminiCheckCli: () =>
-      ipcRenderer.invoke('oauth:gemini:checkCli') as Promise<{ available: boolean }>,
-    geminiImportCli: () =>
-      ipcRenderer.invoke('oauth:gemini:importCli') as Promise<{
+    openSetupGuide: () =>
+      ipcRenderer.invoke('oauth:openSetupGuide') as Promise<{
         success: boolean
-        email?: string
         error?: string
-      }>
+      }>,
+    saveCredentials: (params: { apiKey?: string; clientId?: string; clientSecret?: string }) =>
+      ipcRenderer.invoke('oauth:saveCredentials', params) as Promise<{
+        success: boolean
+        error?: string
+      }>,
+    onKeysUpdated: (callback: () => void) => {
+      const handler = () => callback()
+      ipcRenderer.on('secure-keys-updated', handler)
+      return () => ipcRenderer.removeListener('secure-keys-updated', handler)
+    }
   },
   music: {
     generate: (params: {

@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { electronZustandStorage } from './electronZustandStorage'
 
-export type AIProviderType = 'gemini' | 'openai' | 'anthropic' | 'groq' | 'ollama' | 'antigravity'
+export type AIProviderType = 'gemini' | 'openai' | 'anthropic' | 'groq' | 'ollama'
 
 interface SettingsState {
   // Existing
@@ -10,6 +10,11 @@ interface SettingsState {
   autoPlayVibe: boolean
   fontSize: number
   wordWrap: boolean
+  smartContextEnabled: boolean
+  inlineCompletionEnabled: boolean
+  adaptiveAmbientEnabled: boolean
+  agentBudgetLimit: number | null
+  autoPauseAgentBudget: boolean
 
   // Multi-provider
   activeProvider: AIProviderType
@@ -19,10 +24,6 @@ interface SettingsState {
   ollamaUrl: string
   googleClientId: string
   googleClientSecret: string
-  googleOAuthActive: boolean
-  googleOAuthEmail: string
-  antigravityOAuthActive: boolean
-  antigravityOAuthEmail: string
   geminiOAuthActive: boolean
   geminiOAuthEmail: string
   modelPerProvider: {
@@ -31,10 +32,9 @@ interface SettingsState {
     anthropic: string
     groq: string
     ollama: string
-    antigravity: string
   }
 
-  // Music (Lyria) — separate from chat API key
+  // Music (Lyria) -- separate from chat API key
   lyriaApiKey: string
   setLyriaApiKey: (key: string) => void
 
@@ -47,6 +47,11 @@ interface SettingsState {
   setAutoPlayVibe: (autoPlay: boolean) => void
   setFontSize: (size: number) => void
   setWordWrap: (wrap: boolean) => void
+  setSmartContextEnabled: (enabled: boolean) => void
+  setInlineCompletionEnabled: (enabled: boolean) => void
+  setAdaptiveAmbientEnabled: (enabled: boolean) => void
+  setAgentBudgetLimit: (limit: number | null) => void
+  setAutoPauseAgentBudget: (enabled: boolean) => void
   setActiveProvider: (provider: AIProviderType) => void
   setOpenaiApiKey: (key: string) => void
   setAnthropicApiKey: (key: string) => void
@@ -54,12 +59,9 @@ interface SettingsState {
   setOllamaUrl: (url: string) => void
   setGoogleClientId: (id: string) => void
   setGoogleClientSecret: (secret: string) => void
-  setGoogleOAuthActive: (active: boolean, email?: string) => void
-  setAntigravityOAuthActive: (active: boolean, email?: string) => void
   setGeminiOAuthActive: (active: boolean, email?: string) => void
   setModelForProvider: (provider: AIProviderType, model: string) => void
 
-  // Loads API keys from encrypted storage (called once on rehydration)
   loadSecureKeys: () => Promise<void>
 }
 
@@ -73,6 +75,11 @@ export const useSettingsStore = create<SettingsState>()(
       autoPlayVibe: true,
       fontSize: 14,
       wordWrap: true,
+      smartContextEnabled: true,
+      inlineCompletionEnabled: true,
+      adaptiveAmbientEnabled: false,
+      agentBudgetLimit: null,
+      autoPauseAgentBudget: false,
 
       // Multi-provider defaults
       activeProvider: 'gemini',
@@ -82,10 +89,6 @@ export const useSettingsStore = create<SettingsState>()(
       ollamaUrl: 'http://localhost:11434',
       googleClientId: '',
       googleClientSecret: '',
-      googleOAuthActive: false,
-      googleOAuthEmail: '',
-      antigravityOAuthActive: false,
-      antigravityOAuthEmail: '',
       geminiOAuthActive: false,
       geminiOAuthEmail: '',
       modelPerProvider: {
@@ -93,8 +96,7 @@ export const useSettingsStore = create<SettingsState>()(
         openai: 'gpt-5',
         anthropic: 'claude-sonnet-4-6',
         groq: 'llama-3.3-70b-versatile',
-        ollama: 'gemma3:12b',
-        antigravity: 'gemini-2.5-flash'
+        ollama: 'gemma3:12b'
       },
 
       setLyriaApiKey: (key) => {
@@ -109,6 +111,11 @@ export const useSettingsStore = create<SettingsState>()(
       setAutoPlayVibe: (autoPlay) => set({ autoPlayVibe: autoPlay }),
       setFontSize: (size) => set({ fontSize: size }),
       setWordWrap: (wrap) => set({ wordWrap: wrap }),
+      setSmartContextEnabled: (enabled) => set({ smartContextEnabled: enabled }),
+      setInlineCompletionEnabled: (enabled) => set({ inlineCompletionEnabled: enabled }),
+      setAdaptiveAmbientEnabled: (enabled) => set({ adaptiveAmbientEnabled: enabled }),
+      setAgentBudgetLimit: (limit) => set({ agentBudgetLimit: limit }),
+      setAutoPauseAgentBudget: (enabled) => set({ autoPauseAgentBudget: enabled }),
       setActiveProvider: (provider) => set({ activeProvider: provider }),
       setOpenaiApiKey: (key) => {
         set({ openaiApiKey: key })
@@ -131,10 +138,6 @@ export const useSettingsStore = create<SettingsState>()(
         set({ googleClientSecret: secret })
         window.api.secureStore.set('googleClientSecret', secret).catch(() => {})
       },
-      setGoogleOAuthActive: (active, email) =>
-        set({ googleOAuthActive: active, googleOAuthEmail: email ?? '' }),
-      setAntigravityOAuthActive: (active, email) =>
-        set({ antigravityOAuthActive: active, antigravityOAuthEmail: email ?? '' }),
       setGeminiOAuthActive: (active, email) =>
         set({ geminiOAuthActive: active, geminiOAuthEmail: email ?? '' }),
       setModelForProvider: (provider, model) =>
@@ -168,18 +171,18 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: 'vibe-ide-settings',
       storage: createJSONStorage(() => electronZustandStorage),
-      // Persist only non-sensitive, non-action fields
       partialize: (state) => ({
         customLocation: state.customLocation,
         autoPlayVibe: state.autoPlayVibe,
         fontSize: state.fontSize,
         wordWrap: state.wordWrap,
+        smartContextEnabled: state.smartContextEnabled,
+        inlineCompletionEnabled: state.inlineCompletionEnabled,
+        adaptiveAmbientEnabled: state.adaptiveAmbientEnabled,
+        agentBudgetLimit: state.agentBudgetLimit,
+        autoPauseAgentBudget: state.autoPauseAgentBudget,
         activeProvider: state.activeProvider,
         ollamaUrl: state.ollamaUrl,
-        googleOAuthActive: state.googleOAuthActive,
-        googleOAuthEmail: state.googleOAuthEmail,
-        antigravityOAuthActive: state.antigravityOAuthActive,
-        antigravityOAuthEmail: state.antigravityOAuthEmail,
         geminiOAuthActive: state.geminiOAuthActive,
         geminiOAuthEmail: state.geminiOAuthEmail,
         modelPerProvider: state.modelPerProvider

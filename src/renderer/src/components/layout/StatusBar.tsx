@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { GitBranch, Zap, DollarSign } from 'lucide-react'
 import { useFileStore } from '../../store/useFileStore'
 import { useUIStore } from '../../store/useUIStore'
@@ -36,8 +36,7 @@ const PROVIDER_LABEL: Record<string, string> = {
   openai: 'GPT',
   anthropic: 'Claude',
   groq: 'Groq',
-  ollama: 'Ollama',
-  antigravity: 'AG'
+  ollama: 'Ollama'
 }
 
 const DOT_COLORS = ['var(--color-accent)', '#34d399', '#f472b6', '#fb923c', '#a78bfa', '#60a5fa']
@@ -54,7 +53,7 @@ export const StatusBar = () => {
   const { workspaces } = useTerminalStore()
   const { activeProvider, modelPerProvider } = useSettingsStore()
   const { isStreaming } = useChatStore()
-  const { totalCost, resetCost } = useCostStore()
+  const { totalCost, budgetLimit, warnedAt80, limitTriggered, resetCost } = useCostStore()
   const [gitBranch, setGitBranch] = useState<string | null>(null)
 
   useEffect(() => {
@@ -70,6 +69,11 @@ export const StatusBar = () => {
   const language = activeFile ? getLanguage(activeFile) : null
   const model = modelPerProvider[activeProvider] ?? ''
   const providerLabel = PROVIDER_LABEL[activeProvider] ?? activeProvider
+  const costColor = limitTriggered ? '#f87171' : warnedAt80 ? '#fbbf24' : '#a78bfa'
+  const formattedCost =
+    budgetLimit !== null && budgetLimit > 0
+      ? `${totalCost.toFixed(4)} / ${budgetLimit.toFixed(2)}`
+      : totalCost.toFixed(4)
 
   return (
     <div
@@ -109,7 +113,7 @@ export const StatusBar = () => {
             {activeWorkspaces.slice(0, 6).map((ws, i) => (
               <span
                 key={ws.id}
-                className="w-1.5 h-1.5 rounded-full"
+                className="w-1.5 h-1.5 rounded-none"
                 style={{ backgroundColor: DOT_COLORS[i % DOT_COLORS.length] }}
                 title={ws.name}
               />
@@ -146,14 +150,19 @@ export const StatusBar = () => {
           <button
             onClick={resetCost}
             className="flex items-center gap-1 transition-opacity hover:opacity-70"
-            style={{ color: '#a78bfa' }}
-            title="Session cost (click to reset)"
+            style={{ color: costColor }}
+            title={
+              budgetLimit !== null && budgetLimit > 0
+                ? 'Session cost vs budget (click to reset)'
+                : 'Session cost (click to reset)'
+            }
           >
             <DollarSign size={9} />
-            <span>{totalCost.toFixed(4)}</span>
+            <span>{formattedCost}</span>
           </button>
         )}
       </div>
     </div>
   )
 }
+

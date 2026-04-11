@@ -35,8 +35,8 @@ describe('useSettingsStore', () => {
       anthropicApiKey: '',
       groqApiKey: '',
       ollamaUrl: 'http://localhost:11434',
-      googleOAuthActive: false,
-      googleOAuthEmail: '',
+      geminiOAuthActive: false,
+      geminiOAuthEmail: '',
       modelPerProvider: {
         gemini: 'gemini-3-flash',
         openai: 'gpt-5',
@@ -54,7 +54,7 @@ describe('useSettingsStore', () => {
     expect(state.autoPlayVibe).toBe(true)
     expect(state.wordWrap).toBe(true)
     expect(state.ollamaUrl).toBe('http://localhost:11434')
-    expect(state.googleOAuthActive).toBe(false)
+    expect(state.geminiOAuthActive).toBe(false)
   })
 
   it('setActiveProvider updates provider', () => {
@@ -99,13 +99,13 @@ describe('useSettingsStore', () => {
     expect(useSettingsStore.getState().ollamaUrl).toBe('http://192.168.1.100:11434')
   })
 
-  it('setGoogleOAuthActive updates auth state', () => {
+  it('setGeminiOAuthActive updates auth state', () => {
     act(() => {
-      useSettingsStore.getState().setGoogleOAuthActive(true, 'user@gmail.com')
+      useSettingsStore.getState().setGeminiOAuthActive(true, 'user@gmail.com')
     })
     const state = useSettingsStore.getState()
-    expect(state.googleOAuthActive).toBe(true)
-    expect(state.googleOAuthEmail).toBe('user@gmail.com')
+    expect(state.geminiOAuthActive).toBe(true)
+    expect(state.geminiOAuthEmail).toBe('user@gmail.com')
   })
 
   it('setModelForProvider updates only the specified provider model', () => {

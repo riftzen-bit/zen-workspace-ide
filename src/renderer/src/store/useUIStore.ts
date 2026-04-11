@@ -3,11 +3,14 @@ import { create } from 'zustand'
 type ActivityView =
   | 'explorer'
   | 'search'
+  | 'tasks'
   | 'settings'
   | 'terminal'
+  | 'orchestrator'
   | 'projects'
   | 'activity'
   | 'git'
+  | 'focus'
 
 export type ToastType = 'success' | 'error' | 'info' | 'warning' | 'zen-upbeat' | 'zen-chill'
 
@@ -81,6 +84,10 @@ interface UIState {
   // Prompt Library
   isPromptLibraryOpen: boolean
   setPromptLibraryOpen: (open: boolean) => void
+
+  // Snippet Library
+  isSnippetLibraryOpen: boolean
+  setSnippetLibraryOpen: (open: boolean) => void
 
   // Editor cursor position (for status bar)
   cursorLine: number
@@ -182,6 +189,10 @@ export const useUIStore = create<UIState>((set, get) => ({
   // Prompt Library
   isPromptLibraryOpen: false,
   setPromptLibraryOpen: (open) => set({ isPromptLibraryOpen: open }),
+
+  // Snippet Library
+  isSnippetLibraryOpen: false,
+  setSnippetLibraryOpen: (open) => set({ isSnippetLibraryOpen: open }),
 
   // Editor cursor position
   cursorLine: 1,

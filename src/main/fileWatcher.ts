@@ -1,5 +1,7 @@
 import { ipcMain, BrowserWindow } from 'electron'
 import chokidar, { FSWatcher } from 'chokidar'
+import { getCurrentWorkspacePath } from './fsHandler'
+import { isTrustedIpcSender, resolvePathWithinRoot } from './security'
 
 let watcher: FSWatcher | null = null
 let currentWorkspaceDir: string | null = null
@@ -35,14 +37,19 @@ export async function stopWatcher(): Promise<void> {
 }
 
 async function startWatcher(dirPath: string): Promise<void> {
-  if (currentWorkspaceDir === dirPath) return
+  const workspace = getCurrentWorkspacePath() ?? dirPath
+
+  const safeDirPath = resolvePathWithinRoot(workspace, dirPath, true)
+  if (!safeDirPath) return
+
+  if (currentWorkspaceDir === safeDirPath) return
 
   // Ensure previous watcher is fully closed before starting a new one
   await stopWatcher()
 
-  currentWorkspaceDir = dirPath
+  currentWorkspaceDir = safeDirPath
 
-  watcher = chokidar.watch(dirPath, {
+  watcher = chokidar.watch(safeDirPath, {
     ignored: IGNORED_PATTERNS,
     persistent: true,
     ignoreInitial: true,
@@ -62,7 +69,9 @@ async function startWatcher(dirPath: string): Promise<void> {
 }
 
 export function setupFileWatcher(): void {
-  ipcMain.handle('fs:watchWorkspace', async (_event, dirPath: string) => {
+  ipcMain.handle('fs:watchWorkspace', async (event, dirPath: string | null) => {
+    if (!isTrustedIpcSender(event)) return
+
     if (dirPath) {
       await startWatcher(dirPath)
     } else {
@@ -70,7 +79,8 @@ export function setupFileWatcher(): void {
     }
   })
 
-  ipcMain.handle('fs:stopWatcher', async () => {
+  ipcMain.handle('fs:stopWatcher', async (event) => {
+    if (!isTrustedIpcSender(event)) return
     await stopWatcher()
   })
 }

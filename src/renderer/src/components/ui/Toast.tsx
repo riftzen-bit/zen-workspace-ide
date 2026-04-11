@@ -1,4 +1,4 @@
-import { AnimatePresence, motion } from 'framer-motion'
+﻿import { AnimatePresence, motion } from 'framer-motion'
 import { CheckCircle, AlertCircle, Info, AlertTriangle, X, Zap, Coffee } from 'lucide-react'
 import { useUIStore, type Toast as ToastItem } from '../../store/useUIStore'
 import { transition } from '../../lib/motion'
@@ -37,7 +37,7 @@ const ToastItem = ({ toast }: { toast: ToastItem }) => {
       animate={{ opacity: 1, x: 0, scale: 1 }}
       exit={{ opacity: 0, x: 40, scale: 0.94 }}
       transition={transition.overlay}
-      className="flex items-center gap-3 px-4 py-3 rounded-xl min-w-[240px] max-w-[340px] cursor-pointer"
+      className="flex items-center gap-3 px-4 py-3 rounded-none min-w-[240px] max-w-[340px] cursor-pointer"
       style={{
         backgroundColor: 'var(--color-surface-4)',
         border: '1px solid var(--color-border-default)',
@@ -84,3 +84,4 @@ export const ToastContainer = () => {
     </div>
   )
 }
+

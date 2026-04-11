@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+﻿import { useEffect, useRef, useState } from 'react'
 import { useUIStore } from '../../store/useUIStore'
 
 const PromptDialog = ({
@@ -26,13 +26,13 @@ const PromptDialog = ({
 
   return (
     <div
-      className="bg-surface-3 border border-surface-border rounded-xl p-5 shadow-2xl w-96 flex flex-col gap-4"
+      className="bg-surface-3 border border-surface-border rounded-none p-5 shadow-2xl w-96 flex flex-col gap-4"
       onClick={(e) => e.stopPropagation()}
     >
       <p className="text-body font-medium">{title}</p>
       <input
         ref={inputRef}
-        className="w-full bg-surface-1 border border-surface-border rounded-md px-3 py-2 text-body outline-none focus:border-accent"
+        className="w-full bg-surface-1 border border-surface-border rounded-none px-3 py-2 text-body outline-none focus:border-accent"
         value={val}
         onChange={(e) => setVal(e.target.value)}
         onKeyDown={(e) => {
@@ -42,13 +42,13 @@ const PromptDialog = ({
       />
       <div className="flex justify-end gap-2 mt-1">
         <button
-          className="px-4 py-1.5 rounded-md hover:bg-surface-4 text-body text-sm transition-colors"
+          className="px-4 py-1.5 rounded-none hover:bg-surface-4 text-body text-sm transition-colors"
           onClick={onCancel}
         >
           Cancel
         </button>
         <button
-          className="px-4 py-1.5 rounded-md bg-accent hover:opacity-90 text-white font-medium text-sm transition-opacity"
+          className="px-4 py-1.5 rounded-none bg-accent hover:opacity-90 text-white font-medium text-sm transition-opacity"
           onClick={() => onSubmit(val)}
         >
           OK
@@ -78,20 +78,20 @@ const ConfirmDialog = ({
 
   return (
     <div
-      className="bg-surface-3 border border-surface-border rounded-xl p-5 shadow-2xl w-96 flex flex-col gap-4"
+      className="bg-surface-3 border border-surface-border rounded-none p-5 shadow-2xl w-96 flex flex-col gap-4"
       onClick={(e) => e.stopPropagation()}
     >
       <p className="text-body font-medium">{title}</p>
       <div className="flex justify-end gap-2 mt-2">
         <button
-          className="px-4 py-1.5 rounded-md hover:bg-surface-4 text-body text-sm transition-colors"
+          className="px-4 py-1.5 rounded-none hover:bg-surface-4 text-body text-sm transition-colors"
           onClick={onCancel}
         >
           Cancel
         </button>
         <button
           ref={btnRef}
-          className="px-4 py-1.5 rounded-md bg-red-500 hover:bg-red-600 text-white font-medium text-sm transition-colors"
+          className="px-4 py-1.5 rounded-none bg-red-500 hover:bg-red-600 text-white font-medium text-sm transition-colors"
           onClick={onSubmit}
         >
           Delete
@@ -133,3 +133,4 @@ export const GlobalDialogs = () => {
     </div>
   )
 }
+

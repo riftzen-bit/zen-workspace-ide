@@ -13,18 +13,23 @@ export interface ChatSession {
 interface ChatState {
   sessions: ChatSession[]
   activeSessionId: string | null
+  activeMessageId: string | null
   isStreaming: boolean
   model: string
 
   addMessage: (msg: ChatMessage) => void
   updateLastMessage: (text: string) => void
+  updateMessage: (id: string, updater: Partial<ChatMessage>) => void
   setIsStreaming: (isStreaming: boolean) => void
   setModel: (model: string) => void
   createNewSession: () => void
   deleteSession: (id: string) => void
   setActiveSession: (id: string) => void
+  setActiveMessage: (id: string | null) => void
+  branchFromMessage: (messageId: string) => string | null
   clearChat: () => void
   getMessages: () => ChatMessage[]
+  getActiveMessage: () => ChatMessage | null
 }
 
 const generateTitle = (text: string) => {
@@ -38,7 +43,9 @@ function migrateSessions(sessions: ChatSession[]): ChatSession[] {
     ...session,
     messages: session.messages.map((msg) => ({
       ...msg,
-      role: (msg.role as string) === 'model' ? 'assistant' : msg.role
+      role: (msg.role as string) === 'model' ? 'assistant' : msg.role,
+      createdAt: msg.createdAt ?? Date.now(),
+      parentId: msg.parentId ?? null
     })) as ChatMessage[]
   }))
 }
@@ -48,6 +55,7 @@ export const useChatStore = create<ChatState>()(
     (set, get) => ({
       sessions: [],
       activeSessionId: null,
+      activeMessageId: null,
       isStreaming: false,
       model: 'gemini-3-flash',
 
@@ -58,21 +66,35 @@ export const useChatStore = create<ChatState>()(
         return session ? session.messages : []
       },
 
+      getActiveMessage: () => {
+        const { activeMessageId } = get()
+        if (!activeMessageId) return null
+        return get()
+          .getMessages()
+          .find((message) => message.id === activeMessageId) ?? null
+      },
+
       addMessage: (msg) =>
         set((state) => {
           let updatedSessions = [...state.sessions]
           const activeId = state.activeSessionId
+          const normalizedMessage: ChatMessage = {
+            ...msg,
+            createdAt: msg.createdAt ?? Date.now(),
+            parentId: msg.parentId ?? null
+          }
 
           if (!activeId || updatedSessions.length === 0) {
             const newSession: ChatSession = {
               id: crypto.randomUUID(),
-              title: generateTitle(msg.text),
-              messages: [msg],
+              title: generateTitle(normalizedMessage.text),
+              messages: [normalizedMessage],
               updatedAt: Date.now()
             }
             return {
               sessions: [newSession, ...updatedSessions],
-              activeSessionId: newSession.id
+              activeSessionId: newSession.id,
+              activeMessageId: normalizedMessage.id
             }
           }
 
@@ -80,20 +102,20 @@ export const useChatStore = create<ChatState>()(
           if (sessionIndex > -1) {
             const currentSession = updatedSessions[sessionIndex]
             let newTitle = currentSession.title
-            if (currentSession.messages.length === 0 && msg.role === 'user') {
-              newTitle = generateTitle(msg.text)
+            if (currentSession.messages.length === 0 && normalizedMessage.role === 'user') {
+              newTitle = generateTitle(normalizedMessage.text)
             }
             updatedSessions[sessionIndex] = {
               ...currentSession,
               title: newTitle,
-              messages: [...currentSession.messages, msg],
+              messages: [...currentSession.messages, normalizedMessage],
               updatedAt: Date.now()
             }
             const [targetSession] = updatedSessions.splice(sessionIndex, 1)
             updatedSessions = [targetSession, ...updatedSessions]
           }
 
-          return { sessions: updatedSessions }
+          return { sessions: updatedSessions, activeMessageId: normalizedMessage.id }
         }),
 
       updateLastMessage: (text) =>
@@ -117,8 +139,21 @@ export const useChatStore = create<ChatState>()(
             messages: newMessages,
             updatedAt: Date.now()
           }
-          return { sessions: updatedSessions }
+          return {
+            sessions: updatedSessions,
+            activeMessageId: newMessages[newMessages.length - 1]?.id ?? state.activeMessageId
+          }
         }),
+
+      updateMessage: (id, updater) =>
+        set((state) => ({
+          sessions: state.sessions.map((session) => ({
+            ...session,
+            messages: session.messages.map((message) =>
+              message.id === id ? { ...message, ...updater } : message
+            )
+          }))
+        })),
 
       createNewSession: () =>
         set((state) => {
@@ -130,7 +165,8 @@ export const useChatStore = create<ChatState>()(
           }
           return {
             sessions: [newSession, ...state.sessions],
-            activeSessionId: newSession.id
+            activeSessionId: newSession.id,
+            activeMessageId: null
           }
         }),
 
@@ -143,12 +179,55 @@ export const useChatStore = create<ChatState>()(
                 ? updatedSessions[0].id
                 : null
               : state.activeSessionId
-          return { sessions: updatedSessions, activeSessionId: newActiveId }
+          const nextActiveSession = updatedSessions.find((session) => session.id === newActiveId)
+          const nextActiveMessageId =
+            nextActiveSession?.messages[nextActiveSession.messages.length - 1]?.id ?? null
+          return {
+            sessions: updatedSessions,
+            activeSessionId: newActiveId,
+            activeMessageId: nextActiveMessageId
+          }
         }),
 
-      setActiveSession: (id) => set({ activeSessionId: id }),
+      setActiveSession: (id) =>
+        set((state) => {
+          const session = state.sessions.find((item) => item.id === id)
+          return {
+            activeSessionId: id,
+            activeMessageId: session?.messages[session.messages.length - 1]?.id ?? null
+          }
+        }),
+      setActiveMessage: (id) => set({ activeMessageId: id }),
       setIsStreaming: (isStreaming) => set({ isStreaming }),
       setModel: (model) => set({ model }),
+
+      branchFromMessage: (messageId) => {
+        const { sessions, activeSessionId } = get()
+        if (!activeSessionId) return null
+        const session = sessions.find((item) => item.id === activeSessionId)
+        if (!session) return null
+        const targetIndex = session.messages.findIndex((message) => message.id === messageId)
+        if (targetIndex === -1) return null
+
+        const branchedMessages = session.messages.slice(0, targetIndex + 1).map((message) => ({
+          ...message
+        }))
+        const baseTitle = session.messages[targetIndex]?.text || session.title
+        const branchTitle = `${generateTitle(baseTitle)} (Branch)`
+        const newSession: ChatSession = {
+          id: crypto.randomUUID(),
+          title: branchTitle,
+          messages: branchedMessages,
+          updatedAt: Date.now()
+        }
+
+        set((state) => ({
+          sessions: [newSession, ...state.sessions],
+          activeSessionId: newSession.id,
+          activeMessageId: branchedMessages[branchedMessages.length - 1]?.id ?? null
+        }))
+        return newSession.id
+      },
 
       clearChat: () =>
         set((state) => {
@@ -162,7 +241,7 @@ export const useChatStore = create<ChatState>()(
             title: 'New Chat',
             updatedAt: Date.now()
           }
-          return { sessions: updatedSessions }
+          return { sessions: updatedSessions, activeMessageId: null }
         })
     }),
     {
@@ -171,14 +250,19 @@ export const useChatStore = create<ChatState>()(
       partialize: (state) => ({
         sessions: state.sessions,
         activeSessionId: state.activeSessionId,
+        activeMessageId: state.activeMessageId,
         model: state.model
       }),
       merge: (persisted, current) => {
         const p = persisted as Partial<ChatState>
+        const sessions = migrateSessions(p.sessions ?? [])
+        const activeSession = sessions.find((session) => session.id === p.activeSessionId) ?? null
         return {
           ...current,
           ...p,
-          sessions: migrateSessions(p.sessions ?? [])
+          sessions,
+          activeMessageId:
+            p.activeMessageId ?? activeSession?.messages[activeSession.messages.length - 1]?.id ?? null
         }
       }
     }
