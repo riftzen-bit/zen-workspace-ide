@@ -74,6 +74,14 @@ interface UIState {
   enterZenMode: () => void
   exitZenMode: () => void
 
+  // Split Editor
+  isSplitEditor: boolean
+  splitDirection: 'horizontal' | 'vertical'
+  secondaryActiveFile: string | null
+  toggleSplitEditor: () => void
+  setSplitDirection: (direction: 'horizontal' | 'vertical') => void
+  setSecondaryActiveFile: (path: string | null) => void
+
   // Music Generator
   isMusicGeneratorOpen: boolean
   setMusicGeneratorOpen: (open: boolean) => void
@@ -182,6 +190,18 @@ export const useUIStore = create<UIState>((set, get) => ({
       zenSnapshot: null
     })
   },
+
+  // Split Editor
+  isSplitEditor: false,
+  splitDirection: 'vertical',
+  secondaryActiveFile: null,
+  toggleSplitEditor: () =>
+    set((state) => ({
+      isSplitEditor: !state.isSplitEditor,
+      secondaryActiveFile: state.isSplitEditor ? null : state.secondaryActiveFile
+    })),
+  setSplitDirection: (direction) => set({ splitDirection: direction }),
+  setSecondaryActiveFile: (path) => set({ secondaryActiveFile: path }),
 
   // Music Generator
   isMusicGeneratorOpen: false,

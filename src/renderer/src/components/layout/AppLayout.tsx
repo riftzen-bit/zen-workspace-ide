@@ -4,6 +4,7 @@ import { ActivityBar } from './ActivityBar'
 import { Sidebar } from './Sidebar'
 import { ProjectList } from '../projects/ProjectList'
 import { MonacoEditor } from '../editor/MonacoEditor'
+import { SplitEditor } from '../editor/SplitEditor'
 import { AIChat } from '../chat/AIChat'
 import { VibePlayer } from '../media/VibePlayer'
 import { MusicGenerator } from '../media/MusicGenerator'
@@ -44,7 +45,8 @@ export const AppLayout = () => {
     isChatOpen,
     enterZenMode,
     exitZenMode,
-    setCommandPaletteOpen
+    setCommandPaletteOpen,
+    isSplitEditor
   } = useUIStore()
   const { activeWorkspaceId } = useTerminalStore()
   const {
@@ -453,7 +455,7 @@ export const AppLayout = () => {
             {showFocusView ? <FocusAnalyticsDashboard /> : null}
             {showOrchestratorView ? <AgentOrchestratorDashboard /> : null}
             {showGitDiffView ? <GitDiffEditor /> : null}
-            {showEditorView ? <MonacoEditor /> : null}
+            {showEditorView ? isSplitEditor ? <SplitEditor /> : <MonacoEditor /> : null}
           </div>
 
           {/* Chat Panel with smooth animation */}
