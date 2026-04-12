@@ -154,6 +154,11 @@ declare global {
           message: string,
           addAll: boolean
         ) => Promise<{ success: boolean; error?: string }>
+        stashList: (cwd: string) => Promise<Array<{ index: string; message: string; date: string }>>
+        stashSave: (cwd: string, message: string) => Promise<{ success: boolean; error?: string }>
+        stashPop: (cwd: string, index?: string) => Promise<{ success: boolean; error?: string }>
+        stashApply: (cwd: string, index?: string) => Promise<{ success: boolean; error?: string }>
+        stashDrop: (cwd: string, index: string) => Promise<{ success: boolean; error?: string }>
       }
       store: {
         get: (key: string) => Promise<unknown>

@@ -1,6 +1,18 @@
 ﻿import { useState, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
-import { GitBranch, Wand2, Check, RefreshCw, Plus, Minus } from 'lucide-react'
+import {
+  GitBranch,
+  Wand2,
+  Check,
+  RefreshCw,
+  Plus,
+  Minus,
+  Archive,
+  ChevronDown,
+  ChevronRight,
+  Trash2,
+  Download
+} from 'lucide-react'
 import { useFileStore } from '../../store/useFileStore'
 import { useUIStore } from '../../store/useUIStore'
 import { useSettingsStore } from '../../store/useSettingsStore'
@@ -36,6 +48,12 @@ export const GitDashboard = () => {
   const [message, setMessage] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
   const [isCommitting, setIsCommitting] = useState(false)
+  const [stashes, setStashes] = useState<Array<{ index: string; message: string; date: string }>>(
+    []
+  )
+  const [isStashExpanded, setIsStashExpanded] = useState(false)
+  const [stashMessage, setStashMessage] = useState('')
+  const [isStashing, setIsStashing] = useState(false)
 
   const loadGitState = useCallback(async () => {
     if (!workspaceDir) return
@@ -45,6 +63,8 @@ export const GitDashboard = () => {
       const files = await window.api.git.statusFiles(workspaceDir)
       setStagedFiles(files.staged)
       setUnstagedFiles(files.unstaged)
+      const stashList = await window.api.git.stashList(workspaceDir)
+      setStashes(stashList)
     }
   }, [workspaceDir])
 
@@ -53,6 +73,53 @@ export const GitDashboard = () => {
     const interval = setInterval(loadGitState, 5000)
     return () => clearInterval(interval)
   }, [loadGitState])
+
+  const handleStashSave = async () => {
+    if (!workspaceDir) return
+    setIsStashing(true)
+    const result = await window.api.git.stashSave(workspaceDir, stashMessage)
+    if (result.success) {
+      addToast('Changes stashed successfully', 'success')
+      setStashMessage('')
+      await loadGitState()
+    } else {
+      addToast(result.error || 'Failed to stash', 'error')
+    }
+    setIsStashing(false)
+  }
+
+  const handleStashPop = async (index: string) => {
+    if (!workspaceDir) return
+    const result = await window.api.git.stashPop(workspaceDir, index)
+    if (result.success) {
+      addToast('Stash popped successfully', 'success')
+      await loadGitState()
+    } else {
+      addToast(result.error || 'Failed to pop stash', 'error')
+    }
+  }
+
+  const handleStashApply = async (index: string) => {
+    if (!workspaceDir) return
+    const result = await window.api.git.stashApply(workspaceDir, index)
+    if (result.success) {
+      addToast('Stash applied successfully', 'success')
+      await loadGitState()
+    } else {
+      addToast(result.error || 'Failed to apply stash', 'error')
+    }
+  }
+
+  const handleStashDrop = async (index: string) => {
+    if (!workspaceDir) return
+    const result = await window.api.git.stashDrop(workspaceDir, index)
+    if (result.success) {
+      addToast('Stash dropped', 'info')
+      await loadGitState()
+    } else {
+      addToast(result.error || 'Failed to drop stash', 'error')
+    }
+  }
 
   const handleGenerate = async () => {
     if (!workspaceDir) return
@@ -302,6 +369,95 @@ export const GitDashboard = () => {
               <p className="text-caption">Working tree is clean</p>
             </div>
           )}
+
+          {/* Stash Section */}
+          <div className="flex flex-col gap-1 mt-2">
+            <button
+              onClick={() => setIsStashExpanded(!isStashExpanded)}
+              className="flex items-center gap-2 px-1 py-1 text-[11px] font-bold text-zinc-400 uppercase tracking-wider hover:text-zinc-300 transition-colors"
+            >
+              {isStashExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+              <Archive size={12} />
+              <span>Stashes</span>
+              {stashes.length > 0 && (
+                <span className="text-[10px] bg-zinc-800 text-zinc-400 px-1.5 rounded">
+                  {stashes.length}
+                </span>
+              )}
+            </button>
+
+            {isStashExpanded && (
+              <div className="flex flex-col gap-2 pl-2">
+                {/* Stash input */}
+                {hasChanges && (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={stashMessage}
+                      onChange={(e) => setStashMessage(e.target.value)}
+                      placeholder="Stash message (optional)"
+                      className="flex-1 bg-transparent border rounded-none px-2 py-1 text-[11px] focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+                      style={{
+                        borderColor: 'var(--color-border-subtle)',
+                        backgroundColor: 'var(--color-surface-2)'
+                      }}
+                    />
+                    <button
+                      onClick={handleStashSave}
+                      disabled={isStashing}
+                      className="px-2 py-1 text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30 hover:bg-amber-500/30 transition-colors disabled:opacity-50"
+                    >
+                      {isStashing ? <RefreshCw size={10} className="animate-spin" /> : 'Stash'}
+                    </button>
+                  </div>
+                )}
+
+                {/* Stash list */}
+                {stashes.length > 0 ? (
+                  <div className="flex flex-col gap-1">
+                    {stashes.map((stash) => (
+                      <div
+                        key={stash.index}
+                        className="group flex items-center justify-between px-2 py-1.5 hover:bg-white/5 rounded-none transition-colors"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[11px] text-zinc-300 truncate">
+                            {stash.message || stash.index}
+                          </div>
+                          <div className="text-[9px] text-zinc-600">{stash.index}</div>
+                        </div>
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => handleStashApply(stash.index)}
+                            className="p-1 hover:bg-white/10 text-zinc-400 hover:text-green-400 transition-colors"
+                            title="Apply stash"
+                          >
+                            <Download size={12} />
+                          </button>
+                          <button
+                            onClick={() => handleStashPop(stash.index)}
+                            className="p-1 hover:bg-white/10 text-zinc-400 hover:text-amber-400 transition-colors"
+                            title="Pop stash"
+                          >
+                            <Archive size={12} />
+                          </button>
+                          <button
+                            onClick={() => handleStashDrop(stash.index)}
+                            className="p-1 hover:bg-red-500/20 text-zinc-400 hover:text-red-400 transition-colors"
+                            title="Drop stash"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-[11px] text-zinc-600 px-2 py-1">No stashes</div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Commit Box */}

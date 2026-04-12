@@ -201,4 +201,85 @@ export function setupGitHandlers(): void {
 
     return { success: true }
   })
+
+  ipcMain.handle('git:stashList', async (event, cwd: string) => {
+    if (!isTrustedIpcSender(event)) return []
+
+    const resolved = resolvePath(cwd)
+    if (!existsSync(resolved)) return []
+
+    const { error, stdout } = await runGit(
+      resolved,
+      ['stash', 'list', '--format=%gd|||%gs|||%ci'],
+      5000
+    )
+    if (error || !stdout.trim()) return []
+
+    return stdout
+      .trim()
+      .split('\n')
+      .map((line) => {
+        const [index, message, date] = line.split('|||')
+        return { index: index || '', message: message || '', date: date || '' }
+      })
+  })
+
+  ipcMain.handle('git:stashSave', async (event, cwd: string, message: string) => {
+    if (!isTrustedIpcSender(event)) return { success: false, error: 'Untrusted sender' }
+
+    const resolved = resolvePath(cwd)
+    if (!existsSync(resolved)) return { success: false, error: 'Directory not found' }
+
+    const args = message?.trim() ? ['stash', 'push', '-m', message.trim()] : ['stash', 'push']
+    const { error, stderr } = await runGit(resolved, args, 10000)
+    if (error) {
+      return { success: false, error: stderr || error.message }
+    }
+
+    return { success: true }
+  })
+
+  ipcMain.handle('git:stashPop', async (event, cwd: string, index?: string) => {
+    if (!isTrustedIpcSender(event)) return { success: false, error: 'Untrusted sender' }
+
+    const resolved = resolvePath(cwd)
+    if (!existsSync(resolved)) return { success: false, error: 'Directory not found' }
+
+    const args = index ? ['stash', 'pop', index] : ['stash', 'pop']
+    const { error, stderr } = await runGit(resolved, args, 10000)
+    if (error) {
+      return { success: false, error: stderr || error.message }
+    }
+
+    return { success: true }
+  })
+
+  ipcMain.handle('git:stashApply', async (event, cwd: string, index?: string) => {
+    if (!isTrustedIpcSender(event)) return { success: false, error: 'Untrusted sender' }
+
+    const resolved = resolvePath(cwd)
+    if (!existsSync(resolved)) return { success: false, error: 'Directory not found' }
+
+    const args = index ? ['stash', 'apply', index] : ['stash', 'apply']
+    const { error, stderr } = await runGit(resolved, args, 10000)
+    if (error) {
+      return { success: false, error: stderr || error.message }
+    }
+
+    return { success: true }
+  })
+
+  ipcMain.handle('git:stashDrop', async (event, cwd: string, index: string) => {
+    if (!isTrustedIpcSender(event)) return { success: false, error: 'Untrusted sender' }
+
+    const resolved = resolvePath(cwd)
+    if (!existsSync(resolved)) return { success: false, error: 'Directory not found' }
+
+    const { error, stderr } = await runGit(resolved, ['stash', 'drop', index], 5000)
+    if (error) {
+      return { success: false, error: stderr || error.message }
+    }
+
+    return { success: true }
+  })
 }

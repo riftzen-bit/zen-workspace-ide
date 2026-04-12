@@ -89,6 +89,30 @@ const api = {
       ipcRenderer.invoke('git:commit', cwd, message, addAll) as Promise<{
         success: boolean
         error?: string
+      }>,
+    stashList: (cwd: string) =>
+      ipcRenderer.invoke('git:stashList', cwd) as Promise<
+        Array<{ index: string; message: string; date: string }>
+      >,
+    stashSave: (cwd: string, message: string) =>
+      ipcRenderer.invoke('git:stashSave', cwd, message) as Promise<{
+        success: boolean
+        error?: string
+      }>,
+    stashPop: (cwd: string, index?: string) =>
+      ipcRenderer.invoke('git:stashPop', cwd, index) as Promise<{
+        success: boolean
+        error?: string
+      }>,
+    stashApply: (cwd: string, index?: string) =>
+      ipcRenderer.invoke('git:stashApply', cwd, index) as Promise<{
+        success: boolean
+        error?: string
+      }>,
+    stashDrop: (cwd: string, index: string) =>
+      ipcRenderer.invoke('git:stashDrop', cwd, index) as Promise<{
+        success: boolean
+        error?: string
       }>
   },
   store: {
