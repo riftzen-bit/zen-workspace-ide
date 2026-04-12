@@ -11,6 +11,7 @@ type ActivityView =
   | 'activity'
   | 'git'
   | 'focus'
+  | 'bookmarks'
 
 export type ToastType = 'success' | 'error' | 'info' | 'warning' | 'zen-upbeat' | 'zen-chill'
 

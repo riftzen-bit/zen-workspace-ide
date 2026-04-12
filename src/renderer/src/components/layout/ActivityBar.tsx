@@ -18,6 +18,7 @@ import {
   CheckSquare,
   BarChart3,
   LayoutDashboard,
+  Bookmark,
   type LucideIcon
 } from 'lucide-react'
 
@@ -32,6 +33,7 @@ type ActivityView =
   | 'activity'
   | 'git'
   | 'focus'
+  | 'bookmarks'
 
 const TOOLTIPS: Partial<Record<ActivityView | 'chat' | 'vibe' | 'zen' | 'palette', string>> = {
   projects: 'Projects',
@@ -42,6 +44,7 @@ const TOOLTIPS: Partial<Record<ActivityView | 'chat' | 'vibe' | 'zen' | 'palette
   terminal: 'Terminal',
   orchestrator: 'Orchestrator',
   activity: 'Agent Activity',
+  bookmarks: 'Bookmarks',
   focus: 'Focus Analytics',
   settings: 'Settings',
   chat: 'Assistant',
@@ -195,6 +198,13 @@ export const ActivityBar = () => {
           activeView={activeView}
           setActiveView={setActiveView}
           badge={unreadCount}
+        />
+        <IconWrapper
+          view="bookmarks"
+          tooltip={TOOLTIPS.bookmarks!}
+          Icon={Bookmark}
+          activeView={activeView}
+          setActiveView={setActiveView}
         />
       </div>
 

@@ -29,6 +29,7 @@ import { transition } from '../../lib/motion'
 import { ActivityFeed } from '../activity/ActivityFeed'
 import { GitDashboard } from '../git/GitDashboard'
 import { TaskTracker } from '../tasks/TaskTracker'
+import { BookmarkPanel } from '../bookmarks/BookmarkPanel'
 
 const getFileIcon = (name: string) => {
   const ext = name.split('.').pop()?.toLowerCase()
@@ -447,7 +448,9 @@ export const Sidebar = () => {
                     ? 'Source Control'
                     : activeView === 'activity'
                       ? 'Activity'
-                      : 'Search'}
+                      : activeView === 'bookmarks'
+                        ? 'Bookmarks'
+                        : 'Search'}
           </span>
         </div>
 
@@ -458,6 +461,8 @@ export const Sidebar = () => {
             <TaskTracker />
           ) : activeView === 'git' ? (
             <GitDashboard />
+          ) : activeView === 'bookmarks' ? (
+            <BookmarkPanel />
           ) : activeView === 'explorer' ? (
             fileTree.length > 0 ? (
               <div
