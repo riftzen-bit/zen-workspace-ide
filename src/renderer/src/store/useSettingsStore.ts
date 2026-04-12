@@ -15,6 +15,7 @@ interface SettingsState {
   adaptiveAmbientEnabled: boolean
   agentBudgetLimit: number | null
   autoPauseAgentBudget: boolean
+  restoreSessionOnStartup: boolean
 
   // Multi-provider
   activeProvider: AIProviderType
@@ -52,6 +53,7 @@ interface SettingsState {
   setAdaptiveAmbientEnabled: (enabled: boolean) => void
   setAgentBudgetLimit: (limit: number | null) => void
   setAutoPauseAgentBudget: (enabled: boolean) => void
+  setRestoreSessionOnStartup: (enabled: boolean) => void
   setActiveProvider: (provider: AIProviderType) => void
   setOpenaiApiKey: (key: string) => void
   setAnthropicApiKey: (key: string) => void
@@ -80,6 +82,7 @@ export const useSettingsStore = create<SettingsState>()(
       adaptiveAmbientEnabled: false,
       agentBudgetLimit: null,
       autoPauseAgentBudget: false,
+      restoreSessionOnStartup: true,
 
       // Multi-provider defaults
       activeProvider: 'gemini',
@@ -116,6 +119,7 @@ export const useSettingsStore = create<SettingsState>()(
       setAdaptiveAmbientEnabled: (enabled) => set({ adaptiveAmbientEnabled: enabled }),
       setAgentBudgetLimit: (limit) => set({ agentBudgetLimit: limit }),
       setAutoPauseAgentBudget: (enabled) => set({ autoPauseAgentBudget: enabled }),
+      setRestoreSessionOnStartup: (enabled) => set({ restoreSessionOnStartup: enabled }),
       setActiveProvider: (provider) => set({ activeProvider: provider }),
       setOpenaiApiKey: (key) => {
         set({ openaiApiKey: key })
@@ -181,6 +185,7 @@ export const useSettingsStore = create<SettingsState>()(
         adaptiveAmbientEnabled: state.adaptiveAmbientEnabled,
         agentBudgetLimit: state.agentBudgetLimit,
         autoPauseAgentBudget: state.autoPauseAgentBudget,
+        restoreSessionOnStartup: state.restoreSessionOnStartup,
         activeProvider: state.activeProvider,
         ollamaUrl: state.ollamaUrl,
         geminiOAuthActive: state.geminiOAuthActive,

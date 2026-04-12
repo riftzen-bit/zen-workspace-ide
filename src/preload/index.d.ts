@@ -137,6 +137,12 @@ declare global {
         set: (key: string, value: unknown) => Promise<void>
         delete: (key: string) => Promise<void>
         clear: () => Promise<void>
+        exportSettings: () => Promise<{ success: boolean; path?: string; error?: string }>
+        importSettings: () => Promise<{
+          success: boolean
+          importedCount?: number
+          error?: string
+        }>
       }
       terminal: {
         create: (

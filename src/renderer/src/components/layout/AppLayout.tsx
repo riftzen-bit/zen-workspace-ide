@@ -8,6 +8,7 @@ import { AIChat } from '../chat/AIChat'
 import { VibePlayer } from '../media/VibePlayer'
 import { MusicGenerator } from '../media/MusicGenerator'
 import { SettingsOverlay } from '../settings/SettingsOverlay'
+import { KeybindingsOverlay } from '../settings/KeybindingsOverlay'
 import { ToastContainer } from '../ui/Toast'
 import { CommandPalette } from '../ui/CommandPalette'
 import { useFileStore } from '../../store/useFileStore'
@@ -28,6 +29,8 @@ import { ZenOrchestrator } from '../activity/ZenOrchestrator'
 import { SnippetLibrary } from '../ui/SnippetLibrary'
 import { FocusAnalyticsDashboard } from '../activity/FocusAnalyticsDashboard'
 import { AgentOrchestratorDashboard } from '../terminal/AgentOrchestratorDashboard'
+import { useKeybindingsStore } from '../../store/useKeybindingsStore'
+import { matchesKeybinding } from '../../lib/keybindingUtils'
 
 export const AppLayout = () => {
   const { workspaceDir, fileTree, setFileTree, reloadFileFromDisk, markFileDeleted } =
@@ -44,14 +47,31 @@ export const AppLayout = () => {
     setCommandPaletteOpen
   } = useUIStore()
   const { activeWorkspaceId } = useTerminalStore()
-  const { autoPlayVibe, agentBudgetLimit, autoPauseAgentBudget, adaptiveAmbientEnabled } =
-    useSettingsStore()
+  const {
+    autoPlayVibe,
+    agentBudgetLimit,
+    autoPauseAgentBudget,
+    adaptiveAmbientEnabled,
+    restoreSessionOnStartup
+  } = useSettingsStore()
   const isWorkspaceActive = activeWorkspaceId !== null
   const { isZenMode, currentWpm, errorCount } = useZenStore()
   const adaptiveAmbientRef = useRef<{ vibe: 'lofi' | 'rain' | null; changedAt: number }>({
     vibe: null,
     changedAt: 0
   })
+  const sessionRestoreHandled = useRef(false)
+
+  // Handle session restore on startup
+  useEffect(() => {
+    if (sessionRestoreHandled.current) return
+    sessionRestoreHandled.current = true
+
+    if (!restoreSessionOnStartup) {
+      // Clear active workspace if session restore is disabled
+      useTerminalStore.getState().setActiveWorkspace(null)
+    }
+  }, [restoreSessionOnStartup])
 
   const pauseActiveWorkspacesForBudget = async () => {
     const terminalStore = useTerminalStore.getState()
@@ -280,31 +300,31 @@ export const AppLayout = () => {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const ctrl = e.ctrlKey || e.metaKey
+      const { keybindings } = useKeybindingsStore.getState()
 
-      // Ctrl+K — Command Palette
-      if (ctrl && e.key.toLowerCase() === 'k') {
+      // Command Palette
+      if (matchesKeybinding(e, keybindings['command-palette']?.keys || 'Ctrl+K')) {
         e.preventDefault()
         setCommandPaletteOpen(true)
         return
       }
 
-      // Ctrl+B — Toggle Sidebar
-      if (ctrl && e.key.toLowerCase() === 'b') {
+      // Toggle Sidebar
+      if (matchesKeybinding(e, keybindings['toggle-sidebar']?.keys || 'Ctrl+B')) {
         e.preventDefault()
         useUIStore.getState().toggleSidebar()
         return
       }
 
-      // Ctrl+I — Toggle Chat
-      if (ctrl && e.key.toLowerCase() === 'i') {
+      // Toggle Chat
+      if (matchesKeybinding(e, keybindings['toggle-chat']?.keys || 'Ctrl+I')) {
         e.preventDefault()
         useUIStore.getState().toggleChat()
         return
       }
 
-      // Ctrl+Shift+Z — Toggle Zen Mode
-      if (ctrl && e.shiftKey && e.key.toLowerCase() === 'z') {
+      // Toggle Zen Mode
+      if (matchesKeybinding(e, keybindings['toggle-zen-mode']?.keys || 'Ctrl+Shift+Z')) {
         e.preventDefault()
         const { isZenMode: uiZen } = useUIStore.getState()
         const { isZenMode: zen } = useZenStore.getState()
@@ -318,8 +338,8 @@ export const AppLayout = () => {
         return
       }
 
-      // ESC — Exit Zen Mode (only when palette is closed)
-      if (e.key === 'Escape') {
+      // Exit Zen Mode (only when palette is closed)
+      if (matchesKeybinding(e, keybindings['exit-zen-mode']?.keys || 'Escape')) {
         const { isCommandPaletteOpen, isZenMode: uiZen } = useUIStore.getState()
         const { isZenMode: zen } = useZenStore.getState()
         if ((uiZen || zen) && !isCommandPaletteOpen) {
@@ -471,6 +491,7 @@ export const AppLayout = () => {
       <CommandPalette />
       <PromptLibrary />
       <SnippetLibrary />
+      <KeybindingsOverlay />
       <GlobalDialogs />
       <ToastContainer />
     </div>

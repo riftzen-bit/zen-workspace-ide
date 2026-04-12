@@ -19,6 +19,7 @@ import {
   BarChart3,
   Sparkles,
   GitBranch,
+  Keyboard,
   type LucideIcon
 } from 'lucide-react'
 import { useUIStore } from '../../store/useUIStore'
@@ -52,7 +53,8 @@ const useCommands = (): Command[] => {
     exitZenMode,
     setCommandPaletteOpen,
     setPromptLibraryOpen,
-    setSnippetLibraryOpen
+    setSnippetLibraryOpen,
+    setKeybindingsOpen
   } = useUIStore()
   const { workspaceDir } = useFileStore()
   const { setModalOpen } = useTerminalStore()
@@ -218,6 +220,17 @@ const useCommands = (): Command[] => {
       action: () => {
         close()
         setSnippetLibraryOpen(true)
+      }
+    },
+    {
+      id: 'keyboard-shortcuts',
+      label: 'Keyboard Shortcuts',
+      description: 'Customize keyboard shortcuts',
+      icon: Keyboard,
+      category: 'View',
+      action: () => {
+        close()
+        setKeybindingsOpen(true)
       }
     },
     {

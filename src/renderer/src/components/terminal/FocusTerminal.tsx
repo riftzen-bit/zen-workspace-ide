@@ -1,6 +1,8 @@
 ﻿import { useState, useRef, useEffect } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useTerminalStore } from '../../store/useTerminalStore'
+import { useTemplateStore } from '../../store/useTemplateStore'
+import { useUIStore } from '../../store/useUIStore'
 import { TerminalInstance } from './TerminalInstance'
 import { WorkspaceCard } from './WorkspaceCard'
 import {
@@ -14,6 +16,8 @@ import {
   Columns2,
   LayoutDashboard,
   GitCompare,
+  Bookmark,
+  Trash2,
   type LucideIcon
 } from 'lucide-react'
 import { transition } from '../../lib/motion'
@@ -74,6 +78,9 @@ export const FocusTerminal = () => {
     resumeWorkspace,
     reorderWorkspaces
   } = useTerminalStore()
+
+  const { customTemplates, addTemplate, deleteTemplate } = useTemplateStore()
+  const { addToast } = useUIStore()
 
   const [name, setName] = useState('')
   const [cliTypes, setCliTypes] = useState<string[]>(['Terminal'])
@@ -253,6 +260,57 @@ export const FocusTerminal = () => {
                     </div>
                   </button>
                 ))}
+                {/* Custom Templates */}
+                {customTemplates.map((tpl) => (
+                  <div
+                    key={tpl.id}
+                    className="relative flex items-start gap-2 p-2.5 rounded-none border text-left transition-colors group"
+                    style={{
+                      backgroundColor: 'var(--color-surface-2)',
+                      borderColor: 'var(--color-border-subtle)',
+                      color: 'var(--color-text-secondary)'
+                    }}
+                  >
+                    <button
+                      onClick={() => {
+                        setName(tpl.label)
+                        setLayout(tpl.layout)
+                        setCliTypes(tpl.cliTypes)
+                      }}
+                      className="flex items-start gap-2 flex-1 text-left"
+                    >
+                      <Bookmark
+                        size={14}
+                        style={{ color: '#f59e0b', flexShrink: 0, marginTop: 2 }}
+                      />
+                      <div className="min-w-0">
+                        <p
+                          className="text-body font-medium truncate"
+                          style={{ color: 'var(--color-text-primary)' }}
+                        >
+                          {tpl.label}
+                        </p>
+                        <p
+                          className="text-label truncate"
+                          style={{ color: 'var(--color-text-muted)' }}
+                        >
+                          {tpl.description}
+                        </p>
+                      </div>
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        deleteTemplate(tpl.id)
+                        addToast('Template deleted', 'info')
+                      }}
+                      className="absolute top-1 right-1 p-1 opacity-0 group-hover:opacity-100 transition-opacity rounded hover:bg-red-500/20"
+                      title="Delete template"
+                    >
+                      <Trash2 size={12} style={{ color: '#ef4444' }} />
+                    </button>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -405,6 +463,25 @@ export const FocusTerminal = () => {
               style={{ color: 'var(--color-text-secondary)' }}
             >
               Cancel
+            </button>
+            <button
+              onClick={() => {
+                if (!name.trim()) return
+                addTemplate({
+                  label: name,
+                  description: `${layout} pane${layout > 1 ? 's' : ''} · ${cliTypes.join(' + ')}`,
+                  layout,
+                  cliTypes
+                })
+                addToast('Template saved', 'success')
+              }}
+              disabled={!name.trim()}
+              className="btn-ghost px-4 py-2 text-body flex items-center gap-1.5"
+              style={{ color: 'var(--color-text-secondary)' }}
+              title="Save current configuration as a reusable template"
+            >
+              <Bookmark size={14} />
+              Save Template
             </button>
             <button onClick={handleCreate} disabled={!name.trim()} className="btn-primary">
               Launch Workspace

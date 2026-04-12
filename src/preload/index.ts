@@ -75,7 +75,19 @@ const api = {
     get: (key: string) => ipcRenderer.invoke('store:get', key),
     set: (key: string, value: unknown) => ipcRenderer.invoke('store:set', key, value),
     delete: (key: string) => ipcRenderer.invoke('store:delete', key),
-    clear: () => ipcRenderer.invoke('store:clear')
+    clear: () => ipcRenderer.invoke('store:clear'),
+    exportSettings: () =>
+      ipcRenderer.invoke('settings:export') as Promise<{
+        success: boolean
+        path?: string
+        error?: string
+      }>,
+    importSettings: () =>
+      ipcRenderer.invoke('settings:import') as Promise<{
+        success: boolean
+        importedCount?: number
+        error?: string
+      }>
   },
   terminal: {
     create: (id: string, cols: number, rows: number, commandStr?: string, cwd?: string) =>

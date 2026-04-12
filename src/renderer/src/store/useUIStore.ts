@@ -89,6 +89,10 @@ interface UIState {
   isSnippetLibraryOpen: boolean
   setSnippetLibraryOpen: (open: boolean) => void
 
+  // Keybindings
+  isKeybindingsOpen: boolean
+  setKeybindingsOpen: (open: boolean) => void
+
   // Editor cursor position (for status bar)
   cursorLine: number
   cursorCol: number
@@ -193,6 +197,10 @@ export const useUIStore = create<UIState>((set, get) => ({
   // Snippet Library
   isSnippetLibraryOpen: false,
   setSnippetLibraryOpen: (open) => set({ isSnippetLibraryOpen: open }),
+
+  // Keybindings
+  isKeybindingsOpen: false,
+  setKeybindingsOpen: (open) => set({ isKeybindingsOpen: open }),
 
   // Editor cursor position
   cursorLine: 1,

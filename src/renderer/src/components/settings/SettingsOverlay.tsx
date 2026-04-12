@@ -140,7 +140,9 @@ export const SettingsOverlay = () => {
     agentBudgetLimit,
     setAgentBudgetLimit,
     autoPauseAgentBudget,
-    setAutoPauseAgentBudget
+    setAutoPauseAgentBudget,
+    restoreSessionOnStartup,
+    setRestoreSessionOnStartup
   } = settings
 
   const [selectedTab, setSelectedTab] = useState<AIProviderType>(activeProvider)
@@ -687,6 +689,22 @@ export const SettingsOverlay = () => {
                     </div>
                     <Toggle value={autoPauseAgentBudget} onChange={setAutoPauseAgentBudget} />
                   </div>
+
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <h4
+                        className="text-body font-medium"
+                        style={{ color: 'var(--color-text-secondary)' }}
+                      >
+                        Restore Session on Startup
+                      </h4>
+                      <p className="text-caption mt-1" style={{ color: 'var(--color-text-muted)' }}>
+                        Automatically restore the last active terminal workspace when the app
+                        starts.
+                      </p>
+                    </div>
+                    <Toggle value={restoreSessionOnStartup} onChange={setRestoreSessionOnStartup} />
+                  </div>
                 </div>
               </section>
 
@@ -786,6 +804,66 @@ export const SettingsOverlay = () => {
                       </p>
                     </div>
                     <Toggle value={adaptiveAmbientEnabled} onChange={setAdaptiveAmbientEnabled} />
+                  </div>
+                </div>
+              </section>
+
+              {/* Backup & Restore */}
+              <section className="flex flex-col gap-4">
+                <div className="flex items-center gap-3">
+                  <h3 className="text-[11px] font-semibold tracking-wider uppercase text-zinc-500 flex items-center gap-2">
+                    <KeyRound size={13} /> Backup & Restore
+                  </h3>
+                  <div className="flex-1 h-px bg-white/[0.04]" />
+                </div>
+
+                <div
+                  className="rounded-none p-5"
+                  style={{
+                    backgroundColor: 'var(--color-surface-3)',
+                    border: '1px solid var(--color-border-subtle)'
+                  }}
+                >
+                  <p className="text-caption mb-4" style={{ color: 'var(--color-text-muted)' }}>
+                    Export your settings, workspaces, prompts, and snippets to a JSON file. API keys
+                    are not included for security.
+                  </p>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={async () => {
+                        const result = await window.api.store.exportSettings()
+                        if (result.success) {
+                          useUIStore
+                            .getState()
+                            .addToast('Settings exported successfully', 'success')
+                        } else if (result.error !== 'Cancelled') {
+                          useUIStore.getState().addToast(`Export failed: ${result.error}`, 'error')
+                        }
+                      }}
+                      className="btn-ghost px-4 py-2 text-body"
+                      style={{ color: 'var(--color-text-secondary)' }}
+                    >
+                      Export Settings
+                    </button>
+                    <button
+                      onClick={async () => {
+                        const result = await window.api.store.importSettings()
+                        if (result.success) {
+                          useUIStore
+                            .getState()
+                            .addToast(
+                              `Imported ${result.importedCount} setting groups. Restart app to apply.`,
+                              'success'
+                            )
+                        } else if (result.error !== 'Cancelled') {
+                          useUIStore.getState().addToast(`Import failed: ${result.error}`, 'error')
+                        }
+                      }}
+                      className="btn-ghost px-4 py-2 text-body"
+                      style={{ color: 'var(--color-text-secondary)' }}
+                    >
+                      Import Settings
+                    </button>
                   </div>
                 </div>
               </section>

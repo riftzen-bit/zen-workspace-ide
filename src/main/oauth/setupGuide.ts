@@ -11,299 +11,450 @@ function getSetupGuideHTML(port: number): string {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Zen Workspace IDE — Gemini Setup Guide</title>
+  <title>Gemini Setup — Zen Workspace</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
   <style>
+    :root {
+      --bg: #1a1918;
+      --bg-subtle: #211f1e;
+      --bg-input: #141312;
+      --border: #2e2b29;
+      --border-light: #3d3936;
+      --text: #e8e4df;
+      --text-secondary: #a39e97;
+      --text-dim: #6b665f;
+      --accent: #b8956c;
+      --accent-hover: #d4ac7a;
+      --error: #c75f5f;
+      --success: #7a9e7a;
+    }
+
     * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html { font-size: 16px; }
+
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #0a0a0a;
-      color: #e4e4e7;
+      font-family: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
       min-height: 100vh;
-      padding: 40px 20px;
+      -webkit-font-smoothing: antialiased;
     }
-    .container { max-width: 720px; margin: 0 auto; }
+
+    .container {
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 72px 24px 96px;
+    }
+
+    header {
+      margin-bottom: 64px;
+    }
+
     h1 {
-      font-size: 24px;
+      font-size: 28px;
       font-weight: 600;
-      margin-bottom: 8px;
-      color: #fafafa;
+      letter-spacing: -0.01em;
+      margin-bottom: 12px;
+      color: var(--text);
     }
-    .subtitle {
-      color: #71717a;
-      font-size: 14px;
-      margin-bottom: 40px;
-    }
-    .section {
-      background: #18181b;
-      border: 1px solid #27272a;
-      padding: 28px;
-      margin-bottom: 24px;
-    }
-    .section h2 {
-      font-size: 16px;
-      font-weight: 600;
-      margin-bottom: 6px;
-      color: #fafafa;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    .section h2 .badge {
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-      padding: 2px 8px;
-      background: #22c55e20;
-      color: #4ade80;
-      border: 1px solid #22c55e30;
-    }
-    .section h2 .badge.advanced {
-      background: #3b82f620;
-      color: #60a5fa;
-      border: 1px solid #3b82f630;
-    }
-    .section-desc {
-      color: #a1a1aa;
-      font-size: 13px;
-      margin-bottom: 20px;
+
+    .lead {
+      font-size: 15px;
+      color: var(--text-secondary);
       line-height: 1.6;
     }
-    .steps {
-      list-style: none;
-      counter-reset: step;
+
+    .section {
+      margin-bottom: 56px;
     }
-    .steps li {
-      counter-increment: step;
-      padding: 12px 0 12px 40px;
-      position: relative;
-      border-bottom: 1px solid #27272a;
+
+    .section-header {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 20px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    h2 {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .tag {
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      padding: 3px 8px;
+      border: 1px solid var(--border);
+    }
+
+    .section-intro {
+      font-size: 14px;
+      color: var(--text-secondary);
+      margin-bottom: 24px;
+    }
+
+    .warning {
       font-size: 13px;
-      line-height: 1.7;
-      color: #d4d4d8;
+      color: var(--error);
+      padding: 16px;
+      border: 1px solid var(--border);
+      border-left: 2px solid var(--error);
+      margin-bottom: 24px;
+      background: var(--bg-subtle);
     }
-    .steps li:last-child { border-bottom: none; }
-    .steps li::before {
-      content: counter(step);
+
+    .warning strong {
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    ol {
+      list-style: none;
+      counter-reset: steps;
+    }
+
+    li {
+      counter-increment: steps;
+      position: relative;
+      padding-left: 32px;
+      margin-bottom: 16px;
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+
+    li::before {
+      content: counter(steps);
       position: absolute;
       left: 0;
-      top: 12px;
-      width: 24px;
-      height: 24px;
-      background: #27272a;
-      color: #a1a1aa;
+      top: 0;
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
       font-size: 12px;
-      font-weight: 600;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      font-weight: 500;
+      color: var(--text-dim);
+      width: 20px;
     }
+
+    li.highlight {
+      background: var(--bg-subtle);
+      border-left: 2px solid var(--success);
+      padding: 14px 16px 14px 32px;
+      margin-left: 0;
+    }
+
+    li.highlight::before {
+      left: 10px;
+      top: 14px;
+    }
+
+    li strong {
+      color: var(--text);
+      font-weight: 600;
+    }
+
     a {
-      color: #60a5fa;
+      color: var(--accent);
       text-decoration: none;
     }
-    a:hover { text-decoration: underline; }
-    .input-group {
-      margin-top: 16px;
+
+    a:hover {
+      color: var(--accent-hover);
     }
-    .input-group label {
-      display: block;
+
+    code {
+      font-family: 'SF Mono', Menlo, monospace;
       font-size: 12px;
-      font-weight: 500;
-      color: #a1a1aa;
-      margin-bottom: 6px;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
+      background: var(--bg-subtle);
+      padding: 2px 6px;
+      color: var(--text);
     }
+
+    .sub-list {
+      margin-top: 10px;
+      padding-left: 0;
+    }
+
+    .sub-list li {
+      padding-left: 16px;
+      margin-bottom: 6px;
+      font-size: 13px;
+    }
+
+    .sub-list li::before {
+      content: '—';
+      width: auto;
+      color: var(--border-light);
+    }
+
+    .form-area {
+      background: var(--bg-subtle);
+      border: 1px solid var(--border);
+      padding: 24px;
+      margin: 28px 0;
+    }
+
+    .field {
+      margin-bottom: 20px;
+    }
+
+    .field:last-of-type {
+      margin-bottom: 0;
+    }
+
+    label {
+      display: block;
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-bottom: 8px;
+    }
+
     .input-row {
       display: flex;
-      gap: 8px;
+      gap: 10px;
     }
-    input[type="text"], input[type="password"] {
+
+    input {
       flex: 1;
-      background: #0a0a0a;
-      border: 1px solid #3f3f46;
-      color: #fafafa;
-      padding: 10px 14px;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: 'SF Mono', Menlo, monospace;
       font-size: 13px;
-      font-family: 'SF Mono', 'Fira Code', monospace;
+      padding: 12px 14px;
       outline: none;
-      transition: border-color 0.2s;
+      transition: border-color 0.15s;
     }
-    input:focus { border-color: #60a5fa; }
-    input::placeholder { color: #52525b; }
+
+    input:focus {
+      border-color: var(--border-light);
+    }
+
+    input::placeholder {
+      color: var(--text-dim);
+    }
+
     button {
-      background: #27272a;
-      color: #fafafa;
-      border: 1px solid #3f3f46;
-      padding: 10px 20px;
-      font-size: 13px;
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: 12px;
       font-weight: 500;
+      background: var(--bg-input);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 12px 20px;
       cursor: pointer;
       transition: all 0.15s;
       white-space: nowrap;
     }
-    button:hover { background: #3f3f46; }
-    button.primary {
-      background: #2563eb;
-      border-color: #3b82f6;
+
+    button:hover {
+      background: var(--bg-subtle);
+      border-color: var(--border-light);
     }
-    button.primary:hover { background: #1d4ed8; }
-    button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
+
     .status {
-      margin-top: 12px;
-      padding: 10px 14px;
-      font-size: 12px;
       display: none;
+      font-size: 13px;
+      padding: 12px 14px;
+      margin-top: 16px;
+      border: 1px solid var(--border);
     }
+
     .status.success {
       display: block;
-      background: #22c55e15;
-      border: 1px solid #22c55e30;
-      color: #4ade80;
+      color: var(--success);
+      border-color: var(--success);
+      background: rgba(122, 158, 122, 0.08);
     }
+
     .status.error {
       display: block;
-      background: #ef444415;
-      border: 1px solid #ef444430;
-      color: #f87171;
+      color: var(--error);
+      border-color: var(--error);
+      background: rgba(199, 95, 95, 0.08);
     }
+
+    .note {
+      font-size: 13px;
+      color: var(--text-dim);
+      padding-left: 16px;
+      border-left: 1px solid var(--border);
+      margin-top: 24px;
+    }
+
+    .note strong {
+      color: var(--text-secondary);
+      font-weight: 600;
+    }
+
     .divider {
       text-align: center;
-      color: #52525b;
-      font-size: 12px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      margin: 8px 0;
+      margin: 48px 0;
       position: relative;
     }
-    .divider::before, .divider::after {
+
+    .divider::before {
       content: '';
       position: absolute;
+      left: 0;
+      right: 0;
       top: 50%;
-      width: 40%;
       height: 1px;
-      background: #27272a;
+      background: var(--border);
     }
-    .divider::before { left: 0; }
-    .divider::after { right: 0; }
-    code {
-      background: #27272a;
-      padding: 1px 6px;
-      font-size: 12px;
-      font-family: 'SF Mono', 'Fira Code', monospace;
-      color: #e4e4e7;
+
+    .divider span {
+      position: relative;
+      background: var(--bg);
+      padding: 0 16px;
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-dim);
     }
-    .note {
-      background: #27272a;
-      border-left: 3px solid #f59e0b;
-      padding: 12px 16px;
-      font-size: 12px;
-      color: #d4d4d8;
-      line-height: 1.6;
-      margin-top: 16px;
+
+    footer {
+      margin-top: 64px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: 11px;
+      color: var(--text-dim);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    @media (max-width: 540px) {
+      .container { padding: 48px 20px 64px; }
+      h1 { font-size: 24px; }
+      .input-row { flex-direction: column; }
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>Gemini Setup Guide</h1>
-    <p class="subtitle">Configure your own Google credentials for Zen Workspace IDE. Your keys stay on your device.</p>
+    <header>
+      <h1>Gemini Setup</h1>
+      <p class="lead">Configure your Google credentials. Keys are stored locally on your device.</p>
+    </header>
 
-    <!-- API Key Section -->
-    <div class="section">
-      <h2>API Key <span class="badge">Recommended</span></h2>
-      <p class="section-desc">
-        The fastest way to get started. Get a free API key from Google AI Studio and paste it below.
+    <section class="section">
+      <div class="section-header">
+        <h2>API Key</h2>
+        <span class="tag">Recommended</span>
+      </div>
+
+      <p class="section-intro">
+        The quickest path. Obtain a free API key from Google AI Studio.
       </p>
-      <ol class="steps">
-        <li>Go to <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> and sign in with your Google account.</li>
-        <li>Click <strong>"Create API Key"</strong> and select or create a Google Cloud project.</li>
-        <li>Copy the generated key (starts with <code>AIza...</code>) and paste it below.</li>
+
+      <ol>
+        <li>Visit <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> and sign in.</li>
+        <li>Click <strong>Create API Key</strong> and select a project.</li>
+        <li>Copy the key (begins with <code>AIza...</code>) and enter it below.</li>
       </ol>
-      <div class="input-group">
-        <label>Gemini API Key</label>
-        <div class="input-row">
-          <input type="password" id="apiKey" placeholder="AIzaSy..." autocomplete="off" />
-          <button class="primary" onclick="saveApiKey()">Save Key</button>
+
+      <div class="form-area">
+        <div class="field">
+          <label>API Key</label>
+          <div class="input-row">
+            <input type="password" id="apiKey" placeholder="AIzaSy..." autocomplete="off" spellcheck="false" />
+            <button onclick="saveApiKey()">Save</button>
+          </div>
         </div>
+        <div id="apiKeyStatus" class="status"></div>
       </div>
-      <div id="apiKeyStatus" class="status"></div>
+
       <div class="note">
-        <strong>Free tier:</strong> Gemini API offers a generous free tier. For heavy usage or Lyria music generation, you may need to enable billing in your Google Cloud project.
+        <strong>Free tier available.</strong> Heavy usage or Lyria music generation may require billing.
       </div>
-    </div>
+    </section>
 
-    <div class="divider">or</div>
+    <div class="divider"><span>or</span></div>
 
-    <!-- OAuth Section -->
-    <div class="section">
-      <h2>OAuth Credentials <span class="badge advanced">Advanced</span></h2>
-      <p class="section-desc">
-        For users who prefer OAuth-based authentication instead of an API key. This lets you sign in with your Google account directly.
-        <br><strong>Note:</strong> This requires several steps in Google Cloud Console. If you want something simpler, use the API Key option above.
+    <section class="section">
+      <div class="section-header">
+        <h2>OAuth Credentials</h2>
+        <span class="tag">Advanced</span>
+      </div>
+
+      <p class="section-intro">
+        For direct Google account sign-in. This method requires configuration in Google Cloud Console.
       </p>
 
-      <div style="background: #ef444420; border: 1px solid #ef444440; border-left: 3px solid #ef4444; padding: 14px 16px; margin-bottom: 20px; font-size: 12px; line-height: 1.7; color: #fca5a5;">
-        <strong style="color: #f87171; font-size: 13px;">Common Error: "Access blocked / has not completed verification"</strong><br>
-        This happens when you forget to add your email as a <strong>Test User</strong>. You MUST complete step 4 below or Google will block your sign-in.
+      <div class="warning">
+        <strong>Common issue: Access blocked</strong>
+        This occurs when your email is not added as a Test User. Complete step 4 to resolve.
       </div>
 
-      <ol class="steps">
-        <li>Go to <a href="https://console.cloud.google.com" target="_blank" rel="noopener">Google Cloud Console</a>. Create a <strong>new project</strong> (or select an existing one).</li>
+      <ol>
+        <li>Open <a href="https://console.cloud.google.com" target="_blank" rel="noopener">Google Cloud Console</a> and create or select a project.</li>
 
-        <li>Enable the <strong>Generative Language API</strong>: go to <a href="https://console.cloud.google.com/apis/library/generativelanguage.googleapis.com" target="_blank" rel="noopener">APIs & Services &rarr; Library &rarr; Generative Language API</a> and click <strong>Enable</strong>.</li>
+        <li>Enable the <a href="https://console.cloud.google.com/apis/library/generativelanguage.googleapis.com" target="_blank" rel="noopener">Generative Language API</a>.</li>
 
-        <li>Configure the <strong>OAuth Consent Screen</strong> at <a href="https://console.cloud.google.com/apis/credentials/consent" target="_blank" rel="noopener">APIs & Services &rarr; OAuth consent screen</a>:
-          <br>&nbsp;&nbsp;- User Type: <strong>External</strong>, click Create
-          <br>&nbsp;&nbsp;- App name: anything (e.g. "Zen Workspace IDE")
-          <br>&nbsp;&nbsp;- User support email: your email
-          <br>&nbsp;&nbsp;- Developer contact: your email
-          <br>&nbsp;&nbsp;- Click <strong>Save and Continue</strong>
-          <br>&nbsp;&nbsp;- On the <strong>Scopes</strong> page: you can skip this (click Save and Continue)
-          <br>&nbsp;&nbsp;- On the <strong>Test users</strong> page: see step 4 below
+        <li>Configure the <a href="https://console.cloud.google.com/apis/credentials/consent" target="_blank" rel="noopener">OAuth consent screen</a>:
+          <ol class="sub-list">
+            <li>User type: <strong>External</strong></li>
+            <li>App name: any (e.g., Zen Workspace)</li>
+            <li>Support and developer email: your address</li>
+            <li>Save and continue through Scopes</li>
+          </ol>
         </li>
 
-        <li style="background: #22c55e10; border-left: 3px solid #22c55e; padding-left: 36px; margin-left: -40px; padding-right: 12px;">
-          <strong style="color: #4ade80;">CRITICAL &mdash; Add yourself as Test User:</strong>
-          <br>Go to <a href="https://console.cloud.google.com/apis/credentials/consent" target="_blank" rel="noopener">OAuth consent screen</a> &rarr; click <strong>Audience</strong> (in the left sidebar or tabs) &rarr; scroll to <strong>Test users</strong> &rarr; click <strong>+ Add Users</strong> &rarr; enter <strong>your Gmail address</strong> (the one you will sign in with) &rarr; click <strong>Save</strong>.
-          <br><br>
-          <span style="color: #fca5a5;">Without this step, Google will block sign-in with: "Access blocked: has not completed the Google verification process"</span>
+        <li class="highlight">
+          <strong>Add yourself as Test User:</strong><br>
+          OAuth consent screen → Audience → Test users → Add Users → enter your Gmail → Save.
         </li>
 
-        <li>Go to <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Credentials</a> &rarr; <strong>Create Credentials</strong> &rarr; <strong>OAuth Client ID</strong>.
-          <br>&nbsp;&nbsp;- Application type: <strong>Desktop app</strong>
-          <br>&nbsp;&nbsp;- Name: anything
-          <br>&nbsp;&nbsp;- Click Create
+        <li>Go to <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Credentials</a> → Create Credentials → OAuth Client ID.
+          <ol class="sub-list">
+            <li>Application type: <strong>Desktop app</strong></li>
+            <li>Create</li>
+          </ol>
         </li>
 
-        <li>Copy the <strong>Client ID</strong> and <strong>Client Secret</strong> shown in the popup, and paste them below.</li>
+        <li>Copy the <strong>Client ID</strong> and <strong>Client Secret</strong> from the dialog.</li>
       </ol>
 
-      <div class="input-group">
-        <label>OAuth Client ID</label>
-        <input type="text" id="clientId" placeholder="xxxxx.apps.googleusercontent.com" autocomplete="off" />
+      <div class="form-area">
+        <div class="field">
+          <label>Client ID</label>
+          <input type="text" id="clientId" placeholder="xxxxx.apps.googleusercontent.com" autocomplete="off" spellcheck="false" />
+        </div>
+        <div class="field">
+          <label>Client Secret</label>
+          <input type="password" id="clientSecret" placeholder="GOCSPX-..." autocomplete="off" spellcheck="false" />
+        </div>
+        <div class="field">
+          <button onclick="saveOAuth()">Save Credentials</button>
+        </div>
+        <div id="oauthStatus" class="status"></div>
       </div>
-      <div class="input-group">
-        <label>OAuth Client Secret</label>
-        <input type="password" id="clientSecret" placeholder="GOCSPX-..." autocomplete="off" />
-      </div>
-      <div class="input-group" style="margin-top: 20px;">
-        <button class="primary" onclick="saveOAuth()">Save OAuth Credentials</button>
-      </div>
-      <div id="oauthStatus" class="status"></div>
+
       <div class="note">
-        <strong>Project tip:</strong> use the <strong>same Google Cloud project</strong> for both the OAuth Client and the <strong>Generative Language API</strong>. Zen Workspace IDE derives the quota project automatically from your OAuth Client ID.
-        <br><br>
-        After saving, go back to Zen Workspace IDE Settings and click <strong>"Sign in with Google"</strong>.
-        <br><br>
-        <strong>When signing in:</strong> Google will show <em>"This app isn't verified"</em>. Click <strong>"Advanced"</strong> &rarr; <strong>"Go to [your app name] (unsafe)"</strong> to continue. This is normal for testing-mode apps.
+        After saving, return to Settings and select <strong>Sign in with Google</strong>.<br><br>
+        Google will display a verification warning. Click <strong>Advanced</strong>, then <strong>Go to [app name] (unsafe)</strong>. This is expected for test applications.
       </div>
-    </div>
+    </section>
+
+    <footer>
+      <span>Zen Workspace</span>
+      <span>Port ${port}</span>
+    </footer>
   </div>
 
   <script>
@@ -326,14 +477,14 @@ function getSetupGuideHTML(port: number): string {
         const data = await res.json();
         if (data.success) {
           statusEl.className = 'status success';
-          statusEl.textContent = 'API key saved! You can close this page and return to Zen Workspace IDE.';
+          statusEl.textContent = 'Saved. You may close this page.';
         } else {
           statusEl.className = 'status error';
           statusEl.textContent = data.error || 'Failed to save.';
         }
       } catch (err) {
         statusEl.className = 'status error';
-        statusEl.textContent = 'Could not connect to Zen Workspace IDE. Make sure the app is running.';
+        statusEl.textContent = 'Connection failed. Ensure the application is running.';
       }
     }
 
@@ -355,14 +506,14 @@ function getSetupGuideHTML(port: number): string {
         const data = await res.json();
         if (data.success) {
           statusEl.className = 'status success';
-          statusEl.textContent = 'OAuth credentials saved! Go back to Zen Workspace IDE and click "Sign in with Google" in Settings.';
+          statusEl.textContent = 'Saved. Return to Settings to sign in.';
         } else {
           statusEl.className = 'status error';
           statusEl.textContent = data.error || 'Failed to save.';
         }
       } catch (err) {
         statusEl.className = 'status error';
-        statusEl.textContent = 'Could not connect to Zen Workspace IDE. Make sure the app is running.';
+        statusEl.textContent = 'Connection failed. Ensure the application is running.';
       }
     }
   </script>
