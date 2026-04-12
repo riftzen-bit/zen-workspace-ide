@@ -98,6 +98,8 @@ export function setupFSHandlers(): void {
     if (!safeFilePath) return null
 
     try {
+      const stat = await fs.promises.stat(safeFilePath)
+      if (stat.isDirectory()) return null
       return await fs.promises.readFile(safeFilePath, 'utf-8')
     } catch (e: unknown) {
       if (e instanceof Error) console.error('Failed to read file:', e.message)
