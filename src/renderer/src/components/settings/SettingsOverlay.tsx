@@ -11,10 +11,17 @@ import {
   LogIn,
   LogOut,
   Check,
-  ExternalLink
+  ExternalLink,
+  Palette
 } from 'lucide-react'
 import { useUIStore } from '../../store/useUIStore'
 import { useSettingsStore, AIProviderType } from '../../store/useSettingsStore'
+import {
+  useThemeStore,
+  applyTheme,
+  PRESET_THEMES,
+  type ThemePreset
+} from '../../store/useThemeStore'
 import { transition } from '../../lib/motion'
 
 const PROVIDERS: { id: AIProviderType; label: string; color: string }[] = [
@@ -103,6 +110,80 @@ const Toggle = ({ value, onChange }: { value: boolean; onChange: (v: boolean) =>
     />
   </button>
 )
+
+const THEME_LABELS: Record<ThemePreset, string> = {
+  default: 'Default',
+  midnight: 'Midnight',
+  forest: 'Forest',
+  ocean: 'Ocean',
+  sunset: 'Sunset',
+  custom: 'Custom'
+}
+
+const ThemeSelector = () => {
+  const { activePreset, setPreset } = useThemeStore()
+
+  const handlePresetChange = (preset: ThemePreset) => {
+    setPreset(preset)
+    const colors =
+      preset === 'custom' ? useThemeStore.getState().customColors : PRESET_THEMES[preset]
+    applyTheme(colors)
+  }
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h4 className="text-body font-medium mb-3" style={{ color: 'var(--color-text-secondary)' }}>
+          Color Preset
+        </h4>
+        <div className="grid grid-cols-3 gap-2">
+          {(Object.keys(PRESET_THEMES) as ThemePreset[])
+            .filter((p) => p !== 'custom')
+            .map((preset) => {
+              const colors = PRESET_THEMES[preset]
+              const isActive = activePreset === preset
+              return (
+                <button
+                  key={preset}
+                  onClick={() => handlePresetChange(preset)}
+                  className="flex flex-col items-center gap-2 p-3 rounded-none transition-all"
+                  style={{
+                    backgroundColor: isActive ? 'var(--color-surface-5)' : 'transparent',
+                    border: isActive
+                      ? '1px solid var(--color-accent)'
+                      : '1px solid var(--color-border-subtle)'
+                  }}
+                >
+                  <div className="flex gap-1">
+                    <div
+                      className="w-4 h-4 rounded-none"
+                      style={{ backgroundColor: colors.surface2 }}
+                    />
+                    <div
+                      className="w-4 h-4 rounded-none"
+                      style={{ backgroundColor: colors.accent }}
+                    />
+                    <div
+                      className="w-4 h-4 rounded-none"
+                      style={{ backgroundColor: colors.textPrimary }}
+                    />
+                  </div>
+                  <span
+                    className="text-caption"
+                    style={{
+                      color: isActive ? 'var(--color-accent)' : 'var(--color-text-muted)'
+                    }}
+                  >
+                    {THEME_LABELS[preset]}
+                  </span>
+                </button>
+              )
+            })}
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export const SettingsOverlay = () => {
   const { activeView, setActiveView } = useUIStore()
@@ -756,6 +837,26 @@ export const SettingsOverlay = () => {
                     </label>
                     <Toggle value={wordWrap} onChange={setWordWrap} />
                   </div>
+                </div>
+              </section>
+
+              {/* Theme */}
+              <section className="flex flex-col gap-4">
+                <div className="flex items-center gap-3">
+                  <h3 className="text-[11px] font-semibold tracking-wider uppercase text-zinc-500 flex items-center gap-2">
+                    <Palette size={13} /> Theme
+                  </h3>
+                  <div className="flex-1 h-px bg-white/[0.04]" />
+                </div>
+
+                <div
+                  className="rounded-none p-5"
+                  style={{
+                    backgroundColor: 'var(--color-surface-3)',
+                    border: '1px solid var(--color-border-subtle)'
+                  }}
+                >
+                  <ThemeSelector />
                 </div>
               </section>
 
