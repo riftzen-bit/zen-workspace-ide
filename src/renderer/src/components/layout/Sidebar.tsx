@@ -16,6 +16,9 @@ import {
   Trash2,
   Clock,
   X,
+  Replace,
+  CaseSensitive,
+  RefreshCw,
   LucideIcon
 } from 'lucide-react'
 import { useFileStore } from '../../store/useFileStore'
@@ -327,8 +330,21 @@ export const Sidebar = () => {
   const { width, startResizing, isResizing } = useResizable(sidebarWidth, 160, 600, setSidebarWidth)
 
   const [searchQuery, setSearchQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<{ path: string; name: string }[]>([])
+  const [replaceQuery, setReplaceQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<
+    Array<{
+      path: string
+      relativePath: string
+      name: string
+      line: number
+      column: number
+      lineContent: string
+      matchLength: number
+    }>
+  >([])
   const [isSearching, setIsSearching] = useState(false)
+  const [caseSensitive, setCaseSensitive] = useState(false)
+  const [isReplacing, setIsReplacing] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; node: FileNode } | null>(
     null
   )
@@ -350,7 +366,7 @@ export const Sidebar = () => {
     const timer = setTimeout(async () => {
       setIsSearching(true)
       try {
-        const results = await window.api.searchFiles(searchQuery, workspaceDir)
+        const results = await window.api.searchWithContext(searchQuery, workspaceDir, caseSensitive)
         if (!cancelled) setSearchResults(results || [])
       } catch (err) {
         if (!cancelled) console.error(err)
@@ -363,7 +379,33 @@ export const Sidebar = () => {
       cancelled = true
       clearTimeout(timer)
     }
-  }, [searchQuery, workspaceDir])
+  }, [searchQuery, workspaceDir, caseSensitive])
+
+  const handleReplaceAll = async () => {
+    if (!workspaceDir || !searchQuery || !replaceQuery || searchResults.length === 0) return
+
+    setIsReplacing(true)
+    try {
+      const uniquePaths = [...new Set(searchResults.map((r) => r.path))]
+      const replacements = uniquePaths.map((path) => ({
+        path,
+        search: searchQuery,
+        replace: replaceQuery,
+        caseSensitive
+      }))
+
+      const result = await window.api.replaceInFiles(replacements)
+      if (result.ok) {
+        setSearchQuery('')
+        setReplaceQuery('')
+        setSearchResults([])
+      }
+    } catch (err) {
+      console.error('Replace failed:', err)
+    } finally {
+      setIsReplacing(false)
+    }
+  }
 
   const handleOpenFolder = async () => {
     const dirPath = await window.api.openDirectory()
@@ -509,8 +551,9 @@ export const Sidebar = () => {
               </div>
             )
           ) : (
-            <div className="p-4 flex flex-col flex-1 overflow-hidden">
-              <div className="relative shrink-0 mb-4">
+            <div className="p-3 flex flex-col flex-1 overflow-hidden">
+              {/* Search input */}
+              <div className="relative shrink-0 mb-2">
                 <Search
                   className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500"
                   size={14}
@@ -526,29 +569,91 @@ export const Sidebar = () => {
                 />
               </div>
 
+              {/* Replace input */}
+              <div className="relative shrink-0 mb-2">
+                <Replace
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500"
+                  size={14}
+                  strokeWidth={2}
+                />
+                <input
+                  type="text"
+                  value={replaceQuery}
+                  onChange={(e) => setReplaceQuery(e.target.value)}
+                  placeholder="Replace with…"
+                  className="w-full bg-[#0A0A0A] border border-white/[0.06] rounded-none text-[13px] text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-white/[0.12] transition-colors py-2"
+                  style={{ paddingLeft: '2.25rem' }}
+                />
+              </div>
+
+              {/* Options row */}
+              <div className="flex items-center justify-between mb-3">
+                <button
+                  onClick={() => setCaseSensitive(!caseSensitive)}
+                  className={`flex items-center gap-1.5 px-2 py-1 text-[11px] rounded-none transition-colors ${
+                    caseSensitive
+                      ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                      : 'text-zinc-500 hover:text-zinc-400 border border-transparent'
+                  }`}
+                  title="Match case"
+                >
+                  <CaseSensitive size={14} />
+                  <span>Aa</span>
+                </button>
+
+                {searchResults.length > 0 && replaceQuery && (
+                  <button
+                    onClick={handleReplaceAll}
+                    disabled={isReplacing}
+                    className="flex items-center gap-1.5 px-2 py-1 text-[11px] bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-none hover:bg-amber-500/30 transition-colors disabled:opacity-50"
+                  >
+                    {isReplacing ? (
+                      <RefreshCw size={12} className="animate-spin" />
+                    ) : (
+                      <Replace size={12} />
+                    )}
+                    <span>Replace All ({searchResults.length})</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Results */}
               <div className="flex-1 overflow-y-auto hide-scrollbar text-sm">
                 {isSearching ? (
                   <div className="text-[12px] font-medium tracking-wide text-center mt-6 animate-pulse text-zinc-500">
                     Searching…
                   </div>
                 ) : searchResults.length > 0 ? (
-                  <div className="space-y-1">
-                    {searchResults.map((res, idx) => (
+                  <div className="space-y-0.5">
+                    {searchResults.slice(0, 100).map((res, idx) => (
                       <div
-                        key={idx}
+                        key={`${res.path}:${res.line}:${res.column}:${idx}`}
                         onClick={async () => {
                           setActiveSearchQuery(searchQuery)
                           const content = await window.api.readFile(res.path)
-                          if (content !== null) openFile(res.path, res.name, content)
+                          if (content !== null) {
+                            openFile(res.path, res.name, content)
+                          }
                         }}
-                        className="p-2 rounded-none flex items-center gap-3 cursor-pointer group text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.03] transition-all duration-200"
+                        className="px-2 py-1.5 rounded-none cursor-pointer group text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.03] transition-colors"
                       >
-                        <div className="shrink-0 opacity-80 group-hover:scale-110 transition-transform duration-200">
-                          {getFileIcon(res.name)}
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span className="shrink-0 opacity-70">{getFileIcon(res.name)}</span>
+                          <span className="truncate text-[12px] font-medium text-zinc-300">
+                            {res.relativePath}
+                          </span>
+                          <span className="text-[10px] text-zinc-600">:{res.line}</span>
                         </div>
-                        <span className="truncate text-[13px] font-medium mt-px">{res.name}</span>
+                        <div className="pl-5 text-[11px] text-zinc-500 truncate font-mono">
+                          {res.lineContent.slice(0, 100)}
+                        </div>
                       </div>
                     ))}
+                    {searchResults.length > 100 && (
+                      <div className="text-[11px] text-zinc-600 text-center py-2">
+                        +{searchResults.length - 100} more results
+                      </div>
+                    )}
                   </div>
                 ) : searchQuery ? (
                   <div className="text-[12px] font-medium tracking-wide text-center mt-6 text-zinc-500">

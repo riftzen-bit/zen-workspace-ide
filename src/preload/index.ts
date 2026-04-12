@@ -18,6 +18,26 @@ const api = {
     ipcRenderer.invoke('fs:rename', oldPath, newPath) as Promise<{ ok: boolean; error?: string }>,
   deleteItem: (targetPath: string) =>
     ipcRenderer.invoke('fs:delete', targetPath) as Promise<{ ok: boolean; error?: string }>,
+  searchWithContext: (query: string, dir: string, caseSensitive: boolean) =>
+    ipcRenderer.invoke('fs:searchWithContext', query, dir, caseSensitive) as Promise<
+      Array<{
+        path: string
+        relativePath: string
+        name: string
+        line: number
+        column: number
+        lineContent: string
+        matchLength: number
+      }>
+    >,
+  replaceInFiles: (
+    replacements: Array<{ path: string; search: string; replace: string; caseSensitive: boolean }>
+  ) =>
+    ipcRenderer.invoke('fs:replaceInFiles', replacements) as Promise<{
+      ok: boolean
+      error?: string
+      count: number
+    }>,
   searchYoutube: (query: string) => ipcRenderer.invoke('youtube:search', query),
   watchWorkspace: (dirPath: string | null) => ipcRenderer.invoke('fs:watchWorkspace', dirPath),
   onFileChanged: (callback: (filePath: string) => void) => {

@@ -197,6 +197,58 @@ export function setupFSHandlers(): void {
       return { ok: false, error: e instanceof Error ? e.message : String(e) }
     }
   })
+
+  ipcMain.handle(
+    'fs:searchWithContext',
+    async (event, query: string, dirPath: string, caseSensitive: boolean) => {
+      if (!isTrustedIpcSender(event)) return []
+      if (!isWithinWorkspace(dirPath)) return []
+
+      const safeDirPath = currentWorkspace ? resolvePathWithinRoot(currentWorkspace, dirPath) : null
+      if (!safeDirPath) return []
+
+      return await searchWithContextAsync(query, safeDirPath, caseSensitive)
+    }
+  )
+
+  ipcMain.handle(
+    'fs:replaceInFiles',
+    async (
+      event,
+      replacements: Array<{ path: string; search: string; replace: string; caseSensitive: boolean }>
+    ) => {
+      if (!isTrustedIpcSender(event)) return { ok: false, error: 'Untrusted sender', count: 0 }
+
+      let totalReplaced = 0
+
+      for (const { path: filePath, search, replace, caseSensitive } of replacements) {
+        if (!isWithinWorkspace(filePath)) continue
+
+        const safeFilePath = currentWorkspace
+          ? resolvePathWithinRoot(currentWorkspace, filePath)
+          : null
+        if (!safeFilePath) continue
+
+        try {
+          const content = await fs.promises.readFile(safeFilePath, 'utf-8')
+          const flags = caseSensitive ? 'g' : 'gi'
+          const regex = new RegExp(escapeRegExp(search), flags)
+          const matches = content.match(regex)
+          if (!matches) continue
+
+          const newContent = content.replace(regex, replace)
+          if (newContent !== content) {
+            await fs.promises.writeFile(safeFilePath, newContent, 'utf-8')
+            totalReplaced += matches.length
+          }
+        } catch {
+          // Skip files that can't be read/written
+        }
+      }
+
+      return { ok: true, count: totalReplaced }
+    }
+  )
 }
 
 async function scanDirAsync(dir: string): Promise<FileNode[]> {
@@ -411,6 +463,111 @@ async function scanTodosAsync(dir: string, workspaceRoot: string): Promise<Works
     if (a.path === b.path) {
       return a.line - b.line
     }
+    return a.path.localeCompare(b.path)
+  })
+}
+
+function escapeRegExp(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+export type SearchMatch = {
+  path: string
+  relativePath: string
+  name: string
+  line: number
+  column: number
+  lineContent: string
+  matchLength: number
+}
+
+async function searchWithContextAsync(
+  query: string,
+  dir: string,
+  caseSensitive: boolean
+): Promise<SearchMatch[]> {
+  const results: SearchMatch[] = []
+  if (!query || query.trim().length === 0) return results
+
+  const flags = caseSensitive ? 'g' : 'gi'
+  const regex = new RegExp(escapeRegExp(query), flags)
+
+  async function scan(currentDir: string) {
+    let list: string[] = []
+    try {
+      list = await fs.promises.readdir(currentDir)
+    } catch {
+      return
+    }
+
+    const promises = list.map(async (file) => {
+      if (
+        file === 'node_modules' ||
+        file === '.git' ||
+        file === 'dist' ||
+        file === 'out' ||
+        file === '.next' ||
+        file.endsWith('.svg') ||
+        file.endsWith('.png') ||
+        file.endsWith('.jpg') ||
+        file.endsWith('.jpeg') ||
+        file.endsWith('.mp3') ||
+        file.endsWith('.mp4') ||
+        file.endsWith('.lock') ||
+        file.endsWith('.min.js') ||
+        file.endsWith('.min.css')
+      ) {
+        return
+      }
+
+      const fullPath = join(currentDir, file)
+      if (!isWithinWorkspace(fullPath)) return
+
+      let stat
+      try {
+        stat = await fs.promises.stat(fullPath)
+      } catch {
+        return
+      }
+
+      if (stat.isDirectory()) {
+        await scan(fullPath)
+      } else if (stat.size < 500000) {
+        try {
+          const content = await fs.promises.readFile(fullPath, 'utf8')
+          const lines = content.split(/\r?\n/)
+
+          for (let i = 0; i < lines.length; i++) {
+            const line = lines[i]
+            regex.lastIndex = 0
+            let match: RegExpExecArray | null
+
+            while ((match = regex.exec(line)) !== null) {
+              results.push({
+                path: fullPath,
+                relativePath: fullPath.startsWith(dir)
+                  ? fullPath.slice(dir.length).replace(/^[\\/]+/, '')
+                  : fullPath,
+                name: file,
+                line: i + 1,
+                column: match.index + 1,
+                lineContent: line,
+                matchLength: query.length
+              })
+            }
+          }
+        } catch {
+          return
+        }
+      }
+    })
+
+    await Promise.all(promises)
+  }
+
+  await scan(dir)
+  return results.sort((a, b) => {
+    if (a.path === b.path) return a.line - b.line
     return a.path.localeCompare(b.path)
   })
 }

@@ -102,6 +102,29 @@ declare global {
       createDir: (dirPath: string) => Promise<{ ok: boolean; error?: string }>
       rename: (oldPath: string, newPath: string) => Promise<{ ok: boolean; error?: string }>
       deleteItem: (targetPath: string) => Promise<{ ok: boolean; error?: string }>
+      searchWithContext: (
+        query: string,
+        dir: string,
+        caseSensitive: boolean
+      ) => Promise<
+        Array<{
+          path: string
+          relativePath: string
+          name: string
+          line: number
+          column: number
+          lineContent: string
+          matchLength: number
+        }>
+      >
+      replaceInFiles: (
+        replacements: Array<{
+          path: string
+          search: string
+          replace: string
+          caseSensitive: boolean
+        }>
+      ) => Promise<{ ok: boolean; error?: string; count: number }>
       searchYoutube: (
         query: string
       ) => Promise<{ videoId: string; title: string; url: string } | null>
