@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { memo, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useUIStore } from '../../store/useUIStore'
 import { useActivityStore } from '../../store/useActivityStore'
@@ -50,7 +50,7 @@ const TOOLTIPS: Partial<Record<ActivityView | 'chat' | 'vibe' | 'zen' | 'palette
   palette: 'Command Palette  Ctrl+K'
 }
 
-const IconWrapper = ({
+const IconWrapper = memo(function IconWrapper({
   view,
   tooltip,
   Icon,
@@ -68,19 +68,23 @@ const IconWrapper = ({
   activeView: string
   setActiveView: (v: ActivityView) => void
   badge?: number
-}) => {
+}) {
   const [hovered, setHovered] = useState(false)
   const isActive = isActiveOverride !== undefined ? isActiveOverride : view === activeView
 
+  const handleMouseEnter = useCallback(() => setHovered(true), [])
+  const handleMouseLeave = useCallback(() => setHovered(false), [])
+  const handleClick = useCallback((): void => {
+    if (onClick) onClick()
+    else if (view) setActiveView(view)
+  }, [onClick, view, setActiveView])
+
   return (
-    <div className="relative flex items-center w-full">
+    <div className="relative flex items-center w-full group">
       <button
-        onClick={(): void => {
-          if (onClick) onClick()
-          else if (view) setActiveView(view)
-        }}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
+        onClick={handleClick}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
         className={`relative w-full h-[52px] flex items-center justify-center cursor-pointer transition-none outline-none ${
           isActive
             ? 'bg-[#111111] text-[#eeeeee] border-l-[2px] border-l-[#eeeeee]'
@@ -90,9 +94,8 @@ const IconWrapper = ({
         <Icon
           size={20}
           strokeWidth={1}
-          className={`transition-none ${hovered && !isActive ? 'scale-110' : ''}`}
+          className={`transition-transform duration-100 ${!isActive ? 'group-hover:scale-110' : ''}`}
         />
-        {/* Unread badge */}
         {badge != null && badge > 0 && (
           <span className="absolute top-2 right-2 min-w-[14px] h-[14px] flex items-center justify-center text-[9px] font-mono bg-[#eeeeee] text-[#050505] px-1">
             {badge > 99 ? '99+' : badge}
@@ -100,7 +103,6 @@ const IconWrapper = ({
         )}
       </button>
 
-      {/* Tooltip */}
       <AnimatePresence>
         {hovered && (
           <motion.div
@@ -118,7 +120,7 @@ const IconWrapper = ({
       </AnimatePresence>
     </div>
   )
-}
+})
 
 export const ActivityBar = () => {
   const {

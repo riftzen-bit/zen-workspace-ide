@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef, useCallback } from 'react'
+﻿import { useState, useEffect, useRef, useCallback, memo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   ChevronRight,
@@ -62,7 +62,7 @@ function parentDir(filePath: string): string {
 
 // ── File context menu ────────────────────────────────────────────────────────
 
-const MenuItem = ({
+const MenuItem = memo(function MenuItem({
   Icon,
   label,
   color,
@@ -72,18 +72,18 @@ const MenuItem = ({
   label: string
   color?: string
   onClick: () => void
-}) => (
-  <button
-    onClick={onClick}
-    className="w-full flex items-center gap-2.5 px-3 py-2 text-body transition-colors text-left"
-    style={{ color: color ?? 'var(--color-text-secondary)' }}
-    onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = '#111111')}
-    onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = '')}
-  >
-    <Icon size={13} style={{ color: color ?? 'var(--color-text-muted)' }} />
-    {label}
-  </button>
-)
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="w-full flex items-center gap-2.5 px-3 py-2 text-body transition-colors text-left hover:bg-[#111111]"
+      style={{ color: color ?? 'var(--color-text-secondary)' }}
+    >
+      <Icon size={13} style={{ color: color ?? 'var(--color-text-muted)' }} />
+      {label}
+    </button>
+  )
+})
 
 interface FileContextMenuProps {
   x: number
@@ -223,52 +223,59 @@ interface FileTreeNodeProps {
   onContextMenu: (e: React.MouseEvent, node: FileNode) => void
 }
 
-const FileTreeNode = ({ node, depth = 0, onContextMenu }: FileTreeNodeProps) => {
+const FileTreeNode = memo(function FileTreeNode({
+  node,
+  depth = 0,
+  onContextMenu
+}: FileTreeNodeProps) {
   const [isOpen, setIsOpen] = useState(false)
   const { openFile, activeFile } = useFileStore()
   const isSelected = activeFile === node.path
 
-  const handleClick = async () => {
+  const handleClick = useCallback(async () => {
     if (node.isDirectory) {
-      setIsOpen(!isOpen)
+      setIsOpen((prev) => !prev)
     } else {
       const content = await window.api.readFile(node.path)
       if (content !== null) {
         openFile(node.path, node.name, content)
       }
     }
-  }
+  }, [node.isDirectory, node.path, node.name, openFile])
+
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault()
+      onContextMenu(e, node)
+    },
+    [onContextMenu, node]
+  )
 
   const indent = Math.min(depth * 10, 60) + 8
 
   return (
     <div>
       <div
-        className={`flex items-center py-[6px] mx-2 mb-[2px] rounded-none cursor-pointer select-none transition-all duration-200 group ${
+        className={`flex items-center py-[6px] mx-2 mb-[2px] rounded-none cursor-pointer select-none transition-colors duration-150 group ${
           isSelected
             ? 'bg-white/[0.04] text-zinc-200'
             : 'text-zinc-500 hover:bg-white/[0.02] hover:text-zinc-300'
         }`}
         style={{ paddingLeft: `${indent}px` }}
         onClick={handleClick}
-        onContextMenu={(e) => {
-          e.preventDefault()
-          onContextMenu(e, node)
-        }}
+        onContextMenu={handleContextMenu}
       >
         <div
-          className={`flex items-center gap-2 mr-2 opacity-80 shrink-0 transition-transform duration-200 ${isSelected ? 'scale-105' : ''}`}
+          className={`flex items-center gap-2 mr-2 opacity-80 shrink-0 ${isSelected ? 'scale-105' : ''}`}
         >
           {node.isDirectory ? (
             <>
               <span
-                className={`text-zinc-600 shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}`}
+                className={`text-zinc-600 shrink-0 transition-transform duration-150 ${isOpen ? 'rotate-90' : ''}`}
               >
                 <ChevronRight size={12} strokeWidth={2} />
               </span>
-              <span
-                className={`shrink-0 ${isOpen ? 'text-zinc-400' : 'text-zinc-600'} transition-colors duration-200`}
-              >
+              <span className={`shrink-0 ${isOpen ? 'text-zinc-400' : 'text-zinc-600'}`}>
                 <Folder size={14} strokeWidth={1.5} />
               </span>
             </>
@@ -283,32 +290,22 @@ const FileTreeNode = ({ node, depth = 0, onContextMenu }: FileTreeNodeProps) => 
           {node.name}
         </span>
       </div>
-      <AnimatePresence>
-        {node.isDirectory && isOpen && node.children && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-            className="relative overflow-hidden"
-          >
-            <div className="absolute left-[22px] top-0 bottom-0 w-px bg-white/[0.02]" />
-            {node.children.map((child, i) => (
-              <motion.div
-                key={child.path}
-                initial={{ opacity: 0, x: -4 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: i * 0.015, duration: 0.2 }}
-              >
-                <FileTreeNode node={child} depth={depth + 1} onContextMenu={onContextMenu} />
-              </motion.div>
-            ))}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {node.isDirectory && isOpen && node.children && (
+        <div className="relative">
+          <div className="absolute left-[22px] top-0 bottom-0 w-px bg-white/[0.02]" />
+          {node.children.map((child) => (
+            <FileTreeNode
+              key={child.path}
+              node={child}
+              depth={depth + 1}
+              onContextMenu={onContextMenu}
+            />
+          ))}
+        </div>
+      )}
     </div>
   )
-}
+})
 
 // ── Sidebar ───────────────────────────────────────────────────────────────────
 
@@ -502,22 +499,11 @@ export const Sidebar = () => {
 
       {/* Resize handle */}
       <div
-        className="absolute right-0 top-0 bottom-0 z-10 cursor-col-resize transition-colors"
+        className={`absolute right-0 top-0 bottom-0 z-10 cursor-col-resize transition-colors ${isResizing ? '' : 'hover:bg-[var(--color-accent-glow-strong)]'}`}
         style={{
           width: '3px',
           borderRadius: '2px',
           backgroundColor: isResizing ? 'var(--color-accent)' : 'transparent'
-        }}
-        onMouseEnter={(e) => {
-          if (!isResizing) {
-            ;(e.currentTarget as HTMLDivElement).style.backgroundColor =
-              'var(--color-accent-glow-strong)'
-          }
-        }}
-        onMouseLeave={(e) => {
-          if (!isResizing) {
-            ;(e.currentTarget as HTMLDivElement).style.backgroundColor = 'transparent'
-          }
         }}
         onMouseDown={startResizing}
       />

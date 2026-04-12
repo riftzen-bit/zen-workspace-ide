@@ -1,5 +1,5 @@
-﻿import { useState, useRef, useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+﻿import { useState, useRef, useEffect, memo, useCallback } from 'react'
+import { motion } from 'framer-motion'
 import { Folder, FolderOpen, Pin, PinOff, X, Plus } from 'lucide-react'
 import { useProjectStore } from '../../store/useProjectStore'
 import { useFileStore } from '../../store/useFileStore'
@@ -12,9 +12,8 @@ interface ProjectItemProps {
   isActive: boolean
 }
 
-const ProjectItem = ({ project, isActive }: ProjectItemProps) => {
+const ProjectItem = memo(function ProjectItem({ project, isActive }: ProjectItemProps) {
   const { setActiveProject, removeProject, renameProject, togglePin } = useProjectStore()
-  const [isHovered, setIsHovered] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [editing, setEditing] = useState(false)
   const [editName, setEditName] = useState(project.name)
@@ -27,50 +26,66 @@ const ProjectItem = ({ project, isActive }: ProjectItemProps) => {
     }
   }, [editing])
 
-  const handleRenameSubmit = () => {
+  const handleRenameSubmit = useCallback(() => {
     if (editName.trim() && editName !== project.name) {
       renameProject(project.id, editName.trim())
     } else {
       setEditName(project.name)
     }
     setEditing(false)
-  }
+  }, [editName, project.name, project.id, renameProject])
+
+  const handleClick = useCallback(async () => {
+    if (!editing && !confirmDelete) {
+      setActiveProject(project.id)
+      useFileStore.getState().setWorkspaceDir(project.path)
+      const tree = await window.api.readDirectory(project.path)
+      useFileStore.getState().setFileTree(tree)
+      useUIStore.getState().setSidebarOpen(true)
+      useUIStore.getState().setActiveView('explorer')
+    }
+  }, [editing, confirmDelete, project.id, project.path, setActiveProject])
+
+  const handleTogglePin = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      togglePin(project.id)
+    },
+    [togglePin, project.id]
+  )
+
+  const handleConfirmDelete = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    setConfirmDelete(true)
+  }, [])
+
+  const handleRemove = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      removeProject(project.id)
+    },
+    [removeProject, project.id]
+  )
+
+  const handleCancelDelete = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    setConfirmDelete(false)
+  }, [])
 
   return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.96 }}
-      className={`relative flex items-center group cursor-pointer px-3 py-2.5 my-[2px] mx-2 rounded-none transition-all duration-200 ${
+    <div
+      className={`relative flex items-center group cursor-pointer px-3 py-2.5 my-[2px] mx-2 rounded-none transition-colors duration-150 ${
         isActive
           ? 'bg-white/[0.06] text-white shadow-sm border border-white/[0.04]'
           : 'text-zinc-500 hover:bg-white/[0.02] hover:text-zinc-300 border border-transparent'
       }`}
-      onMouseEnter={() => {
-        setIsHovered(true)
-      }}
-      onMouseLeave={() => {
-        setIsHovered(false)
-      }}
-      onClick={async () => {
-        if (!editing && !confirmDelete) {
-          setActiveProject(project.id)
-          useFileStore.getState().setWorkspaceDir(project.path)
-          const tree = await window.api.readDirectory(project.path)
-          useFileStore.getState().setFileTree(tree)
-          useUIStore.getState().setSidebarOpen(true)
-          useUIStore.getState().setActiveView('explorer')
-        }
-      }}
+      onClick={handleClick}
     >
       {isActive && (
         <div className="absolute left-0 top-2 bottom-2 w-[2px] rounded-none bg-[#EAB308] shadow-[0_0_8px_rgba(234,179,8,0.5)]" />
       )}
 
-      <div
-        className={`flex-1 flex items-center min-w-0 gap-3 transition-transform duration-200 ${isActive ? 'scale-105 ml-1' : ''}`}
-      >
+      <div className={`flex-1 flex items-center min-w-0 gap-3 ${isActive ? 'scale-105 ml-1' : ''}`}>
         <div className="shrink-0">
           <Folder
             size={16}
@@ -116,76 +131,49 @@ const ProjectItem = ({ project, isActive }: ProjectItemProps) => {
       </div>
 
       <div className="shrink-0 flex items-center ml-2 h-7" onClick={(e) => e.stopPropagation()}>
-        <AnimatePresence mode="wait">
-          {confirmDelete ? (
-            <motion.div
-              key="confirm"
-              initial={{ opacity: 0, width: 0 }}
-              animate={{ opacity: 1, width: 'auto' }}
-              exit={{ opacity: 0, width: 0 }}
-              className="flex items-center gap-1 overflow-hidden whitespace-nowrap"
+        {confirmDelete ? (
+          <div className="flex items-center gap-1 whitespace-nowrap">
+            <button
+              onClick={handleRemove}
+              className="px-2 py-1 text-[10px] font-bold tracking-widest uppercase bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-none transition-colors"
             >
+              Remove?
+            </button>
+            <button
+              onClick={handleCancelDelete}
+              className="px-2 py-1 text-[10px] font-bold tracking-widest uppercase bg-white/[0.04] hover:bg-white/[0.08] text-zinc-400 rounded-none transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          !editing && (
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
               <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  removeProject(project.id)
-                }}
-                className="px-2 py-1 text-[10px] font-bold tracking-widest uppercase bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-none transition-colors"
+                onClick={handleTogglePin}
+                className={`w-7 h-7 flex items-center justify-center rounded-none transition-colors hover:bg-white/[0.06] ${project.pinned ? 'text-zinc-300' : 'text-zinc-500'}`}
+                title={project.pinned ? 'Unpin' : 'Pin'}
               >
-                Remove?
+                {project.pinned ? (
+                  <PinOff size={13} strokeWidth={2} />
+                ) : (
+                  <Pin size={13} strokeWidth={2} />
+                )}
               </button>
               <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setConfirmDelete(false)
-                }}
-                className="px-2 py-1 text-[10px] font-bold tracking-widest uppercase bg-white/[0.04] hover:bg-white/[0.08] text-zinc-400 rounded-none transition-colors"
+                onClick={handleConfirmDelete}
+                className="w-7 h-7 flex items-center justify-center rounded-none transition-colors hover:bg-red-500/10 hover:text-red-400 text-zinc-500"
+                title="Remove"
               >
-                Cancel
+                <X size={13} strokeWidth={2} />
               </button>
-            </motion.div>
-          ) : (
-            isHovered &&
-            !editing && (
-              <motion.div
-                key="actions"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="flex items-center gap-1"
-              >
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    togglePin(project.id)
-                  }}
-                  className={`w-7 h-7 flex items-center justify-center rounded-none transition-colors hover:bg-white/[0.06] ${project.pinned ? 'text-zinc-300' : 'text-zinc-500'}`}
-                  title={project.pinned ? 'Unpin' : 'Pin'}
-                >
-                  {project.pinned ? (
-                    <PinOff size={13} strokeWidth={2} />
-                  ) : (
-                    <Pin size={13} strokeWidth={2} />
-                  )}
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setConfirmDelete(true)
-                  }}
-                  className="w-7 h-7 flex items-center justify-center rounded-none transition-colors hover:bg-red-500/10 hover:text-red-400 text-zinc-500"
-                  title="Remove"
-                >
-                  <X size={13} strokeWidth={2} />
-                </button>
-              </motion.div>
-            )
-          )}
-        </AnimatePresence>
+            </div>
+          )
+        )}
       </div>
-    </motion.div>
+    </div>
   )
-}
+})
 
 export const ProjectList = () => {
   const { projects, activeProjectId, addProject, setActiveProject } = useProjectStore()
@@ -264,7 +252,7 @@ export const ProjectList = () => {
         ) : (
           <div className="flex flex-col gap-6 pb-4">
             {pinnedProjects.length > 0 && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+              <div>
                 <div className="px-5 mb-1.5">
                   <span
                     className="text-[10px] font-bold tracking-wider"
@@ -274,17 +262,15 @@ export const ProjectList = () => {
                   </span>
                 </div>
                 <div className="flex flex-col">
-                  <AnimatePresence>
-                    {pinnedProjects.map((p) => (
-                      <ProjectItem key={p.id} project={p} isActive={p.id === activeProjectId} />
-                    ))}
-                  </AnimatePresence>
+                  {pinnedProjects.map((p) => (
+                    <ProjectItem key={p.id} project={p} isActive={p.id === activeProjectId} />
+                  ))}
                 </div>
-              </motion.div>
+              </div>
             )}
 
             {recentProjects.length > 0 && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+              <div>
                 <div className="px-5 mb-1.5">
                   <span
                     className="text-[10px] font-bold tracking-wider"
@@ -294,13 +280,11 @@ export const ProjectList = () => {
                   </span>
                 </div>
                 <div className="flex flex-col">
-                  <AnimatePresence>
-                    {recentProjects.map((p) => (
-                      <ProjectItem key={p.id} project={p} isActive={p.id === activeProjectId} />
-                    ))}
-                  </AnimatePresence>
+                  {recentProjects.map((p) => (
+                    <ProjectItem key={p.id} project={p} isActive={p.id === activeProjectId} />
+                  ))}
                 </div>
-              </motion.div>
+              </div>
             )}
           </div>
         )}
