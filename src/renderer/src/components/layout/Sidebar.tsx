@@ -14,6 +14,8 @@ import {
   FolderPlus,
   Pencil,
   Trash2,
+  Clock,
+  X,
   LucideIcon
 } from 'lucide-react'
 import { useFileStore } from '../../store/useFileStore'
@@ -310,8 +312,17 @@ const FileTreeNode = memo(function FileTreeNode({
 // ── Sidebar ───────────────────────────────────────────────────────────────────
 
 export const Sidebar = () => {
-  const { fileTree, setWorkspaceDir, setFileTree, workspaceDir, openFile, setActiveSearchQuery } =
-    useFileStore()
+  const {
+    fileTree,
+    setWorkspaceDir,
+    setFileTree,
+    workspaceDir,
+    openFile,
+    setActiveSearchQuery,
+    recentFiles,
+    removeFromRecentFiles,
+    clearRecentFiles
+  } = useFileStore()
   const { sidebarWidth, setSidebarWidth, activeView } = useUIStore()
   const { width, startResizing, isResizing } = useResizable(sidebarWidth, 160, 600, setSidebarWidth)
 
@@ -427,20 +438,73 @@ export const Sidebar = () => {
                 ))}
               </div>
             ) : (
-              <div className="flex-1 overflow-y-auto hide-scrollbar">
-                <div className="p-6 text-center flex flex-col items-center gap-4 mt-10">
-                  <div className="w-14 h-14 rounded-none flex items-center justify-center mb-1 bg-white/[0.03] border border-white/[0.05] shadow-inner">
-                    <FolderOpen size={24} strokeWidth={1.4} className="text-zinc-500" />
+              <div className="flex-1 overflow-y-auto hide-scrollbar flex flex-col">
+                {/* Recent Files Section */}
+                {recentFiles.length > 0 && (
+                  <div className="border-b border-white/[0.04]">
+                    <div className="flex items-center justify-between px-4 py-2">
+                      <div className="flex items-center gap-2">
+                        <Clock size={12} className="text-zinc-500" />
+                        <span className="text-[11px] font-semibold tracking-wider uppercase text-zinc-500">
+                          Recent Files
+                        </span>
+                      </div>
+                      <button
+                        onClick={clearRecentFiles}
+                        className="text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors"
+                        title="Clear recent files"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                    <div className="pb-2">
+                      {recentFiles.slice(0, 10).map((file) => (
+                        <div
+                          key={file.path}
+                          className="flex items-center group px-4 py-1.5 cursor-pointer text-zinc-500 hover:bg-white/[0.02] hover:text-zinc-300 transition-colors"
+                          onClick={async () => {
+                            const content = await window.api.readFile(file.path)
+                            if (content !== null) {
+                              openFile(file.path, file.name, content)
+                            }
+                          }}
+                        >
+                          <span className="shrink-0 mr-2 scale-90">{getFileIcon(file.name)}</span>
+                          <span className="truncate text-[13px] font-medium flex-1">
+                            {file.name}
+                          </span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              removeFromRecentFiles(file.path)
+                            }}
+                            className="opacity-0 group-hover:opacity-100 p-1 hover:bg-white/[0.06] rounded transition-opacity"
+                            title="Remove from recent"
+                          >
+                            <X size={12} className="text-zinc-500" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <p className="text-[13px] text-zinc-500 font-medium tracking-wide">
-                    No workspace open
-                  </p>
-                  <button
-                    onClick={handleOpenFolder}
-                    className="mt-2 px-4 py-2 rounded-none bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.05] text-[13px] text-zinc-300 font-medium transition-all duration-200 hover:scale-105 active:scale-95"
-                  >
-                    Open Folder
-                  </button>
+                )}
+
+                {/* Open Folder Section */}
+                <div className="flex-1 flex items-center justify-center">
+                  <div className="p-6 text-center flex flex-col items-center gap-4">
+                    <div className="w-14 h-14 rounded-none flex items-center justify-center mb-1 bg-white/[0.03] border border-white/[0.05] shadow-inner">
+                      <FolderOpen size={24} strokeWidth={1.4} className="text-zinc-500" />
+                    </div>
+                    <p className="text-[13px] text-zinc-500 font-medium tracking-wide">
+                      No workspace open
+                    </p>
+                    <button
+                      onClick={handleOpenFolder}
+                      className="mt-2 px-4 py-2 rounded-none bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.05] text-[13px] text-zinc-300 font-medium transition-all duration-200 hover:scale-105 active:scale-95"
+                    >
+                      Open Folder
+                    </button>
+                  </div>
                 </div>
               </div>
             )

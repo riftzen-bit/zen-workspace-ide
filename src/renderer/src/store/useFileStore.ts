@@ -3,6 +3,12 @@ import { persist, createJSONStorage } from 'zustand/middleware'
 import { electronZustandStorage } from './electronZustandStorage'
 import { FileNode } from '../types'
 
+interface RecentFile {
+  path: string
+  name: string
+  lastOpened: number
+}
+
 interface FileState {
   workspaceDir: string | null
   fileTree: FileNode[]
@@ -13,6 +19,7 @@ interface FileState {
   editorSelection: string
   fileContents: Record<string, string>
   isSaving: boolean
+  recentFiles: RecentFile[]
 
   // Actions
   setWorkspaceDir: (dir: string) => void
@@ -29,6 +36,8 @@ interface FileState {
   resetForProjectSwitch: () => void
   reloadFileFromDisk: (path: string, content: string) => void
   markFileDeleted: (path: string) => void
+  clearRecentFiles: () => void
+  removeFromRecentFiles: (path: string) => void
 }
 
 export const useFileStore = create<FileState>()(
@@ -43,13 +52,33 @@ export const useFileStore = create<FileState>()(
       editorSelection: '',
       fileContents: {},
       isSaving: false,
+      recentFiles: [],
 
       setWorkspaceDir: (dir) => set({ workspaceDir: dir }),
       setFileTree: (tree) => set({ fileTree: tree }),
 
       openFile: (path, name, content) => {
-        const { openFiles } = get()
+        const { openFiles, recentFiles } = get()
         const alreadyOpen = openFiles.find((f) => f.path === path)
+
+        const MAX_RECENT_FILES = 20
+        const now = Date.now()
+        const existingIndex = recentFiles.findIndex((f) => f.path === path)
+        let updatedRecentFiles: RecentFile[]
+
+        if (existingIndex >= 0) {
+          updatedRecentFiles = [
+            { path, name, lastOpened: now },
+            ...recentFiles.slice(0, existingIndex),
+            ...recentFiles.slice(existingIndex + 1)
+          ]
+        } else {
+          updatedRecentFiles = [{ path, name, lastOpened: now }, ...recentFiles]
+        }
+
+        if (updatedRecentFiles.length > MAX_RECENT_FILES) {
+          updatedRecentFiles = updatedRecentFiles.slice(0, MAX_RECENT_FILES)
+        }
 
         set((state) => ({
           activeFile: path,
@@ -57,7 +86,8 @@ export const useFileStore = create<FileState>()(
             ...state.fileContents,
             [path]: state.fileContents[path] ?? content
           },
-          openFiles: alreadyOpen ? state.openFiles : [...state.openFiles, { path, name }]
+          openFiles: alreadyOpen ? state.openFiles : [...state.openFiles, { path, name }],
+          recentFiles: updatedRecentFiles
         }))
       },
 
@@ -137,7 +167,14 @@ export const useFileStore = create<FileState>()(
           activeSearchQuery: null,
           pendingLocation: null,
           editorSelection: ''
-        })
+        }),
+
+      clearRecentFiles: () => set({ recentFiles: [] }),
+
+      removeFromRecentFiles: (path) =>
+        set((state) => ({
+          recentFiles: state.recentFiles.filter((f) => f.path !== path)
+        }))
     }),
     {
       name: 'file-storage',
@@ -146,7 +183,8 @@ export const useFileStore = create<FileState>()(
         workspaceDir: state.workspaceDir,
         openFiles: state.openFiles,
         activeFile: state.activeFile,
-        fileContents: state.fileContents
+        fileContents: state.fileContents,
+        recentFiles: state.recentFiles
       })
     }
   )
