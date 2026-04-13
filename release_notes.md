@@ -1,3 +1,20 @@
+## ✨ What's New in v1.1.5
+
+### 🚀 Features & Enhancements
+
+- **Theme Customization:** Added 5 built-in color presets (Default, Midnight, Forest, Ocean, Sunset) with live preview swatches in Settings. Theme persists across sessions and applies on app startup.
+- **Split Editor View:** Work on two files simultaneously with horizontal or vertical split layouts. Each pane has independent file tabs and scroll position.
+- **Recent Files Panel:** Quick access to your 20 most recently opened files in the Explorer sidebar, sorted by last access time.
+- **File Bookmarks:** Pin important code locations with optional labels. Navigate instantly to bookmarked lines from the dedicated Bookmarks panel.
+- **Search & Replace Across Files:** Full-text search with context preview and batch replace functionality. Supports case-sensitive matching and shows surrounding lines for each match.
+- **Git Stash Management:** Save, list, apply, pop, and drop stashes directly from the Git Dashboard UI without touching the terminal.
+- **Customizable Keyboard Shortcuts:** Rebind editor and app shortcuts to your preferences via the new Keybindings panel in Settings.
+
+### 🐛 Bug Fixes & Performance
+
+- **EISDIR Fix:** Prevented crash when accidentally reading a directory path as a file in the file system handler.
+- **File Tree Performance:** Optimized rendering in ProjectList and Sidebar components by removing unnecessary React state and motion wrappers, reducing re-renders on hover.
+
 ## ✨ What's New in v1.1.4
 
 ### 🚀 Features & Enhancements
