@@ -175,10 +175,23 @@ jobs:
             exit 1
           fi
 
+          # Extract release notes for this version from release_notes.md
+          release_body=""
+          if [[ -f "release_notes.md" ]]; then
+            release_body=$(awk "/^## .* ${tag_name}/{flag=1; next} /^## /{flag=0} flag" release_notes.md)
+          fi
+
           if gh release view "${tag_name}" >/dev/null 2>&1; then
             gh release upload "${tag_name}" "${files[@]}" --clobber
+            if [[ -n "${release_body}" ]]; then
+              gh release edit "${tag_name}" --notes "${release_body}"
+            fi
           else
-            gh release create "${tag_name}" "${files[@]}" --title "${tag_name}" --generate-notes "${prerelease_flag[@]}"
+            if [[ -n "${release_body}" ]]; then
+              gh release create "${tag_name}" "${files[@]}" --title "${tag_name}" --notes "${release_body}" "${prerelease_flag[@]}"
+            else
+              gh release create "${tag_name}" "${files[@]}" --title "${tag_name}" --generate-notes "${prerelease_flag[@]}"
+            fi
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
