@@ -1,91 +1,65 @@
 import { memo, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useUIStore } from '../../store/useUIStore'
+import { useUIStore, SidebarGroup } from '../../store/useUIStore'
 import { useActivityStore } from '../../store/useActivityStore'
 import { transition } from '../../lib/motion'
 import {
-  Folder,
   FolderKanban,
-  Search,
-  TerminalSquare,
   Settings,
   Disc,
   Terminal,
   Maximize2,
   Command,
-  Activity,
-  GitBranch,
-  CheckSquare,
-  BarChart3,
-  LayoutDashboard,
-  Bookmark,
+  Files,
+  Hammer,
+  Bot,
+  LineChart,
   type LucideIcon
 } from 'lucide-react'
 
-type ActivityView =
-  | 'explorer'
-  | 'search'
-  | 'tasks'
-  | 'settings'
-  | 'terminal'
-  | 'orchestrator'
-  | 'projects'
-  | 'activity'
-  | 'git'
-  | 'focus'
-  | 'bookmarks'
-
-const TOOLTIPS: Partial<Record<ActivityView | 'chat' | 'vibe' | 'zen' | 'palette', string>> = {
-  projects: 'Projects',
-  explorer: 'Explorer',
-  search: 'Search',
-  tasks: 'Tasks',
-  git: 'Source Control',
-  terminal: 'Terminal',
-  orchestrator: 'Orchestrator',
-  activity: 'Agent Activity',
-  bookmarks: 'Bookmarks',
-  focus: 'Focus Analytics',
-  settings: 'Settings',
-  chat: 'Assistant',
-  vibe: 'Vibe Player',
-  zen: 'Zen Mode  Ctrl+Shift+Z',
-  palette: 'Command Palette  Ctrl+K'
+interface GroupDef {
+  id: SidebarGroup
+  label: string
+  icon: LucideIcon
 }
 
-const IconWrapper = memo(function IconWrapper({
-  view,
+const GROUP_DEFS: readonly GroupDef[] = [
+  { id: 'files', label: 'Files', icon: Files },
+  { id: 'work', label: 'Work', icon: Hammer },
+  { id: 'agents', label: 'Agents', icon: Bot },
+  { id: 'insights', label: 'Insights', icon: LineChart }
+]
+
+const UTILITY_TOOLTIPS = {
+  palette: 'Command Palette  Ctrl+K',
+  zen: 'Zen Mode  Ctrl+Shift+Z',
+  chat: 'Assistant  Ctrl+I',
+  vibe: 'Vibe Player',
+  settings: 'Settings'
+}
+
+const IconButton = memo(function IconButton({
   tooltip,
   Icon,
   onClick,
-  isActiveOverride,
-  activeView,
-  setActiveView,
+  isActive,
   badge
 }: {
-  view?: ActivityView
   tooltip: string
   Icon: LucideIcon
-  onClick?: () => void
-  isActiveOverride?: boolean
-  activeView: string
-  setActiveView: (v: ActivityView) => void
+  onClick: () => void
+  isActive: boolean
   badge?: number
 }) {
   const [hovered, setHovered] = useState(false)
-  const isActive = isActiveOverride !== undefined ? isActiveOverride : view === activeView
 
   const handleMouseEnter = useCallback(() => setHovered(true), [])
   const handleMouseLeave = useCallback(() => setHovered(false), [])
-  const handleClick = useCallback((): void => {
-    if (onClick) onClick()
-    else if (view) setActiveView(view)
-  }, [onClick, view, setActiveView])
 
   return (
     <div className="relative flex items-center w-full group">
       <button
-        onClick={handleClick}
+        onClick={onClick}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         className={`relative w-full h-[52px] flex items-center justify-center cursor-pointer transition-none outline-none ${
@@ -127,6 +101,8 @@ const IconWrapper = memo(function IconWrapper({
 
 export const ActivityBar = () => {
   const {
+    activeGroup,
+    setActiveGroup,
     activeView,
     setActiveView,
     toggleVibePlayer,
@@ -135,124 +111,82 @@ export const ActivityBar = () => {
     toggleChat,
     isZenMode,
     enterZenMode,
-    setCommandPaletteOpen
+    exitZenMode,
+    setCommandPaletteOpen,
+    isSidebarOpen,
+    toggleSidebar
   } = useUIStore()
   const { unreadCount } = useActivityStore()
+
+  const groupBadge = (id: SidebarGroup): number | undefined => {
+    if (id === 'work') return unreadCount
+    return undefined
+  }
+
+  const handleGroupClick = (id: SidebarGroup) => {
+    if (activeGroup === id && isSidebarOpen && (id === 'files' || id === 'work')) {
+      toggleSidebar()
+      return
+    }
+    setActiveGroup(id)
+    if (!isSidebarOpen && (id === 'files' || id === 'work')) {
+      toggleSidebar()
+    }
+  }
+
+  const isSettingsActive = activeView === 'settings'
 
   return (
     <div className="w-[52px] h-full flex flex-col justify-between shrink-0 py-0 items-center bg-[#050505] border-r border-[#222222] shadow-none">
       <div className="flex flex-col w-full items-center">
-        <IconWrapper
-          view="projects"
-          tooltip={TOOLTIPS.projects!}
-          Icon={FolderKanban}
-          activeView={activeView}
-          setActiveView={setActiveView}
-        />
-        <IconWrapper
-          view="explorer"
-          tooltip={TOOLTIPS.explorer!}
-          Icon={Folder}
-          activeView={activeView}
-          setActiveView={setActiveView}
-        />
-        <IconWrapper
-          view="search"
-          tooltip={TOOLTIPS.search!}
-          Icon={Search}
-          activeView={activeView}
-          setActiveView={setActiveView}
-        />
-        <IconWrapper
-          view="git"
-          tooltip={TOOLTIPS.git!}
-          Icon={GitBranch}
-          activeView={activeView}
-          setActiveView={setActiveView}
-        />
-        <IconWrapper
-          view="tasks"
-          tooltip={TOOLTIPS.tasks!}
-          Icon={CheckSquare}
-          activeView={activeView}
-          setActiveView={setActiveView}
-        />
-        <IconWrapper
-          view="terminal"
-          tooltip={TOOLTIPS.terminal!}
-          Icon={TerminalSquare}
-          activeView={activeView}
-          setActiveView={setActiveView}
-        />
-        <IconWrapper
-          view="orchestrator"
-          tooltip={TOOLTIPS.orchestrator!}
-          Icon={LayoutDashboard}
-          activeView={activeView}
-          setActiveView={setActiveView}
-        />
-        <IconWrapper
-          view="activity"
-          tooltip={TOOLTIPS.activity!}
-          Icon={Activity}
-          activeView={activeView}
-          setActiveView={setActiveView}
-          badge={unreadCount}
-        />
-        <IconWrapper
-          view="bookmarks"
-          tooltip={TOOLTIPS.bookmarks!}
-          Icon={Bookmark}
-          activeView={activeView}
-          setActiveView={setActiveView}
-        />
+        {GROUP_DEFS.map((g) => (
+          <IconButton
+            key={g.id}
+            tooltip={g.label}
+            Icon={g.icon}
+            onClick={() => handleGroupClick(g.id)}
+            isActive={activeGroup === g.id && !isSettingsActive}
+            badge={groupBadge(g.id)}
+          />
+        ))}
       </div>
 
       <div className="flex flex-col w-full items-center">
-        <IconWrapper
-          tooltip={TOOLTIPS.palette!}
+        <IconButton
+          tooltip={UTILITY_TOOLTIPS.palette}
           Icon={Command}
-          activeView={activeView}
-          setActiveView={setActiveView}
           onClick={() => setCommandPaletteOpen(true)}
+          isActive={false}
         />
-        <IconWrapper
-          tooltip={TOOLTIPS.zen!}
+        <IconButton
+          tooltip={UTILITY_TOOLTIPS.zen}
           Icon={Maximize2}
-          activeView={activeView}
-          setActiveView={setActiveView}
-          onClick={enterZenMode}
-          isActiveOverride={isZenMode}
+          onClick={isZenMode ? exitZenMode : enterZenMode}
+          isActive={isZenMode}
         />
-        <IconWrapper
-          tooltip={TOOLTIPS.chat!}
+        <IconButton
+          tooltip={UTILITY_TOOLTIPS.chat}
           Icon={Terminal}
-          activeView={activeView}
-          setActiveView={setActiveView}
           onClick={toggleChat}
-          isActiveOverride={isChatOpen}
+          isActive={isChatOpen}
         />
-        <IconWrapper
-          tooltip={TOOLTIPS.vibe!}
+        <IconButton
+          tooltip={UTILITY_TOOLTIPS.vibe}
           Icon={Disc}
-          activeView={activeView}
-          setActiveView={setActiveView}
           onClick={toggleVibePlayer}
-          isActiveOverride={isVibePlayerOpen}
+          isActive={isVibePlayerOpen}
         />
-        <IconWrapper
-          view="focus"
-          tooltip={TOOLTIPS.focus!}
-          Icon={BarChart3}
-          activeView={activeView}
-          setActiveView={setActiveView}
+        <IconButton
+          tooltip="Projects Shortcut"
+          Icon={FolderKanban}
+          onClick={() => setActiveView('projects')}
+          isActive={activeView === 'projects'}
         />
-        <IconWrapper
-          view="settings"
-          tooltip={TOOLTIPS.settings!}
+        <IconButton
+          tooltip={UTILITY_TOOLTIPS.settings}
           Icon={Settings}
-          activeView={activeView}
-          setActiveView={setActiveView}
+          onClick={() => setActiveView('settings')}
+          isActive={isSettingsActive}
         />
       </div>
     </div>

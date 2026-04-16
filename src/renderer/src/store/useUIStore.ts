@@ -1,8 +1,10 @@
 import { create } from 'zustand'
+import { useZenStore } from './useZenStore'
 
-type ActivityView =
+export type ActivityView =
   | 'explorer'
   | 'search'
+  | 'find'
   | 'tasks'
   | 'settings'
   | 'terminal'
@@ -12,6 +14,35 @@ type ActivityView =
   | 'git'
   | 'focus'
   | 'bookmarks'
+  | 'notes'
+
+export type SidebarGroup = 'files' | 'work' | 'agents' | 'insights'
+
+export const GROUP_TABS: Record<SidebarGroup, readonly ActivityView[]> = {
+  files: ['explorer', 'find', 'bookmarks'],
+  work: ['git', 'tasks', 'notes', 'activity'],
+  agents: ['projects', 'terminal', 'orchestrator'],
+  insights: ['focus']
+}
+
+export const GROUP_OF: Record<ActivityView, SidebarGroup | null> = {
+  explorer: 'files',
+  find: 'files',
+  search: 'files',
+  bookmarks: 'files',
+  git: 'work',
+  tasks: 'work',
+  notes: 'work',
+  activity: 'work',
+  projects: 'agents',
+  terminal: 'agents',
+  orchestrator: 'agents',
+  focus: 'insights',
+  settings: null
+}
+
+export const SIDEBAR_GROUPS: readonly SidebarGroup[] = ['files', 'work']
+export const MAIN_VIEW_GROUPS: readonly SidebarGroup[] = ['agents', 'insights']
 
 export type ToastType = 'success' | 'error' | 'info' | 'warning' | 'zen-upbeat' | 'zen-chill'
 
@@ -42,6 +73,7 @@ interface ConfirmState {
 
 interface UIState {
   activeView: ActivityView
+  activeGroup: SidebarGroup
   sidebarWidth: number
   chatWidth: number
   isVibePlayerOpen: boolean
@@ -108,6 +140,8 @@ interface UIState {
   setCursorPosition: (line: number, col: number) => void
 
   setActiveView: (view: ActivityView) => void
+  setActiveGroup: (group: SidebarGroup) => void
+  cycleGroupTab: (direction: 1 | -1) => void
   setSidebarWidth: (width: number) => void
   setChatWidth: (width: number) => void
   toggleVibePlayer: () => void
@@ -120,6 +154,7 @@ interface UIState {
 
 export const useUIStore = create<UIState>((set, get) => ({
   activeView: 'explorer',
+  activeGroup: 'files',
   sidebarWidth: 250,
   chatWidth: 350,
   isVibePlayerOpen: false,
@@ -178,6 +213,7 @@ export const useUIStore = create<UIState>((set, get) => ({
       isVibePlayerOpen: false,
       isNotificationsMuted: true
     })
+    useZenStore.getState().setZenMode(true)
   },
   exitZenMode: () => {
     const { zenSnapshot } = get()
@@ -189,6 +225,7 @@ export const useUIStore = create<UIState>((set, get) => ({
       isNotificationsMuted: false,
       zenSnapshot: null
     })
+    useZenStore.getState().setZenMode(false)
   },
 
   // Split Editor
@@ -228,7 +265,25 @@ export const useUIStore = create<UIState>((set, get) => ({
   cursorCol: 1,
   setCursorPosition: (line, col) => set({ cursorLine: line, cursorCol: col }),
 
-  setActiveView: (view) => set({ activeView: view }),
+  setActiveView: (view) => {
+    const group = GROUP_OF[view]
+    set({ activeView: view, activeGroup: group ?? get().activeGroup })
+  },
+  setActiveGroup: (group) => {
+    const tabs = GROUP_TABS[group]
+    const current = get().activeView
+    const next = (tabs as readonly ActivityView[]).includes(current) ? current : tabs[0]
+    set({ activeGroup: group, activeView: next })
+  },
+  cycleGroupTab: (direction) => {
+    const { activeGroup, activeView } = get()
+    const tabs = GROUP_TABS[activeGroup]
+    if (tabs.length <= 1) return
+    const idx = tabs.indexOf(activeView)
+    const base = idx < 0 ? 0 : idx
+    const nextIdx = (base + direction + tabs.length) % tabs.length
+    set({ activeView: tabs[nextIdx] })
+  },
   setSidebarWidth: (width) => set({ sidebarWidth: width }),
   setChatWidth: (width) => set({ chatWidth: width }),
   toggleVibePlayer: () => set((state) => ({ isVibePlayerOpen: !state.isVibePlayerOpen })),

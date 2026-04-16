@@ -67,6 +67,8 @@ export class OpenAIProvider implements AIProvider {
       }
     }
 
-    onChunk({ type: 'done' })
+    if (!signal?.aborted) {
+      onChunk({ type: 'done' })
+    }
   }
 }

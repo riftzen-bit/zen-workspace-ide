@@ -37,6 +37,7 @@ const api = {
       ok: boolean
       error?: string
       count: number
+      failures: Array<{ path: string; error: string }>
     }>,
   searchYoutube: (query: string) => ipcRenderer.invoke('youtube:search', query),
   watchWorkspace: (dirPath: string | null) => ipcRenderer.invoke('fs:watchWorkspace', dirPath),
@@ -113,6 +114,31 @@ const api = {
       ipcRenderer.invoke('git:stashDrop', cwd, index) as Promise<{
         success: boolean
         error?: string
+      }>,
+    log: (cwd: string, limit?: number) =>
+      ipcRenderer.invoke('git:log', cwd, limit) as Promise<
+        Array<{
+          hash: string
+          shortHash: string
+          author: string
+          email: string
+          timestamp: number
+          subject: string
+        }>
+      >,
+    branchList: (cwd: string) =>
+      ipcRenderer.invoke('git:branchList', cwd) as Promise<
+        Array<{
+          name: string
+          isCurrent: boolean
+          isRemote: boolean
+          lastCommit: string
+        }>
+      >,
+    checkout: (cwd: string, branch: string) =>
+      ipcRenderer.invoke('git:checkout', cwd, branch) as Promise<{
+        success: boolean
+        error?: string
       }>
   },
   store: {
@@ -152,6 +178,12 @@ const api = {
       ipcRenderer.invoke('terminal:pauseWorkspace', terminalIds),
     resumeWorkspace: (terminalIds: string[]) =>
       ipcRenderer.invoke('terminal:resumeWorkspace', terminalIds),
+    exportSession: (content: string, defaultName?: string) =>
+      ipcRenderer.invoke('terminal:exportSession', content, defaultName) as Promise<{
+        success: boolean
+        path?: string
+        error?: string
+      }>,
     onData: (callback: (id: string, data: string) => void) => {
       const handler = (_: Electron.IpcRendererEvent, id: string, data: string) => callback(id, data)
       ipcRenderer.on('terminal:onData', handler)
@@ -328,6 +360,40 @@ const api = {
     set: (key: string, value: string) =>
       ipcRenderer.invoke('secure-store:set', key, value) as Promise<void>,
     delete: (key: string) => ipcRenderer.invoke('secure-store:delete', key) as Promise<void>
+  },
+  weather: {
+    geocode: (query: string) =>
+      ipcRenderer.invoke('weather:geocode', query) as Promise<
+        | {
+            ok: true
+            data: {
+              city: string
+              country: string
+              latitude: number
+              longitude: number
+              timezone: string
+            } | null
+          }
+        | { ok: false; error: string }
+      >,
+    ipLocate: () =>
+      ipcRenderer.invoke('weather:ipLocate') as Promise<
+        | {
+            ok: true
+            data: {
+              city: string
+              country: string
+              latitude: number
+              longitude: number
+              timezone: string
+            }
+          }
+        | { ok: false; error: string }
+      >,
+    current: (latitude: number, longitude: number) =>
+      ipcRenderer.invoke('weather:current', latitude, longitude) as Promise<
+        { ok: true; data: { temp: number; code: number } } | { ok: false; error: string }
+      >
   }
 }
 

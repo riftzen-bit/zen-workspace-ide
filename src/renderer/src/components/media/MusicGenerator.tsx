@@ -82,6 +82,20 @@ export const MusicGenerator = () => {
     }
   }, [isLyriaPlaying, pauseYoutube])
 
+  // Unmount: unsubscribe from music progress + clear timer to avoid leaks
+  useEffect(() => {
+    return () => {
+      if (unsubRef.current) {
+        unsubRef.current()
+        unsubRef.current = null
+      }
+      if (timerRef.current) {
+        clearInterval(timerRef.current)
+        timerRef.current = null
+      }
+    }
+  }, [])
+
   const clearTimer = () => {
     if (timerRef.current) {
       clearInterval(timerRef.current)
@@ -143,14 +157,20 @@ export const MusicGenerator = () => {
       }
     })
 
-    window.api.music.generate({
-      model,
-      prompt: finalPrompt,
-      lyrics: customLyrics.trim() || undefined,
-      instrumental,
-      apiKey: lyriaApiKey.trim(),
-      useGeminiOAuth: useOAuth
-    })
+    window.api.music
+      .generate({
+        model,
+        prompt: finalPrompt,
+        lyrics: customLyrics.trim() || undefined,
+        instrumental,
+        apiKey: lyriaApiKey.trim(),
+        useGeminiOAuth: useOAuth
+      })
+      .catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : 'Music generation failed'
+        useUIStore.getState().addToast(message, 'error')
+        setIsGenerating(false)
+      })
   }
 
   const handleAbort = () => {

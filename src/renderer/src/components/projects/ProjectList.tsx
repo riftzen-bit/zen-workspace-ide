@@ -39,8 +39,12 @@ const ProjectItem = memo(function ProjectItem({ project, isActive }: ProjectItem
     if (!editing && !confirmDelete) {
       setActiveProject(project.id)
       useFileStore.getState().setWorkspaceDir(project.path)
-      const tree = await window.api.readDirectory(project.path)
-      useFileStore.getState().setFileTree(tree)
+      try {
+        const tree = await window.api.readDirectory(project.path)
+        useFileStore.getState().setFileTree(tree)
+      } catch {
+        useUIStore.getState().addToast('Failed to read project directory', 'error')
+      }
       useUIStore.getState().setSidebarOpen(true)
       useUIStore.getState().setActiveView('explorer')
     }
@@ -181,19 +185,23 @@ export const ProjectList = () => {
   const handleAddProject = async () => {
     if (!window.api?.openDirectory) return
 
-    const dirPath = await window.api.openDirectory()
-    if (dirPath) {
+    try {
+      const dirPath = await window.api.openDirectory()
+      if (!dirPath) return
+
       addProject(dirPath)
       const { projects: updated } = useProjectStore.getState()
       const newProj = updated.find((p) => p.path === dirPath)
-      if (newProj) {
-        setActiveProject(newProj.id)
-        useFileStore.getState().setWorkspaceDir(dirPath)
-        const tree = await window.api.readDirectory(dirPath)
-        useFileStore.getState().setFileTree(tree)
-        useUIStore.getState().setSidebarOpen(true)
-        useUIStore.getState().setActiveView('explorer')
-      }
+      if (!newProj) return
+
+      setActiveProject(newProj.id)
+      useFileStore.getState().setWorkspaceDir(dirPath)
+      const tree = await window.api.readDirectory(dirPath)
+      useFileStore.getState().setFileTree(tree)
+      useUIStore.getState().setSidebarOpen(true)
+      useUIStore.getState().setActiveView('explorer')
+    } catch {
+      useUIStore.getState().addToast('Failed to add project', 'error')
     }
   }
 

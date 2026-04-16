@@ -4,6 +4,28 @@ import { electronZustandStorage } from './electronZustandStorage'
 
 export type AIProviderType = 'gemini' | 'openai' | 'anthropic' | 'groq' | 'ollama'
 
+export type EditorCursorStyle = 'line' | 'block' | 'underline' | 'line-thin' | 'block-outline'
+export type EditorFontFamily =
+  | 'JetBrains Mono'
+  | 'Fira Code'
+  | 'Cascadia Code'
+  | 'Source Code Pro'
+  | 'Consolas'
+  | 'Menlo'
+  | 'Monaco'
+  | 'Courier New'
+
+export const EDITOR_FONT_FAMILIES: EditorFontFamily[] = [
+  'JetBrains Mono',
+  'Fira Code',
+  'Cascadia Code',
+  'Source Code Pro',
+  'Consolas',
+  'Menlo',
+  'Monaco',
+  'Courier New'
+]
+
 interface SettingsState {
   // Existing
   geminiApiKey: string
@@ -16,6 +38,18 @@ interface SettingsState {
   agentBudgetLimit: number | null
   autoPauseAgentBudget: boolean
   restoreSessionOnStartup: boolean
+
+  // Auto-save
+  autoSaveEnabled: boolean
+  autoSaveInterval: number
+
+  // Editor look-and-feel
+  editorFontFamily: EditorFontFamily
+  editorLineHeight: number
+  editorCursorStyle: EditorCursorStyle
+  editorMinimapEnabled: boolean
+  editorLigaturesEnabled: boolean
+  editorRenderWhitespace: 'none' | 'boundary' | 'selection' | 'all'
 
   // Multi-provider
   activeProvider: AIProviderType
@@ -54,6 +88,14 @@ interface SettingsState {
   setAgentBudgetLimit: (limit: number | null) => void
   setAutoPauseAgentBudget: (enabled: boolean) => void
   setRestoreSessionOnStartup: (enabled: boolean) => void
+  setAutoSaveEnabled: (enabled: boolean) => void
+  setAutoSaveInterval: (interval: number) => void
+  setEditorFontFamily: (family: EditorFontFamily) => void
+  setEditorLineHeight: (height: number) => void
+  setEditorCursorStyle: (style: EditorCursorStyle) => void
+  setEditorMinimapEnabled: (enabled: boolean) => void
+  setEditorLigaturesEnabled: (enabled: boolean) => void
+  setEditorRenderWhitespace: (mode: 'none' | 'boundary' | 'selection' | 'all') => void
   setActiveProvider: (provider: AIProviderType) => void
   setOpenaiApiKey: (key: string) => void
   setAnthropicApiKey: (key: string) => void
@@ -83,6 +125,18 @@ export const useSettingsStore = create<SettingsState>()(
       agentBudgetLimit: null,
       autoPauseAgentBudget: false,
       restoreSessionOnStartup: true,
+
+      // Auto-save defaults
+      autoSaveEnabled: false,
+      autoSaveInterval: 1000,
+
+      // Editor look-and-feel defaults
+      editorFontFamily: 'JetBrains Mono',
+      editorLineHeight: 22,
+      editorCursorStyle: 'line',
+      editorMinimapEnabled: false,
+      editorLigaturesEnabled: true,
+      editorRenderWhitespace: 'selection',
 
       // Multi-provider defaults
       activeProvider: 'gemini',
@@ -120,6 +174,15 @@ export const useSettingsStore = create<SettingsState>()(
       setAgentBudgetLimit: (limit) => set({ agentBudgetLimit: limit }),
       setAutoPauseAgentBudget: (enabled) => set({ autoPauseAgentBudget: enabled }),
       setRestoreSessionOnStartup: (enabled) => set({ restoreSessionOnStartup: enabled }),
+      setAutoSaveEnabled: (enabled) => set({ autoSaveEnabled: enabled }),
+      setAutoSaveInterval: (interval) => set({ autoSaveInterval: Math.max(500, interval) }),
+      setEditorFontFamily: (family) => set({ editorFontFamily: family }),
+      setEditorLineHeight: (height) =>
+        set({ editorLineHeight: Math.max(14, Math.min(40, height)) }),
+      setEditorCursorStyle: (style) => set({ editorCursorStyle: style }),
+      setEditorMinimapEnabled: (enabled) => set({ editorMinimapEnabled: enabled }),
+      setEditorLigaturesEnabled: (enabled) => set({ editorLigaturesEnabled: enabled }),
+      setEditorRenderWhitespace: (mode) => set({ editorRenderWhitespace: mode }),
       setActiveProvider: (provider) => set({ activeProvider: provider }),
       setOpenaiApiKey: (key) => {
         set({ openaiApiKey: key })
@@ -186,6 +249,14 @@ export const useSettingsStore = create<SettingsState>()(
         agentBudgetLimit: state.agentBudgetLimit,
         autoPauseAgentBudget: state.autoPauseAgentBudget,
         restoreSessionOnStartup: state.restoreSessionOnStartup,
+        autoSaveEnabled: state.autoSaveEnabled,
+        autoSaveInterval: state.autoSaveInterval,
+        editorFontFamily: state.editorFontFamily,
+        editorLineHeight: state.editorLineHeight,
+        editorCursorStyle: state.editorCursorStyle,
+        editorMinimapEnabled: state.editorMinimapEnabled,
+        editorLigaturesEnabled: state.editorLigaturesEnabled,
+        editorRenderWhitespace: state.editorRenderWhitespace,
         activeProvider: state.activeProvider,
         ollamaUrl: state.ollamaUrl,
         geminiOAuthActive: state.geminiOAuthActive,

@@ -299,8 +299,9 @@ const useCommands = (): Command[] => {
           } else {
             useUIStore.getState().addToast(res.error || 'Failed to generate test', 'error')
           }
-        } catch (err: any) {
-          useUIStore.getState().addToast(err.message || 'Error generating test', 'error')
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : 'Error generating test'
+          useUIStore.getState().addToast(message, 'error')
         }
       }
     },

@@ -18,7 +18,10 @@ const ALLOWED_STORE_KEYS = new Set([
   'zen-snippets',
   'zen-focus-analytics',
   'zen-keybindings',
-  'zen-workspace-templates'
+  'zen-workspace-templates',
+  'theme-storage',
+  'bookmark-storage',
+  'music-storage'
 ])
 
 export function setupStoreHandlers() {
@@ -31,7 +34,9 @@ export function setupStoreHandlers() {
   ipcMain.handle('store:set', (event, key: string, value: unknown) => {
     if (!isTrustedIpcSender(event)) return
     if (!ALLOWED_STORE_KEYS.has(key)) return
-    if (typeof value !== 'object' || value === null || typeof value === 'function') return
+    // All persisted stores are zustand wrappers of shape { state, version }.
+    // Reject arrays and other non-plain objects to avoid corrupting the file.
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) return
     store.set(key, value)
   })
 
@@ -124,7 +129,12 @@ export function setupStoreHandlers() {
       // Import each key if it's in the allowed list
       let importedCount = 0
       for (const [key, value] of Object.entries(payload.data)) {
-        if (ALLOWED_STORE_KEYS.has(key) && typeof value === 'object' && value !== null) {
+        if (
+          ALLOWED_STORE_KEYS.has(key) &&
+          typeof value === 'object' &&
+          value !== null &&
+          !Array.isArray(value)
+        ) {
           store.set(key, value)
           importedCount++
         }

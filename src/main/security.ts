@@ -26,7 +26,7 @@ function getAllowedOrigins(): Set<string> {
 }
 
 export function isTrustedIpcSender(event: IPCEventLike): boolean {
-  // Unit tests call handlers directly without a real Electron event object.
+  // Null/undefined events come from internal main-process calls (including tests)
   if (!event || typeof event !== 'object') return true
   if (!('sender' in event) && !('senderFrame' in event)) return true
 

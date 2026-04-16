@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from 'react'
+﻿import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion } from 'framer-motion'
 import {
   GitBranch,
@@ -11,7 +11,9 @@ import {
   ChevronDown,
   ChevronRight,
   Trash2,
-  Download
+  Download,
+  History,
+  GitCommit
 } from 'lucide-react'
 import { useFileStore } from '../../store/useFileStore'
 import { useUIStore } from '../../store/useUIStore'
@@ -54,70 +56,125 @@ export const GitDashboard = () => {
   const [isStashExpanded, setIsStashExpanded] = useState(false)
   const [stashMessage, setStashMessage] = useState('')
   const [isStashing, setIsStashing] = useState(false)
+  const [branchList, setBranchList] = useState<
+    Array<{ name: string; isCurrent: boolean; isRemote: boolean; lastCommit: string }>
+  >([])
+  const [isBranchMenuOpen, setIsBranchMenuOpen] = useState(false)
+  const [isHistoryExpanded, setIsHistoryExpanded] = useState(false)
+  const [commitLog, setCommitLog] = useState<
+    Array<{
+      hash: string
+      shortHash: string
+      author: string
+      email: string
+      timestamp: number
+      subject: string
+    }>
+  >([])
+  const [isCheckingOut, setIsCheckingOut] = useState(false)
+  const loadSeqRef = useRef(0)
+  const cancelledRef = useRef(false)
+  const generateSeqRef = useRef(0)
+  const generateUnsubRef = useRef<(() => void) | null>(null)
 
   const loadGitState = useCallback(async () => {
     if (!workspaceDir) return
-    const b = await window.api.git.branch(workspaceDir)
-    setBranch(b)
-    if (b) {
+    const mySeq = ++loadSeqRef.current
+    try {
+      const b = await window.api.git.branch(workspaceDir)
+      if (cancelledRef.current || mySeq !== loadSeqRef.current) return
+      setBranch(b)
+      if (!b) return
       const files = await window.api.git.statusFiles(workspaceDir)
+      if (cancelledRef.current || mySeq !== loadSeqRef.current) return
       setStagedFiles(files.staged)
       setUnstagedFiles(files.unstaged)
       const stashList = await window.api.git.stashList(workspaceDir)
+      if (cancelledRef.current || mySeq !== loadSeqRef.current) return
       setStashes(stashList)
+      const branches = await window.api.git.branchList(workspaceDir)
+      if (cancelledRef.current || mySeq !== loadSeqRef.current) return
+      setBranchList(branches)
+      const log = await window.api.git.log(workspaceDir, 50)
+      if (cancelledRef.current || mySeq !== loadSeqRef.current) return
+      setCommitLog(log)
+    } catch {
+      // IPC errors swallowed; next interval tick retries
     }
   }, [workspaceDir])
 
   useEffect(() => {
-    loadGitState()
-    const interval = setInterval(loadGitState, 5000)
-    return () => clearInterval(interval)
+    cancelledRef.current = false
+    const timer = setTimeout(() => void loadGitState(), 0)
+    const interval = setInterval(() => void loadGitState(), 5000)
+    return () => {
+      cancelledRef.current = true
+      clearTimeout(timer)
+      clearInterval(interval)
+    }
   }, [loadGitState])
 
   const handleStashSave = async () => {
     if (!workspaceDir) return
     setIsStashing(true)
-    const result = await window.api.git.stashSave(workspaceDir, stashMessage)
-    if (result.success) {
-      addToast('Changes stashed successfully', 'success')
-      setStashMessage('')
-      await loadGitState()
-    } else {
-      addToast(result.error || 'Failed to stash', 'error')
+    try {
+      const result = await window.api.git.stashSave(workspaceDir, stashMessage)
+      if (result.success) {
+        addToast('Changes stashed successfully', 'success')
+        setStashMessage('')
+        await loadGitState()
+      } else {
+        addToast(result.error || 'Failed to stash', 'error')
+      }
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'Failed to stash', 'error')
+    } finally {
+      setIsStashing(false)
     }
-    setIsStashing(false)
   }
 
   const handleStashPop = async (index: string) => {
     if (!workspaceDir) return
-    const result = await window.api.git.stashPop(workspaceDir, index)
-    if (result.success) {
-      addToast('Stash popped successfully', 'success')
-      await loadGitState()
-    } else {
-      addToast(result.error || 'Failed to pop stash', 'error')
+    try {
+      const result = await window.api.git.stashPop(workspaceDir, index)
+      if (result.success) {
+        addToast('Stash popped successfully', 'success')
+        await loadGitState()
+      } else {
+        addToast(result.error || 'Failed to pop stash', 'error')
+      }
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'Failed to pop stash', 'error')
     }
   }
 
   const handleStashApply = async (index: string) => {
     if (!workspaceDir) return
-    const result = await window.api.git.stashApply(workspaceDir, index)
-    if (result.success) {
-      addToast('Stash applied successfully', 'success')
-      await loadGitState()
-    } else {
-      addToast(result.error || 'Failed to apply stash', 'error')
+    try {
+      const result = await window.api.git.stashApply(workspaceDir, index)
+      if (result.success) {
+        addToast('Stash applied successfully', 'success')
+        await loadGitState()
+      } else {
+        addToast(result.error || 'Failed to apply stash', 'error')
+      }
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'Failed to apply stash', 'error')
     }
   }
 
   const handleStashDrop = async (index: string) => {
     if (!workspaceDir) return
-    const result = await window.api.git.stashDrop(workspaceDir, index)
-    if (result.success) {
-      addToast('Stash dropped', 'info')
-      await loadGitState()
-    } else {
-      addToast(result.error || 'Failed to drop stash', 'error')
+    try {
+      const result = await window.api.git.stashDrop(workspaceDir, index)
+      if (result.success) {
+        addToast('Stash dropped', 'info')
+        await loadGitState()
+      } else {
+        addToast(result.error || 'Failed to drop stash', 'error')
+      }
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'Failed to drop stash', 'error')
     }
   }
 
@@ -147,21 +204,35 @@ export const GitDashboard = () => {
     setIsGenerating(true)
     setMessage('')
 
+    // Tear down any prior in-flight generation so chunks from an aborted
+    // request don't bleed into the new one on rapid re-clicks.
+    if (generateUnsubRef.current) {
+      generateUnsubRef.current()
+      generateUnsubRef.current = null
+    }
+    const mySeq = ++generateSeqRef.current
+
     const prompt = `You are an expert developer. Write a highly concise, conventional commit message for the following git diff. Output ONLY the commit message (no markdown code blocks, no intro, no explanation). If there are multiple changes, provide a concise header line and a bulleted list below it.\n\nDiff:\n${diff.slice(0, 15000)}`
 
     let generatedText = ''
 
     const unsubscribe = window.api.ai.onChunk((chunk) => {
+      if (mySeq !== generateSeqRef.current) return
       if (chunk.type === 'text' && chunk.text) {
         generatedText += chunk.text
         setMessage(generatedText)
       } else if (chunk.type === 'error') {
         addToast(chunk.error ?? 'Generation failed', 'error')
         setIsGenerating(false)
+        unsubscribe()
+        if (generateUnsubRef.current === unsubscribe) generateUnsubRef.current = null
       } else if (chunk.type === 'done') {
         setIsGenerating(false)
+        unsubscribe()
+        if (generateUnsubRef.current === unsubscribe) generateUnsubRef.current = null
       }
     })
+    generateUnsubRef.current = unsubscribe
 
     try {
       await window.api.ai.chat({
@@ -176,8 +247,44 @@ export const GitDashboard = () => {
       const msg = err instanceof Error ? err.message : 'Unknown error'
       addToast(msg, 'error')
       setIsGenerating(false)
+      unsubscribe()
+      if (generateUnsubRef.current === unsubscribe) generateUnsubRef.current = null
+    }
+  }
+
+  useEffect(() => {
+    return () => {
+      if (generateUnsubRef.current) {
+        generateUnsubRef.current()
+        generateUnsubRef.current = null
+      }
+    }
+  }, [])
+
+  const handleCheckout = async (targetBranch: string) => {
+    if (!workspaceDir || targetBranch === branch) {
+      setIsBranchMenuOpen(false)
+      return
+    }
+    if (unstagedFiles.length > 0 || stagedFiles.length > 0) {
+      addToast('Commit or stash changes before switching branches', 'warning')
+      setIsBranchMenuOpen(false)
+      return
+    }
+    setIsCheckingOut(true)
+    try {
+      const result = await window.api.git.checkout(workspaceDir, targetBranch)
+      if (result.success) {
+        addToast(`Switched to ${targetBranch}`, 'success')
+        await loadGitState()
+      } else {
+        addToast(result.error || 'Checkout failed', 'error')
+      }
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'Checkout failed', 'error')
     } finally {
-      setTimeout(unsubscribe, 500)
+      setIsCheckingOut(false)
+      setIsBranchMenuOpen(false)
     }
   }
 
@@ -187,35 +294,51 @@ export const GitDashboard = () => {
 
     const addAll = stagedFiles.length === 0
 
-    const result = await window.api.git.commit(workspaceDir, message.trim(), addAll)
-    if (result.success) {
-      addToast('Changes committed successfully.', 'success')
-      setMessage('')
-      setActiveDiffFile(null)
-      await loadGitState()
-    } else {
-      addToast(result.error ?? 'Failed to commit', 'error')
+    try {
+      const result = await window.api.git.commit(workspaceDir, message.trim(), addAll)
+      if (result.success) {
+        addToast('Changes committed successfully.', 'success')
+        setMessage('')
+        setActiveDiffFile(null)
+        await loadGitState()
+      } else {
+        addToast(result.error ?? 'Failed to commit', 'error')
+      }
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'Failed to commit', 'error')
+    } finally {
+      setIsCommitting(false)
     }
-
-    setIsCommitting(false)
   }
 
   const handleStage = async (file: string) => {
     if (!workspaceDir) return
-    await window.api.git.add(workspaceDir, file)
-    await loadGitState()
+    try {
+      await window.api.git.add(workspaceDir, file)
+      await loadGitState()
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'Failed to stage', 'error')
+    }
   }
 
   const handleUnstage = async (file: string) => {
     if (!workspaceDir) return
-    await window.api.git.unstage(workspaceDir, file)
-    await loadGitState()
+    try {
+      await window.api.git.unstage(workspaceDir, file)
+      await loadGitState()
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'Failed to unstage', 'error')
+    }
   }
 
   const handleStageAll = async () => {
     if (!workspaceDir) return
-    await window.api.git.add(workspaceDir, '.')
-    await loadGitState()
+    try {
+      await window.api.git.add(workspaceDir, '.')
+      await loadGitState()
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'Failed to stage all', 'error')
+    }
   }
 
   const getStatusColor = (status: string) => {
@@ -246,13 +369,18 @@ export const GitDashboard = () => {
     <div className="flex flex-col h-full bg-[#050505] overflow-hidden">
       {/* Branch Info */}
       <div
-        className="flex items-center justify-between px-4 h-12 border-b shrink-0 bg-[#0A0A0A]/50 backdrop-blur-sm"
+        className="relative flex items-center justify-between px-4 h-12 border-b shrink-0 bg-[#0A0A0A]/50 backdrop-blur-sm"
         style={{ borderColor: 'var(--color-border-subtle)' }}
       >
-        <div className="flex items-center gap-2 min-w-0">
+        <button
+          onClick={() => setIsBranchMenuOpen((prev) => !prev)}
+          className="flex items-center gap-2 min-w-0 hover:opacity-80 transition-opacity"
+          title="Switch branch"
+        >
           <GitBranch size={14} className="text-sky-500" strokeWidth={2} />
           <p className="text-[12px] font-semibold tracking-wide text-zinc-300 truncate">{branch}</p>
-        </div>
+          <ChevronDown size={12} className="text-zinc-500" />
+        </button>
         <button
           onClick={loadGitState}
           className="p-1.5 rounded-none hover:bg-white/[0.04] text-zinc-500 hover:text-zinc-300 transition-colors"
@@ -260,6 +388,32 @@ export const GitDashboard = () => {
         >
           <RefreshCw size={13} />
         </button>
+        {isBranchMenuOpen && (
+          <div
+            className="absolute top-full left-4 mt-1 w-64 max-h-80 overflow-y-auto bg-[#0A0A0A] border z-20 shadow-lg"
+            style={{ borderColor: 'var(--color-border-subtle)' }}
+          >
+            {branchList.length === 0 ? (
+              <div className="px-3 py-2 text-[11px] text-zinc-600">No branches</div>
+            ) : (
+              branchList.map((b) => (
+                <button
+                  key={b.name}
+                  onClick={() => handleCheckout(b.name)}
+                  disabled={isCheckingOut}
+                  className={`w-full text-left px-3 py-1.5 text-[11px] flex items-center gap-2 hover:bg-white/[0.04] transition-colors disabled:opacity-50 ${
+                    b.isCurrent ? 'text-sky-400' : 'text-zinc-300'
+                  }`}
+                  title={b.name}
+                >
+                  <GitBranch size={11} className={b.isRemote ? 'text-zinc-500' : 'text-sky-500'} />
+                  <span className="truncate flex-1">{b.name}</span>
+                  {b.isCurrent && <Check size={11} />}
+                </button>
+              ))
+            )}
+          </div>
+        )}
       </div>
 
       <div className="flex flex-col h-full p-3 gap-3 overflow-hidden">
@@ -454,6 +608,48 @@ export const GitDashboard = () => {
                   </div>
                 ) : (
                   <div className="text-[11px] text-zinc-600 px-2 py-1">No stashes</div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Commit History Section */}
+          <div className="flex flex-col gap-1">
+            <button
+              onClick={() => setIsHistoryExpanded(!isHistoryExpanded)}
+              className="flex items-center gap-2 px-1 py-1 text-[11px] font-bold text-zinc-400 uppercase tracking-wider hover:text-zinc-300 transition-colors"
+            >
+              {isHistoryExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+              <History size={12} />
+              <span>History</span>
+              {commitLog.length > 0 && (
+                <span className="text-[10px] bg-zinc-800 text-zinc-400 px-1.5 rounded">
+                  {commitLog.length}
+                </span>
+              )}
+            </button>
+
+            {isHistoryExpanded && (
+              <div className="flex flex-col gap-1 pl-2">
+                {commitLog.length > 0 ? (
+                  commitLog.map((c) => (
+                    <div
+                      key={c.hash}
+                      className="flex items-start gap-2 px-2 py-1.5 hover:bg-white/5 rounded-none transition-colors"
+                      title={`${c.author} <${c.email}>\n${new Date(c.timestamp).toLocaleString()}`}
+                    >
+                      <GitCommit size={11} className="text-zinc-500 mt-0.5 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[11px] text-zinc-300 truncate">{c.subject}</div>
+                        <div className="text-[9px] text-zinc-600 flex items-center gap-2">
+                          <span className="font-mono">{c.shortHash}</span>
+                          <span className="truncate">{c.author}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-[11px] text-zinc-600 px-2 py-1">No commits</div>
                 )}
               </div>
             )}

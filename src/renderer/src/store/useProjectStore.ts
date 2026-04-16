@@ -32,7 +32,7 @@ export const useProjectStore = create<ProjectState>()(
       addProject: (path) => {
         const existing = get().projects.find((p) => p.path === path)
         if (existing) return
-        const name = path.split('/').filter(Boolean).pop() ?? path
+        const name = path.split(/[\\/]/).filter(Boolean).pop() ?? path
         const project: Project = {
           id: `proj-${Date.now()}`,
           name,

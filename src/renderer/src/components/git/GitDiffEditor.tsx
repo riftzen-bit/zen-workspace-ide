@@ -6,36 +6,27 @@ import { useUIStore } from '../../store/useUIStore'
 import { useSettingsStore } from '../../store/useSettingsStore'
 import { FileText, X } from 'lucide-react'
 import { CodeReviewPanel } from './CodeReviewPanel'
+import { useEditorTheme } from '../../lib/useEditorTheme'
 
 export const GitDiffEditor = () => {
   const { workspaceDir } = useFileStore()
   const { activeDiffFile, setActiveDiffFile } = useUIStore()
-  const { fontSize, wordWrap } = useSettingsStore()
+  const {
+    fontSize,
+    wordWrap,
+    editorFontFamily,
+    editorLineHeight,
+    editorLigaturesEnabled,
+    editorRenderWhitespace
+  } = useSettingsStore()
   const monaco = useMonaco()
+  const editorThemeName = useEditorTheme(monaco)
 
   const [original, setOriginal] = useState('')
   const [modified, setModified] = useState('')
   const [loading, setLoading] = useState(false)
   const diffEditorRef = useRef<editor.IStandaloneDiffEditor | null>(null)
   const requestSeqRef = useRef(0)
-
-  useEffect(() => {
-    if (!monaco) return
-    monaco.editor.defineTheme('zen-dark', {
-      base: 'vs-dark',
-      inherit: true,
-      rules: [{ background: '0c0c0e', token: '' }],
-      colors: {
-        'editor.background': '#0c0c0e',
-        'editor.lineHighlightBackground': '#18181b',
-        'editorLineNumber.foreground': '#52525b',
-        'editorIndentGuide.background': '#27272a',
-        'diffEditor.insertedTextBackground': '#10b9811a',
-        'diffEditor.removedTextBackground': '#ef44441a'
-      }
-    })
-    monaco.editor.setTheme('zen-dark')
-  }, [monaco])
 
   useEffect(() => {
     return () => {
@@ -148,7 +139,7 @@ export const GitDiffEditor = () => {
             original={original}
             modified={modified}
             language={language}
-            theme="zen-dark"
+            theme={editorThemeName}
             onMount={(diffEditor) => {
               diffEditorRef.current = diffEditor
             }}
@@ -157,12 +148,14 @@ export const GitDiffEditor = () => {
               renderSideBySide: true,
               automaticLayout: true,
               fontSize,
+              lineHeight: editorLineHeight,
               wordWrap: wordWrap ? 'on' : 'off',
               minimap: { enabled: false },
               padding: { top: 16, bottom: 16 },
               scrollBeyondLastLine: false,
-              fontFamily: '"JetBrains Mono", "Fira Code", monospace',
-              fontLigatures: true,
+              fontFamily: `'${editorFontFamily}', 'JetBrains Mono', 'Fira Code', monospace`,
+              fontLigatures: editorLigaturesEnabled,
+              renderWhitespace: editorRenderWhitespace,
               smoothScrolling: true,
               cursorBlinking: 'smooth',
               cursorSmoothCaretAnimation: 'on',

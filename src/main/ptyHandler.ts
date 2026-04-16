@@ -1,9 +1,11 @@
-import { ipcMain, BrowserWindow } from 'electron'
+import { ipcMain, BrowserWindow, dialog } from 'electron'
 import * as pty from 'node-pty'
 import * as os from 'os'
 import * as fs from 'fs'
+import * as fsPromises from 'fs/promises'
 import { processChunk, clearBuffer } from './activityParser'
-import { isTrustedIpcSender } from './security'
+import { isTrustedIpcSender, resolvePathWithinRoot } from './security'
+import { getCurrentWorkspacePath } from './fsHandler'
 
 const ptys: Record<string, pty.IPty> = {}
 const ptyStatus: Record<string, 'running' | 'paused'> = {}
@@ -13,10 +15,22 @@ const ptyReadyAt: Record<string, number | undefined> = {}
 const SENSITIVE_ENV =
   /^(.*SECRET|.*TOKEN|.*KEY|.*PASSWORD|.*CREDENTIAL|.*AUTH|.*PRIVATE|.*SIGNING)$/i
 
+// Agent-socket/path vars that match SENSITIVE_ENV by substring but must be forwarded
+// so ssh/gpg/ssh-agent keep working inside the embedded terminal.
+const ENV_ALLOWLIST = new Set([
+  'SSH_AUTH_SOCK',
+  'SSH_AGENT_PID',
+  'GPG_AGENT_INFO',
+  'GNUPGHOME',
+  'GNOME_KEYRING_CONTROL',
+  'GNOME_KEYRING_PID'
+])
+
 function getSanitizedEnv(): Record<string, string> {
   const env: Record<string, string> = {}
   for (const [k, v] of Object.entries(process.env)) {
-    if (v !== undefined && !SENSITIVE_ENV.test(k)) {
+    if (v === undefined) continue
+    if (ENV_ALLOWLIST.has(k) || !SENSITIVE_ENV.test(k)) {
       env[k] = v
     }
   }
@@ -104,9 +118,13 @@ export function setupPtyHandlers() {
       if (!isTrustedIpcSender(event)) return false
 
       if (ptys[id]) {
-        ptys[id].kill()
+        const oldPty = ptys[id]
         delete ptys[id]
         delete ptyStatus[id]
+        delete ptyCreatedAt[id]
+        delete ptyReadyAt[id]
+        clearBuffer(id)
+        oldPty.kill()
       }
 
       const isWin = os.platform() === 'win32'
@@ -146,11 +164,30 @@ export function setupPtyHandlers() {
         }
       }
 
+      const homeFallback = process.env.HOME || process.env.USERPROFILE || process.cwd()
+      // Renderer-supplied cwd is only honored if it resolves inside the active
+      // workspace root. Anything else (or anything when no workspace is set) falls
+      // back to the workspace root or HOME, so a compromised renderer cannot spawn
+      // shells in arbitrary directories.
+      let safeCwd = homeFallback
+      const workspaceRoot = getCurrentWorkspacePath()
+      if (workspaceRoot) {
+        if (cwd) {
+          const resolved = resolvePathWithinRoot(workspaceRoot, cwd, true)
+          safeCwd = resolved ?? workspaceRoot
+        } else {
+          safeCwd = workspaceRoot
+        }
+      } else if (cwd) {
+        // No workspace context — fall through to HOME instead of trusting `cwd`.
+        safeCwd = homeFallback
+      }
+
       const ptyProcess = pty.spawn(shell, args, {
         name: 'xterm-color',
         cols: cols || 80,
         rows: rows || 24,
-        cwd: cwd || process.env.HOME || process.env.USERPROFILE || process.cwd(),
+        cwd: safeCwd,
         env: getSanitizedEnv(),
         useConpty: isWin // Uses faster modern ConPTY backend on Windows 10+
       })
@@ -160,29 +197,35 @@ export function setupPtyHandlers() {
       ptyCreatedAt[id] = Date.now()
       ptyReadyAt[id] = undefined
 
+      const ownedPty = ptyProcess
+
       ptyProcess.onData((data) => {
+        // Stale listener from a killed pty whose id was recycled — ignore.
+        if (ptys[id] !== ownedPty) return
+
         if (!ptyReadyAt[id]) {
           ptyReadyAt[id] = Date.now()
         }
-        if (!event.sender.isDestroyed()) {
-          event.sender.send('terminal:onData', id, data)
+        const win = BrowserWindow.getAllWindows()[0]
+        if (win && !win.isDestroyed()) {
+          win.webContents.send('terminal:onData', id, data)
         }
 
-        // Secondary listener: parse for activity events
         const activities = processChunk(id, data)
-        if (activities.length > 0) {
-          const win = BrowserWindow.getAllWindows()[0]
-          if (win && !win.isDestroyed()) {
-            for (const act of activities) {
-              win.webContents.send('terminal:activity', act)
-            }
+        if (activities.length > 0 && win && !win.isDestroyed()) {
+          for (const act of activities) {
+            win.webContents.send('terminal:activity', act)
           }
         }
       })
 
       ptyProcess.onExit(() => {
-        if (!event.sender.isDestroyed()) {
-          event.sender.send('terminal:onExit', id)
+        // If the slot was already replaced by a newer pty (recreate path), don't clobber its state.
+        if (ptys[id] !== ownedPty) return
+
+        const win = BrowserWindow.getAllWindows()[0]
+        if (win && !win.isDestroyed()) {
+          win.webContents.send('terminal:onExit', id)
         }
         emitManualActivity(id, { type: 'status', message: 'Terminal exited', agentStatus: 'done' })
         clearBuffer(id)
@@ -238,18 +281,8 @@ export function setupPtyHandlers() {
     resizePty(id, cols, rows)
   })
 
-  ipcMain.handle('terminal:resize', (_event, id: string, cols: number, rows: number) => {
-    if (!isTrustedIpcSender(_event)) return
-    resizePty(id, cols, rows)
-  })
-
   ipcMain.on('terminal:write', (event, id: string, data: string) => {
     if (!isTrustedIpcSender(event)) return
-    writePty(id, data)
-  })
-
-  ipcMain.handle('terminal:write', (_event, id: string, data: string) => {
-    if (!isTrustedIpcSender(_event)) return
     writePty(id, data)
   })
 
@@ -362,5 +395,26 @@ export function setupPtyHandlers() {
       }
     })
     return { success: true, results }
+  })
+
+  ipcMain.handle('terminal:exportSession', async (event, content: string, defaultName?: string) => {
+    if (!isTrustedIpcSender(event)) return { success: false, error: 'Untrusted sender' }
+
+    const { filePath, canceled } = await dialog.showSaveDialog({
+      defaultPath: defaultName || `terminal-session-${Date.now()}.txt`,
+      filters: [
+        { name: 'Text Files', extensions: ['txt', 'log'] },
+        { name: 'All Files', extensions: ['*'] }
+      ]
+    })
+
+    if (canceled || !filePath) return { success: false, error: 'Cancelled' }
+
+    try {
+      await fsPromises.writeFile(filePath, content, 'utf-8')
+      return { success: true, path: filePath }
+    } catch (err) {
+      return { success: false, error: String(err) }
+    }
   })
 }

@@ -4,6 +4,8 @@ import { FitAddon } from '@xterm/addon-fit'
 import { SearchAddon } from '@xterm/addon-search'
 import '@xterm/xterm/css/xterm.css'
 import { useFileStore } from '../../store/useFileStore'
+import { useUIStore } from '../../store/useUIStore'
+import { useThemeStore } from '../../store/useThemeStore'
 import { TerminalContextMenu } from './TerminalContextMenu'
 import { Search, X, ChevronUp, ChevronDown } from 'lucide-react'
 
@@ -82,12 +84,13 @@ export const TerminalInstance = ({ id, command }: TerminalInstanceProps) => {
       })
     }
 
+    const themeColors = useThemeStore.getState().getActiveColors()
     term.current = new Terminal({
       theme: {
-        background: '#000000',
-        foreground: '#d4d4d8',
-        cursor: '#a1a1aa',
-        selectionBackground: '#3f3f46'
+        background: themeColors.terminalBg,
+        foreground: themeColors.terminalFg,
+        cursor: themeColors.terminalCursor,
+        selectionBackground: themeColors.terminalSelection
       },
       fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
       fontSize: 13,
@@ -199,6 +202,20 @@ export const TerminalInstance = ({ id, command }: TerminalInstanceProps) => {
     }
   }, [id, command, workspaceDir])
 
+  // Re-apply xterm palette when the theme store changes.
+  const themeActivePreset = useThemeStore((s) => s.activePreset)
+  const themeCustomColors = useThemeStore((s) => s.customColors)
+  useEffect(() => {
+    if (!term.current) return
+    const colors = useThemeStore.getState().getActiveColors()
+    term.current.options.theme = {
+      background: colors.terminalBg,
+      foreground: colors.terminalFg,
+      cursor: colors.terminalCursor,
+      selectionBackground: colors.terminalSelection
+    }
+  }, [themeActivePreset, themeCustomColors])
+
   // Search functions
   const openSearch = useCallback(() => {
     setIsSearchOpen(true)
@@ -276,6 +293,39 @@ export const TerminalInstance = ({ id, command }: TerminalInstanceProps) => {
       }
     }
   }
+
+  const exportSession = useCallback(async () => {
+    if (!term.current) return
+    const buf = term.current.buffer.active
+    const lines: string[] = []
+    for (let i = 0; i < buf.length; i++) {
+      const line = buf.getLine(i)
+      if (line) lines.push(line.translateToString(true))
+    }
+    const content = lines.join('\n')
+    const result = await window.api.terminal.exportSession(
+      content,
+      `terminal-${id}-${new Date().toISOString().slice(0, 10)}.txt`
+    )
+    if (result.success) {
+      useUIStore.getState().addToast('Session exported', 'success')
+    } else if (result.error !== 'Cancelled') {
+      useUIStore.getState().addToast(`Export failed: ${result.error}`, 'error')
+    }
+  }, [id])
+
+  // Ctrl+Shift+E to export terminal session
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'e') {
+        e.preventDefault()
+        exportSession()
+      }
+    }
+    const container = terminalRef.current?.parentElement
+    container?.addEventListener('keydown', handleKey)
+    return () => container?.removeEventListener('keydown', handleKey)
+  }, [exportSession])
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault()

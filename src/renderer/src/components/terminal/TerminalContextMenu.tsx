@@ -78,9 +78,9 @@ export const TerminalContextMenu = ({
     onClose()
   }
 
-  // Filter out workspaces that contain only the source terminal
+  // Filter out workspaces that contain the source terminal
   const targetWorkspaces = workspaces.filter(
-    (ws) => ws.status !== 'paused' && !ws.terminals.every((t) => t.id === sourceTerminalId)
+    (ws) => ws.status !== 'paused' && !ws.terminals.some((t) => t.id === sourceTerminalId)
   )
 
   const preview = selection.length > 60 ? selection.slice(0, 60) + '…' : selection

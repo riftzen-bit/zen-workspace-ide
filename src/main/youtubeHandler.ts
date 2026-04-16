@@ -1,8 +1,10 @@
 import { ipcMain } from 'electron'
 import ytSearch from 'yt-search'
+import { isTrustedIpcSender } from './security'
 
 export function setupYoutubeHandlers(): void {
-  ipcMain.handle('youtube:search', async (_, query: string) => {
+  ipcMain.handle('youtube:search', async (event, query: string) => {
+    if (!isTrustedIpcSender(event)) return null
     try {
       const r = await ytSearch(query)
       if (r && r.videos && r.videos.length > 0) {

@@ -2,7 +2,9 @@ import { useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { ActivityBar } from './ActivityBar'
 import { Sidebar } from './Sidebar'
+import { SubTabStrip, SubTab } from './SubTabStrip'
 import { ProjectList } from '../projects/ProjectList'
+import { FolderKanban, TerminalSquare, LayoutDashboard, BarChart3 } from 'lucide-react'
 import { MonacoEditor } from '../editor/MonacoEditor'
 import { SplitEditor } from '../editor/SplitEditor'
 import { AIChat } from '../chat/AIChat'
@@ -39,6 +41,7 @@ export const AppLayout = () => {
   const {
     isSidebarOpen,
     activeView,
+    activeGroup,
     activeDiffFile,
     sidebarWidth,
     chatWidth,
@@ -46,6 +49,9 @@ export const AppLayout = () => {
     enterZenMode,
     exitZenMode,
     setCommandPaletteOpen,
+    setActiveView,
+    cycleGroupTab,
+    setActiveGroup,
     isSplitEditor
   } = useUIStore()
   const { activeWorkspaceId } = useTerminalStore()
@@ -239,58 +245,75 @@ export const AppLayout = () => {
   useEffect(() => {
     window.api.watchWorkspace(workspaceDir)
 
+    let cancelled = false
+    let treeSeq = 0
+
+    const refreshTree = () => {
+      if (!workspaceDir) return
+      const mySeq = ++treeSeq
+      window.api
+        .readDirectory(workspaceDir)
+        .then((tree) => {
+          if (cancelled || mySeq !== treeSeq) return
+          if (tree) setFileTree(tree)
+        })
+        .catch(() => {})
+    }
+
     const unsubChange = window.api.onFileChanged((filePath) => {
-      const { fileContents, openFiles } = useFileStore.getState()
-      // Only reload if file is currently open in editor
-      if (openFiles.some((f) => f.path === filePath)) {
-        // If editor buffer matches disk (no unsaved changes), reload silently
-        window.api.readFile(filePath).then((content) => {
-          if (content !== null && fileContents[filePath] !== undefined) {
-            if (fileContents[filePath] === content) return // already in sync
-            // File changed externally — reload and notify
+      if (cancelled) return
+      const { fileContents, savedContents, openFiles } = useFileStore.getState()
+      if (!openFiles.some((f) => f.path === filePath)) return
+      if (fileContents[filePath] === undefined) return
+
+      window.api
+        .readFile(filePath)
+        .then((content) => {
+          if (cancelled) return
+          if (content === null) return
+
+          const buffer = fileContents[filePath]
+          const baseline = savedContents[filePath] ?? buffer
+
+          // Disk matches what we already have; nothing to do (common after save).
+          if (content === buffer) return
+
+          const name = filePath.split(/[\\/]/).pop() || filePath
+          const isDirty = buffer !== baseline
+
+          if (isDirty) {
+            // External change while user has unsaved edits — don't clobber.
+            useUIStore
+              .getState()
+              .addToast(
+                `${name} changed on disk. Your unsaved edits are kept — save to overwrite, or close the tab to discard.`,
+                'warning'
+              )
+          } else {
+            // Clean buffer — safe to adopt disk content.
             reloadFileFromDisk(filePath, content)
-            const name = filePath.split('/').pop() || filePath
             useUIStore.getState().addToast(`${name} reloaded from disk`, 'info')
           }
         })
-      }
+        .catch(() => {})
     })
 
     const unsubDeleted = window.api.onFileDeleted((filePath) => {
+      if (cancelled) return
       const { openFiles } = useFileStore.getState()
       if (openFiles.some((f) => f.path === filePath)) {
         markFileDeleted(filePath)
-        const name = filePath.split('/').pop() || filePath
+        const name = filePath.split(/[\\/]/).pop() || filePath
         useUIStore.getState().addToast(`${name} was deleted`, 'warning')
       }
     })
 
-    const unsubCreated = window.api.onFileCreated(() => {
-      // Refresh file tree when new files appear
-      if (workspaceDir) {
-        window.api.readDirectory(workspaceDir).then((tree) => {
-          if (tree) setFileTree(tree)
-        })
-      }
-    })
-
-    const unsubDirCreated = window.api.onDirCreated(() => {
-      if (workspaceDir) {
-        window.api.readDirectory(workspaceDir).then((tree) => {
-          if (tree) setFileTree(tree)
-        })
-      }
-    })
-
-    const unsubDirDeleted = window.api.onDirDeleted(() => {
-      if (workspaceDir) {
-        window.api.readDirectory(workspaceDir).then((tree) => {
-          if (tree) setFileTree(tree)
-        })
-      }
-    })
+    const unsubCreated = window.api.onFileCreated(refreshTree)
+    const unsubDirCreated = window.api.onDirCreated(refreshTree)
+    const unsubDirDeleted = window.api.onDirDeleted(refreshTree)
 
     return () => {
+      cancelled = true
       unsubChange()
       unsubDeleted()
       unsubCreated()
@@ -350,20 +373,66 @@ export const AppLayout = () => {
         }
         return
       }
+
+      // Group nav: Ctrl+1..4
+      if (e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey) {
+        const groupMap: Record<string, 'files' | 'work' | 'agents' | 'insights'> = {
+          '1': 'files',
+          '2': 'work',
+          '3': 'agents',
+          '4': 'insights'
+        }
+        const g = groupMap[e.key]
+        if (g) {
+          e.preventDefault()
+          setActiveGroup(g)
+          return
+        }
+      }
+
+      // Sub-tab cycle: Ctrl+Shift+] / Ctrl+Shift+[
+      if (e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey) {
+        if (e.key === ']' || e.code === 'BracketRight') {
+          e.preventDefault()
+          cycleGroupTab(1)
+          return
+        }
+        if (e.key === '[' || e.code === 'BracketLeft') {
+          e.preventDefault()
+          cycleGroupTab(-1)
+          return
+        }
+      }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [enterZenMode, exitZenMode, setCommandPaletteOpen])
+  }, [enterZenMode, exitZenMode, setCommandPaletteOpen, setActiveGroup, cycleGroupTab])
 
+  const isSidebarGroup = activeGroup === 'files' || activeGroup === 'work'
+  const isMainViewGroup = activeGroup === 'agents' || activeGroup === 'insights'
   // In zen mode, hide sidebar and chat regardless of their state
-  const showSidebar = isSidebarOpen && !isZenMode && activeView !== 'settings'
+  const showSidebar = isSidebarOpen && !isZenMode && activeView !== 'settings' && isSidebarGroup
   const showChat = isChatOpen && !isZenMode
   const showTerminalView = activeView === 'terminal' || isWorkspaceActive
+  const showProjectsView = !isWorkspaceActive && activeView === 'projects'
   const showFocusView = !isWorkspaceActive && activeView === 'focus'
   const showOrchestratorView = !isWorkspaceActive && activeView === 'orchestrator'
   const showGitDiffView = !isWorkspaceActive && activeView === 'git' && activeDiffFile !== null
   const showEditorView =
-    !showTerminalView && !showFocusView && !showOrchestratorView && !showGitDiffView
+    !showTerminalView &&
+    !showProjectsView &&
+    !showFocusView &&
+    !showOrchestratorView &&
+    !showGitDiffView
+
+  const showMainGroupStrip = isMainViewGroup && !isWorkspaceActive && !isZenMode
+  const agentsTabs: SubTab[] = [
+    { id: 'projects', label: 'Projects', icon: FolderKanban },
+    { id: 'terminal', label: 'Terminal', icon: TerminalSquare },
+    { id: 'orchestrator', label: 'Orchestrator', icon: LayoutDashboard }
+  ]
+  const insightsTabs: SubTab[] = [{ id: 'focus', label: 'Focus', icon: BarChart3 }]
+  const mainGroupTabs = activeGroup === 'agents' ? agentsTabs : insightsTabs
 
   useEffect(() => {
     if (!showTerminalView) {
@@ -442,16 +511,20 @@ export const AppLayout = () => {
               }}
             >
               <div style={{ width: sidebarWidth, minWidth: sidebarWidth, height: '100%' }}>
-                {activeView === 'projects' ? <ProjectList /> : <Sidebar />}
+                <Sidebar />
               </div>
             </motion.div>
           )}
 
           {/* Main Content Area */}
           <div className={`flex-1 min-w-0 flex flex-col relative z-0 overflow-hidden bg-[#050505]`}>
+            {showMainGroupStrip && (
+              <SubTabStrip tabs={mainGroupTabs} activeTab={activeView} onSelect={setActiveView} />
+            )}
             <div className="flex-1 min-h-0" style={{ display: showTerminalView ? 'flex' : 'none' }}>
               <FocusTerminal />
             </div>
+            {showProjectsView ? <ProjectList /> : null}
             {showFocusView ? <FocusAnalyticsDashboard /> : null}
             {showOrchestratorView ? <AgentOrchestratorDashboard /> : null}
             {showGitDiffView ? <GitDiffEditor /> : null}

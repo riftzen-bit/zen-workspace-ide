@@ -86,7 +86,7 @@ export const CodeReviewPanel = ({
   monaco,
   onAppliedChange
 }: CodeReviewPanelProps) => {
-  const { workspaceDir, activeFile, updateFileContent, openFiles } = useFileStore()
+  const { workspaceDir, activeFile, updateFileContent, openFiles, markFileSaved } = useFileStore()
   const { addToast } = useUIStore()
   const [findings, setFindings] = useState<ReviewFinding[]>([])
   const [summary, setSummary] = useState('')
@@ -203,9 +203,10 @@ export const CodeReviewPanel = ({
       if (!saved) {
         throw new Error('Failed to save the suggested change.')
       }
+      markFileSaved(absolutePath, nextContent)
 
       if (openFiles.some((item) => item.path === absolutePath || item.path === filePath)) {
-        updateFileContent(activeFile === absolutePath ? absolutePath : absolutePath, nextContent)
+        updateFileContent(activeFile === absolutePath ? absolutePath : filePath, nextContent)
       }
 
       setFindings((current) =>

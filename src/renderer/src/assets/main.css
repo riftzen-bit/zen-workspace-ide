@@ -40,10 +40,14 @@
   --color-text-secondary: #a1a1aa;
   --color-text-tertiary: #71717a;
   --color-text-muted: #52525b;
+
+  /* Contrast text used on accent/secondary fills (inverted in light mode) */
+  --color-button-text: #0a0a0c;
 }
 
 body {
-  @apply text-zinc-400 font-sans;
+  font-family: var(--font-sans);
+  color: var(--color-text-tertiary);
   background-color: var(--color-surface-0);
   overscroll-behavior: none;
   overflow: hidden;
@@ -59,11 +63,11 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--color-border-default);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--color-border-hover);
 }
 ::-webkit-scrollbar-corner {
   background: transparent;
@@ -83,10 +87,10 @@ body {
   appearance: none;
   width: 12px;
   height: 12px;
-  background-color: #f4f4f5;
+  background-color: var(--color-text-primary);
   border-radius: 50%;
   cursor: ew-resize;
-  box-shadow: 0 0 0 2px #18181b;
+  box-shadow: 0 0 0 2px var(--color-surface-2);
   transition: transform 0.15s;
 }
 .slider-thumb::-webkit-slider-thumb:hover {
@@ -180,7 +184,7 @@ body {
 /* Primary button — amber, high-emphasis CTA */
 .btn-primary {
   background: var(--color-accent);
-  color: #0a0a0c;
+  color: var(--color-button-text);
   font-weight: 600;
   border-radius: 9px;
   padding: 9px 18px;
@@ -205,7 +209,7 @@ body {
 /* Secondary button — sage/teal, for chat-panel CTAs */
 .btn-secondary {
   background: var(--color-secondary);
-  color: #0a0a0c;
+  color: var(--color-button-text);
   font-weight: 600;
   border-radius: 9px;
   padding: 9px 18px;

@@ -19,25 +19,35 @@ export const TaskTracker = () => {
   const [filter, setFilter] = useState<FilterTag>('ALL')
   const [loading, setLoading] = useState(false)
 
-  const refreshTodos = useCallback(async () => {
-    if (!workspaceDir) {
-      setTodos([])
-      return
-    }
+  const refreshTodos = useCallback(
+    async (isCancelled?: () => boolean) => {
+      if (!workspaceDir) {
+        if (!isCancelled?.()) setTodos([])
+        return
+      }
 
-    setLoading(true)
-    try {
-      const nextTodos = await window.api.scanTodos(workspaceDir)
-      setTodos(nextTodos)
-    } catch (error) {
-      addToast(error instanceof Error ? error.message : 'Failed to scan TODO comments', 'error')
-    } finally {
-      setLoading(false)
-    }
-  }, [addToast, workspaceDir])
+      if (!isCancelled?.()) setLoading(true)
+      try {
+        const nextTodos = await window.api.scanTodos(workspaceDir)
+        if (isCancelled?.()) return
+        setTodos(nextTodos)
+      } catch (error) {
+        if (!isCancelled?.()) {
+          addToast(error instanceof Error ? error.message : 'Failed to scan TODO comments', 'error')
+        }
+      } finally {
+        if (!isCancelled?.()) setLoading(false)
+      }
+    },
+    [addToast, workspaceDir]
+  )
 
   useEffect(() => {
-    void refreshTodos()
+    let cancelled = false
+    void refreshTodos(() => cancelled)
+    return () => {
+      cancelled = true
+    }
   }, [refreshTodos])
 
   const filteredTodos = useMemo(() => {
@@ -93,7 +103,11 @@ export const TaskTracker = () => {
             {filteredTodos.length}
           </span>
         </div>
-        <button onClick={refreshTodos} className="btn-ghost p-1.5" title="Refresh tasks">
+        <button
+          onClick={() => void refreshTodos()}
+          className="btn-ghost p-1.5"
+          title="Refresh tasks"
+        >
           <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
         </button>
       </div>

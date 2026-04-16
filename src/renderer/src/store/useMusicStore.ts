@@ -50,52 +50,53 @@ export const useMusicStore = create<MusicState>()(
 
       setIsGenerating: (v) => set({ isGenerating: v }),
       setGenerationError: (e) => set({ generationError: e }),
-      setCurrentTrack: (track) =>
+      setCurrentTrack: (track) => {
+        // Side effects (createObjectURL / revokeObjectURL) must run OUTSIDE the
+        // set() updater — React StrictMode double-invokes updater functions,
+        // which would otherwise allocate two blob URLs and leak one.
+        let blobUrl: string | null = null
+        try {
+          const binary = atob(track.audioBase64)
+          const bytes = new Uint8Array(binary.length)
+          for (let i = 0; i < binary.length; i++) {
+            bytes[i] = binary.charCodeAt(i)
+          }
+          const blob = new Blob([bytes], { type: track.mimeType })
+          blobUrl = URL.createObjectURL(blob)
+        } catch {
+          // Blob URL creation failed, audio won't play inline
+        }
+
+        const previous = useMusicStore.getState().currentTrack
+        if (previous?.blobUrl && previous.blobUrl !== blobUrl) {
+          URL.revokeObjectURL(previous.blobUrl)
+        }
+
+        const trackWithBlob = { ...track, blobUrl }
+
         set((state) => {
-          // Create blob URL in renderer
-          let blobUrl: string | null = null
-          try {
-            const binary = atob(track.audioBase64)
-            const bytes = new Uint8Array(binary.length)
-            for (let i = 0; i < binary.length; i++) {
-              bytes[i] = binary.charCodeAt(i)
-            }
-            const blob = new Blob([bytes], { type: track.mimeType })
-            blobUrl = URL.createObjectURL(blob)
-          } catch {
-            // Blob URL creation failed, audio won't play inline
-          }
-
-          const trackWithBlob = { ...track, blobUrl }
-
-          // Revoke old blob URL to avoid memory leaks
-          if (state.currentTrack?.blobUrl) {
-            URL.revokeObjectURL(state.currentTrack.blobUrl)
-          }
-
-          // Keep last MAX_HISTORY tracks (without blob URLs to avoid persisting large data)
           const historyEntry = { ...trackWithBlob, blobUrl: null }
           const newHistory = [
             historyEntry,
             ...state.trackHistory.filter((t) => t.id !== track.id)
           ].slice(0, MAX_HISTORY)
-
           return {
             currentTrack: trackWithBlob,
             trackHistory: newHistory,
             isLyriaPlaying: false,
             generationError: null
           }
-        }),
+        })
+      },
       setIsLyriaPlaying: (v) => set({ isLyriaPlaying: v }),
       setLyriaVolume: (v) => set({ lyriaVolume: v }),
-      clearCurrentTrack: () =>
-        set((state) => {
-          if (state.currentTrack?.blobUrl) {
-            URL.revokeObjectURL(state.currentTrack.blobUrl)
-          }
-          return { currentTrack: null, isLyriaPlaying: false }
-        }),
+      clearCurrentTrack: () => {
+        const previous = useMusicStore.getState().currentTrack
+        if (previous?.blobUrl) {
+          URL.revokeObjectURL(previous.blobUrl)
+        }
+        set({ currentTrack: null, isLyriaPlaying: false })
+      },
       removeFromHistory: (id) =>
         set((state) => ({ trackHistory: state.trackHistory.filter((t) => t.id !== id) })),
       setPendingPrompt: (prompt) => set({ pendingPrompt: prompt }),
@@ -107,8 +108,8 @@ export const useMusicStore = create<MusicState>()(
       partialize: (state) => ({
         lyriaVolume: state.lyriaVolume,
         vibe: state.vibe,
-        // Persist history without blob URLs (they're runtime-only)
-        trackHistory: state.trackHistory.map((t) => ({ ...t, blobUrl: null }))
+        // Persist history without blob URLs or large base64 data (they're runtime-only)
+        trackHistory: state.trackHistory.map((t) => ({ ...t, blobUrl: null, audioBase64: '' }))
       })
     }
   )

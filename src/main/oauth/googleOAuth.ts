@@ -304,12 +304,16 @@ export function setupOAuthHandlers(): void {
 
       await shell.openExternal(authUrl)
 
+      let timeoutHandle: NodeJS.Timeout | null = null
       const authResult = await Promise.race([
         loopback.waitForCode(),
         new Promise<never>((_, reject) => {
-          setTimeout(() => reject(new Error('OAuth timeout')), 10 * 60 * 1000)
+          timeoutHandle = setTimeout(() => reject(new Error('OAuth timeout')), 10 * 60 * 1000)
+          timeoutHandle.unref?.()
         })
-      ])
+      ]).finally(() => {
+        if (timeoutHandle) clearTimeout(timeoutHandle)
+      })
 
       if (authResult.state !== expectedState) {
         return {

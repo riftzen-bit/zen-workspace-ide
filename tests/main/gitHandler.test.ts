@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { ipcMain } from 'electron'
 import { execFile } from 'child_process'
-import { existsSync, readFileSync } from 'fs-extra'
+import { existsSync } from 'fs-extra'
+import { readFile } from 'fs/promises'
 import { setupGitHandlers } from '../../src/main/gitHandler'
 
 vi.mock('electron', () => ({
@@ -15,12 +16,26 @@ vi.mock('child_process', () => ({
 }))
 
 vi.mock('fs-extra', () => ({
-  existsSync: vi.fn(),
-  readFileSync: vi.fn()
+  existsSync: vi.fn()
+}))
+
+vi.mock('fs/promises', () => ({
+  readFile: vi.fn()
 }))
 
 vi.mock('path', () => ({
   resolve: (...args: string[]) => args.join('/')
+}))
+
+const resolvePathWithinRootMock = vi.fn((_root: string, candidate: string) => candidate)
+vi.mock('../../src/main/security', () => ({
+  isTrustedIpcSender: () => true,
+  resolvePathWithinRoot: (root: string, candidate: string) =>
+    resolvePathWithinRootMock(root, candidate)
+}))
+
+vi.mock('../../src/main/fsHandler', () => ({
+  getCurrentWorkspacePath: () => '/repo'
 }))
 
 describe('gitHandler', () => {
@@ -28,6 +43,7 @@ describe('gitHandler', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    resolvePathWithinRootMock.mockImplementation((_root: string, candidate: string) => candidate)
     ;(ipcMain.handle as any).mockImplementation((name: string, fn: (...args: any[]) => any) => {
       handlers[name] = fn
     })
@@ -51,7 +67,7 @@ describe('gitHandler', () => {
   })
 
   it('git:branch returns null if directory does not exist', async () => {
-    ;(existsSync as any).mockReturnValue(false)
+    resolvePathWithinRootMock.mockReturnValue(null)
     const result = await handlers['git:branch'](null, '/invalid')
     expect(result).toBeNull()
   })
@@ -98,7 +114,7 @@ describe('gitHandler', () => {
       const joined = args.join(' ')
       if (joined.includes(':0:')) cb(null, 'staged content')
     })
-    ;(readFileSync as any).mockReturnValue('workspace content')
+    ;(readFile as any).mockResolvedValue('workspace content')
 
     const result = await handlers['git:fileDiffContent'](null, '/repo', 'test.ts', false)
     expect(result).toEqual({ original: 'staged content', modified: 'workspace content' })

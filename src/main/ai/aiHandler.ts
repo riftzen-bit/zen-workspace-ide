@@ -110,7 +110,9 @@ function buildSystemPrompt(provider: string, model: string): string {
   )
 }
 
-let currentAbortController: AbortController | null = null
+let chatAbortController: AbortController | null = null
+let completeAbortController: AbortController | null = null
+let generateTestAbortController: AbortController | null = null
 const MAX_TOOL_CALL_ITERATIONS = 8
 
 // Block known cloud metadata endpoints to prevent SSRF from user-configured Ollama URLs
@@ -297,10 +299,10 @@ export function setupAIHandlers(): void {
   ipcMain.handle('ai:chat', async (event: IpcMainInvokeEvent, params: AIChatParams) => {
     if (!isTrustedIpcSender(event)) return
 
-    // Abort any in-flight request
-    currentAbortController?.abort()
-    currentAbortController = new AbortController()
-    const signal = currentAbortController.signal
+    // Abort any in-flight chat request
+    chatAbortController?.abort()
+    chatAbortController = new AbortController()
+    const signal = chatAbortController.signal
 
     // Build messages with system prompt prepended
     const messages: AIMessage[] = [
@@ -419,11 +421,12 @@ export function setupAIHandlers(): void {
           })
 
           // Loop continues...
-        } catch (e: any) {
+        } catch (e: unknown) {
+          const message = e instanceof Error ? e.message : String(e)
           currentMessages.push({ role: 'assistant', content: accumulatedText })
           currentMessages.push({
             role: 'user',
-            content: `<tool_response>\nError parsing tool call: ${e.message}\n</tool_response>`
+            content: `<tool_response>\nError parsing tool call: ${message}\n</tool_response>`
           })
         }
       } else {
@@ -438,8 +441,12 @@ export function setupAIHandlers(): void {
 
   ipcMain.handle('ai:abort', (event: IpcMainInvokeEvent) => {
     if (!isTrustedIpcSender(event)) return
-    currentAbortController?.abort()
-    currentAbortController = null
+    chatAbortController?.abort()
+    chatAbortController = null
+    completeAbortController?.abort()
+    completeAbortController = null
+    generateTestAbortController?.abort()
+    generateTestAbortController = null
   })
 
   ipcMain.handle('ai:complete', async (event: IpcMainInvokeEvent, params: AICompleteParams) => {
@@ -447,9 +454,13 @@ export function setupAIHandlers(): void {
       return { text: '', error: 'Untrusted sender' }
     }
 
+    completeAbortController?.abort()
+    completeAbortController = new AbortController()
+
     try {
       const text = await collectProviderText({
         ...params,
+        signal: completeAbortController.signal,
         messages: [
           {
             role: 'system',
@@ -568,10 +579,13 @@ export function setupAIHandlers(): void {
           }
         ]
 
+        generateTestAbortController?.abort()
+        generateTestAbortController = new AbortController()
+
         let generatedCode = await collectProviderText({
           ...params,
           messages,
-          signal: new AbortController().signal
+          signal: generateTestAbortController.signal
         })
 
         if (generatedCode.startsWith('```')) {
@@ -585,9 +599,12 @@ export function setupAIHandlers(): void {
         await fs.promises.writeFile(finalTargetPath, generatedCode + '\n', 'utf-8')
 
         return { success: true, targetPath: finalTargetPath }
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('ai:generateTest error:', error)
-        return { success: false, error: error.message }
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error)
+        }
       }
     }
   )

@@ -62,7 +62,27 @@ export const StatusBar = () => {
       setGitBranch(null)
       return
     }
-    window.api.git.branch(workspaceDir).then(setGitBranch)
+    let cancelled = false
+    const fetchBranch = () => {
+      window.api.git
+        .branch(workspaceDir)
+        .then((branch) => {
+          if (!cancelled) setGitBranch(branch)
+        })
+        .catch(() => {
+          if (!cancelled) setGitBranch(null)
+        })
+    }
+    fetchBranch()
+    // Poll so status bar reflects checkouts / commits happening outside the app.
+    const interval = setInterval(fetchBranch, 15_000)
+    const onFocus = () => fetchBranch()
+    window.addEventListener('focus', onFocus)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+      window.removeEventListener('focus', onFocus)
+    }
   }, [workspaceDir])
 
   const activeWorkspaces = workspaces.filter((ws) => ws.status !== 'paused')

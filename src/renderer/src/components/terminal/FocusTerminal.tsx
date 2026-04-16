@@ -21,6 +21,7 @@ import {
   type LucideIcon
 } from 'lucide-react'
 import { transition } from '../../lib/motion'
+import { HorizontalScroller } from '../layout/HorizontalScroller'
 
 const WORKSPACE_TEMPLATES: {
   id: string
@@ -87,6 +88,17 @@ export const FocusTerminal = () => {
   const [layout, setLayout] = useState(1)
 
   const CLI_OPTIONS = ['Terminal', 'Claude CLI', 'Codex CLI', 'Gemini CLI', 'Opencode CLI']
+
+  const summarizeCliTypes = (types: string[]): string => {
+    const counts = new Map<string, number>()
+    for (const t of types) counts.set(t, (counts.get(t) || 0) + 1)
+    return [...counts.entries()]
+      .map(([name, count]) => {
+        const short = name.replace(' CLI', '')
+        return count > 1 ? `${count}\u00D7${short}` : short
+      })
+      .join(' + ')
+  }
 
   const handleLayoutChange = (num: number) => {
     setLayout(num)
@@ -206,7 +218,7 @@ export const FocusTerminal = () => {
             </button>
           </div>
 
-          <div className="p-5 flex flex-col gap-5">
+          <div className="p-5 flex flex-col gap-5 overflow-y-auto" style={{ maxHeight: '70vh' }}>
             {/* Templates */}
             <div className="flex flex-col gap-2">
               <label className="text-label" style={{ color: 'var(--color-text-muted)' }}>
@@ -294,7 +306,8 @@ export const FocusTerminal = () => {
                           className="text-label truncate"
                           style={{ color: 'var(--color-text-muted)' }}
                         >
-                          {tpl.description}
+                          {tpl.layout} pane{tpl.layout > 1 ? 's' : ''} &middot;{' '}
+                          {summarizeCliTypes(tpl.cliTypes)}
                         </p>
                       </div>
                     </button>
@@ -418,7 +431,9 @@ export const FocusTerminal = () => {
               ) : (
                 <div
                   className="grid gap-1.5"
-                  style={{ gridTemplateColumns: layout <= 2 ? '1fr 1fr' : 'repeat(2, 1fr)' }}
+                  style={{
+                    gridTemplateColumns: layout >= 6 ? 'repeat(4, 1fr)' : 'repeat(2, 1fr)'
+                  }}
                 >
                   {cliTypes.map((type, i) => (
                     <div key={i} className="relative">
@@ -469,7 +484,7 @@ export const FocusTerminal = () => {
                 if (!name.trim()) return
                 addTemplate({
                   label: name,
-                  description: `${layout} pane${layout > 1 ? 's' : ''} · ${cliTypes.join(' + ')}`,
+                  description: `${layout} pane${layout > 1 ? 's' : ''} · ${summarizeCliTypes(cliTypes)}`,
                   layout,
                   cliTypes
                 })
@@ -508,7 +523,11 @@ export const FocusTerminal = () => {
             backgroundColor: 'var(--color-surface-1)'
           }}
         >
-          <div className="flex items-end flex-1 overflow-x-auto hide-scrollbar gap-1">
+          <HorizontalScroller
+            className="flex-1 items-end"
+            scrollerClassName="items-end gap-1"
+            step={200}
+          >
             <button
               onClick={() => setActiveWorkspace(null)}
               className="btn-ghost p-1.5 ml-1 shrink-0"
@@ -584,7 +603,7 @@ export const FocusTerminal = () => {
             >
               <Plus size={15} />
             </button>
-          </div>
+          </HorizontalScroller>
         </div>
 
         {/* Terminal grids */}

@@ -26,17 +26,31 @@ export const ZenOrchestrator = () => {
         return
       }
       setVibe('focus')
-      // Only generate if Lyria isn't already playing the right vibe, or let's just generate a new one
-      ;(window as any).api?.music?.generate?.({
-        model: 'lyria-3-pro-preview',
-        prompt: 'Deep Focus (ambient/lo-fi), smooth ambient lo-fi beat for deep work',
-        instrumental: true,
-        apiKey: apiKey?.trim(),
-        useGeminiOAuth: useOAuth
-      })
+      Promise.resolve(
+        (window as any).api?.music?.generate?.({
+          model: 'lyria-3-pro-preview',
+          prompt: 'Deep Focus (ambient/lo-fi), smooth ambient lo-fi beat for deep work',
+          instrumental: true,
+          apiKey: apiKey?.trim(),
+          useGeminiOAuth: useOAuth
+        })
+      ).catch(() => {})
       useMusicStore.getState().setIsLyriaPlaying(true)
       useUIStore.getState().setVibePlayerOpen(true)
+
+      // Teardown when Zen mode exits: stop active generation + pause playback,
+      // close the vibe player so users aren't left with an orphaned panel.
+      return () => {
+        try {
+          ;(window as any).api?.music?.abort?.()
+        } catch {
+          // abort is best-effort
+        }
+        useMusicStore.getState().setIsLyriaPlaying(false)
+        useUIStore.getState().setVibePlayerOpen(false)
+      }
     }
+    return undefined
   }, [isZenMode, setVibe, addToast])
 
   useEffect(() => {
@@ -48,7 +62,9 @@ export const ZenOrchestrator = () => {
         const nextTimer = zenState.timer - 1
         zenState.setTimer(nextTimer)
 
-        if (nextTimer <= 0 && !reportedPomodoro.current) {
+        if (nextTimer > 0) {
+          reportedPomodoro.current = false
+        } else if (!reportedPomodoro.current) {
           reportedPomodoro.current = true
 
           setVibe('upbeat')
@@ -58,21 +74,21 @@ export const ZenOrchestrator = () => {
             const useOAuth = settings.geminiOAuthActive
 
             if (useOAuth || apiKey?.trim()) {
-              ;(window as any).api?.music?.generate?.({
-                model: 'lyria-3-pro-preview',
-                prompt: 'An upbeat high energy electronic focus track for coding',
-                instrumental: true,
-                apiKey: apiKey?.trim(),
-                useGeminiOAuth: useOAuth
-              })
+              Promise.resolve(
+                (window as any).api?.music?.generate?.({
+                  model: 'lyria-3-pro-preview',
+                  prompt: 'An upbeat high energy electronic focus track for coding',
+                  instrumental: true,
+                  apiKey: apiKey?.trim(),
+                  useGeminiOAuth: useOAuth
+                })
+              ).catch(() => {})
             }
           }
-          addToast('Pomodoro cycle complete! Entering Upbeat Mode ⚡', 'zen-upbeat')
+          addToast('Pomodoro cycle complete! Entering Upbeat Mode', 'zen-upbeat')
 
           // Reset timer automatically for next pomodoro
           zenState.resetTimer(25 * 60)
-
-          reportedPomodoro.current = false
         }
       }
 
@@ -81,10 +97,7 @@ export const ZenOrchestrator = () => {
       const hours = Math.floor(currentCodingTime / 7200)
       if (hours > lastReportedHour.current && hours > 0) {
         lastReportedHour.current = hours
-        addToast(
-          "You've been coding for 2 hours, go grab some water, I'll review this code for you!",
-          'zen-chill'
-        )
+        addToast(`You've been coding for ${hours * 2} hours, go grab some water!`, 'zen-chill')
       }
     }, 1000)
 

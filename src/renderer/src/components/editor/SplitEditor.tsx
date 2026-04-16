@@ -5,6 +5,7 @@ import { useFileStore } from '../../store/useFileStore'
 import { useSettingsStore } from '../../store/useSettingsStore'
 import { useUIStore } from '../../store/useUIStore'
 import { SplitSquareHorizontal, SplitSquareVertical, X } from 'lucide-react'
+import { useEditorTheme } from '../../lib/useEditorTheme'
 
 interface EditorPaneProps {
   filePath: string | null
@@ -14,38 +15,39 @@ interface EditorPaneProps {
 const EditorPane = ({ filePath, isPrimary }: EditorPaneProps) => {
   const { fileContents, updateFileContent, setIsSaving, openFiles, setActiveFile, closeFile } =
     useFileStore()
-  const { fontSize, wordWrap } = useSettingsStore()
+  const {
+    fontSize,
+    wordWrap,
+    editorFontFamily,
+    editorLineHeight,
+    editorCursorStyle,
+    editorMinimapEnabled,
+    editorLigaturesEnabled,
+    editorRenderWhitespace
+  } = useSettingsStore()
   const { setSecondaryActiveFile } = useUIStore()
   const monaco = useMonaco()
+  const editorThemeName = useEditorTheme(monaco)
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null)
 
   const content = filePath ? (fileContents[filePath] ?? '') : ''
 
+  const filePathRef = useRef(filePath)
   useEffect(() => {
-    if (!monaco) return
-    monaco.editor.defineTheme('modern-dark', {
-      base: 'vs-dark',
-      inherit: true,
-      rules: [{ token: '', background: '000000' }],
-      colors: {
-        'editor.background': '#000000',
-        'editor.lineHighlightBackground': '#ffffff06',
-        'editorLineNumber.foreground': '#3f3f46',
-        'editorIndentGuide.background': '#ffffff08'
-      }
-    })
-    monaco.editor.setTheme('modern-dark')
-  }, [monaco])
+    filePathRef.current = filePath
+  }, [filePath])
 
   const handleEditorDidMount: OnMount = (editor, monacoInstance) => {
     editorRef.current = editor
     editor.addCommand(monacoInstance.KeyMod.CtrlCmd | monacoInstance.KeyCode.KeyS, async () => {
-      if (filePath) {
+      const currentFile = filePathRef.current
+      if (currentFile) {
         setIsSaving(true)
         const currentContent = editor.getValue()
         try {
-          await window.api.saveFile(filePath, currentContent)
-          useUIStore.getState().addToast(`Saved ${filePath.split('/').pop()}`, 'success')
+          await window.api.saveFile(currentFile, currentContent)
+          useFileStore.getState().markFileSaved(currentFile, currentContent)
+          useUIStore.getState().addToast(`Saved ${currentFile.split(/[\\/]/).pop()}`, 'success')
         } catch {
           useUIStore.getState().addToast('Failed to save file', 'error')
         } finally {
@@ -140,18 +142,22 @@ const EditorPane = ({ filePath, isPrimary }: EditorPaneProps) => {
       {/* Editor */}
       <div className="flex-1">
         <Editor
-          theme="modern-dark"
+          theme={editorThemeName}
           language={getLanguage(filePath)}
           value={content}
           onChange={handleContentChange}
           onMount={handleEditorDidMount}
           options={{
             fontSize,
+            fontFamily: `'${editorFontFamily}', 'JetBrains Mono', 'Fira Code', Consolas, monospace`,
+            fontLigatures: editorLigaturesEnabled,
+            lineHeight: editorLineHeight,
+            cursorStyle: editorCursorStyle,
             wordWrap: wordWrap ? 'on' : 'off',
-            minimap: { enabled: false },
+            minimap: { enabled: editorMinimapEnabled },
             scrollBeyondLastLine: false,
             lineNumbers: 'on',
-            renderWhitespace: 'selection',
+            renderWhitespace: editorRenderWhitespace,
             smoothScrolling: true,
             cursorSmoothCaretAnimation: 'on',
             automaticLayout: true

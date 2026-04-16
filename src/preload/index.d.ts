@@ -124,7 +124,12 @@ declare global {
           replace: string
           caseSensitive: boolean
         }>
-      ) => Promise<{ ok: boolean; error?: string; count: number }>
+      ) => Promise<{
+        ok: boolean
+        error?: string
+        count: number
+        failures: Array<{ path: string; error: string }>
+      }>
       searchYoutube: (
         query: string
       ) => Promise<{ videoId: string; title: string; url: string } | null>
@@ -159,6 +164,28 @@ declare global {
         stashPop: (cwd: string, index?: string) => Promise<{ success: boolean; error?: string }>
         stashApply: (cwd: string, index?: string) => Promise<{ success: boolean; error?: string }>
         stashDrop: (cwd: string, index: string) => Promise<{ success: boolean; error?: string }>
+        log: (
+          cwd: string,
+          limit?: number
+        ) => Promise<
+          Array<{
+            hash: string
+            shortHash: string
+            author: string
+            email: string
+            timestamp: number
+            subject: string
+          }>
+        >
+        branchList: (cwd: string) => Promise<
+          Array<{
+            name: string
+            isCurrent: boolean
+            isRemote: boolean
+            lastCommit: string
+          }>
+        >
+        checkout: (cwd: string, branch: string) => Promise<{ success: boolean; error?: string }>
       }
       store: {
         get: (key: string) => Promise<unknown>
@@ -189,6 +216,10 @@ declare global {
         resume: (id: string) => Promise<PtyOperationResult>
         pauseWorkspace: (terminalIds: string[]) => Promise<PtyOperationResult>
         resumeWorkspace: (terminalIds: string[]) => Promise<PtyOperationResult>
+        exportSession: (
+          content: string,
+          defaultName?: string
+        ) => Promise<{ success: boolean; path?: string; error?: string }>
         onData: (callback: (id: string, data: string) => void) => () => void
         onExit: (callback: (id: string) => void) => () => void
         onActivity: (
@@ -270,6 +301,40 @@ declare global {
         get: (key: string) => Promise<string | null>
         set: (key: string, value: string) => Promise<void>
         delete: (key: string) => Promise<void>
+      }
+      weather: {
+        geocode: (query: string) => Promise<
+          | {
+              ok: true
+              data: {
+                city: string
+                country: string
+                latitude: number
+                longitude: number
+                timezone: string
+              } | null
+            }
+          | { ok: false; error: string }
+        >
+        ipLocate: () => Promise<
+          | {
+              ok: true
+              data: {
+                city: string
+                country: string
+                latitude: number
+                longitude: number
+                timezone: string
+              }
+            }
+          | { ok: false; error: string }
+        >
+        current: (
+          latitude: number,
+          longitude: number
+        ) => Promise<
+          { ok: true; data: { temp: number; code: number } } | { ok: false; error: string }
+        >
       }
     }
   }

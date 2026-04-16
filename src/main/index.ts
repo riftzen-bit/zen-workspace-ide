@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain, session } from 'electron'
+import { app, shell, BrowserWindow, session } from 'electron'
 import StoreModule from 'electron-store'
 
 const Store = ((StoreModule as { default?: typeof StoreModule }).default ||
@@ -29,6 +29,7 @@ import { setupOAuthHandlers } from './oauth/googleOAuth'
 import { setupFileWatcher } from './fileWatcher'
 import { setupGitHandlers } from './gitHandler'
 import { setupLyriaHandlers } from './music/lyriaHandler'
+import { setupWeatherHandlers } from './weatherHandler'
 
 function isSafeExternalUrl(rawUrl: string): boolean {
   try {
@@ -75,7 +76,10 @@ function createWindow(): void {
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: true
+      sandbox: true,
+      contextIsolation: true,
+      nodeIntegration: false,
+      webSecurity: true
     }
   })
 
@@ -102,21 +106,23 @@ function createWindow(): void {
     process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true'
   }
 
-  mainWindow.webContents.on('console-message', (event) => {
-    const msg = event.message
-    if (
-      msg.includes('[vite] connecting...') ||
-      msg.includes('[vite] connected.') ||
-      msg.includes('Download the React DevTools') ||
-      msg.includes('Autofill.enable') ||
-      msg.includes('Autofill.setAddresses')
-    ) {
-      return
-    }
-    console.log(
-      `[RENDERER CONSOLE] level ${event.level}: ${msg} (at ${event.sourceId}:${event.lineNumber})`
-    )
-  })
+  if (is.dev) {
+    mainWindow.webContents.on('console-message', (event) => {
+      const msg = event.message
+      if (
+        msg.includes('[vite] connecting...') ||
+        msg.includes('[vite] connected.') ||
+        msg.includes('Download the React DevTools') ||
+        msg.includes('Autofill.enable') ||
+        msg.includes('Autofill.setAddresses')
+      ) {
+        return
+      }
+      console.log(
+        `[RENDERER CONSOLE] level ${event.level}: ${msg} (at ${event.sourceId}:${event.lineNumber})`
+      )
+    })
+  }
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
     if (isSafeExternalUrl(details.url)) {
@@ -150,7 +156,7 @@ app.whenReady().then(() => {
           ...details.responseHeaders,
           'Content-Security-Policy': [
             "default-src 'self';",
-            "script-src 'self' 'unsafe-eval' blob:;",
+            "script-src 'self' blob:;",
             "style-src 'self' 'unsafe-inline';",
             "img-src 'self' data: https:;",
             "font-src 'self' data:;",
@@ -171,9 +177,6 @@ app.whenReady().then(() => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  // IPC test
-  ipcMain.on('ping', () => console.log('pong'))
-
   // Initialize FS Handlers
   setupFSHandlers()
   setupYoutubeHandlers()
@@ -185,6 +188,7 @@ app.whenReady().then(() => {
   setupFileWatcher()
   setupGitHandlers()
   setupLyriaHandlers()
+  setupWeatherHandlers()
   createWindow()
 
   app.on('activate', function () {

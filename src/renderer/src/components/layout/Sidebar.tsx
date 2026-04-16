@@ -1,11 +1,10 @@
-﻿import { useState, useEffect, useRef, useCallback, memo } from 'react'
+import { useState, useEffect, useRef, useCallback, memo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   ChevronRight,
   FolderOpen,
   Folder,
   FileText,
-  Search,
   FileCode,
   FileJson,
   FileImage,
@@ -16,20 +15,30 @@ import {
   Trash2,
   Clock,
   X,
-  Replace,
-  CaseSensitive,
-  RefreshCw,
+  Pin,
+  PinOff,
+  Search,
+  Bookmark,
+  GitBranch,
+  CheckSquare,
+  StickyNote,
+  Activity,
   LucideIcon
 } from 'lucide-react'
 import { useFileStore } from '../../store/useFileStore'
 import { FileNode } from '../../types'
 import { useResizable } from '../../hooks/useResizable'
-import { useUIStore } from '../../store/useUIStore'
+import { useUIStore, GROUP_TABS, ActivityView } from '../../store/useUIStore'
+import { useActivityStore } from '../../store/useActivityStore'
 import { transition } from '../../lib/motion'
 import { ActivityFeed } from '../activity/ActivityFeed'
 import { GitDashboard } from '../git/GitDashboard'
 import { TaskTracker } from '../tasks/TaskTracker'
 import { BookmarkPanel } from '../bookmarks/BookmarkPanel'
+import { NotesPanel } from '../notes/NotesPanel'
+import { PinnedFilesStrip } from '../bookmarks/PinnedFilesStrip'
+import { UnifiedSearch } from '../search/UnifiedSearch'
+import { SubTabStrip, SubTab } from './SubTabStrip'
 
 const getFileIcon = (name: string) => {
   const ext = name.split('.').pop()?.toLowerCase()
@@ -66,7 +75,21 @@ function parentDir(filePath: string): string {
   return parts.join('/')
 }
 
-// ── File context menu ────────────────────────────────────────────────────────
+const TAB_META: Record<ActivityView, { label: string; icon: LucideIcon }> = {
+  explorer: { label: 'Explorer', icon: Folder },
+  find: { label: 'Find', icon: Search },
+  search: { label: 'Search', icon: Search },
+  bookmarks: { label: 'Bookmarks', icon: Bookmark },
+  git: { label: 'Git', icon: GitBranch },
+  tasks: { label: 'Tasks', icon: CheckSquare },
+  notes: { label: 'Notes', icon: StickyNote },
+  activity: { label: 'Activity', icon: Activity },
+  projects: { label: 'Projects', icon: Folder },
+  terminal: { label: 'Terminal', icon: Folder },
+  orchestrator: { label: 'Orchestrator', icon: Folder },
+  focus: { label: 'Focus', icon: Folder },
+  settings: { label: 'Settings', icon: Folder }
+}
 
 const MenuItem = memo(function MenuItem({
   Icon,
@@ -101,7 +124,8 @@ interface FileContextMenuProps {
 
 const FileContextMenu = ({ x, y, node, onClose, onRefresh }: FileContextMenuProps) => {
   const menuRef = useRef<HTMLDivElement>(null)
-  const { openFile, markFileDeleted } = useFileStore()
+  const { openFile, markFileDeleted, togglePinnedFile, isPinned } = useFileStore()
+  const pinned = !node.isDirectory && isPinned(node.path)
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -120,7 +144,7 @@ const FileContextMenu = ({ x, y, node, onClose, onRefresh }: FileContextMenuProp
 
   const menuWidth = 200
   const adjustedX = x + menuWidth > window.innerWidth ? x - menuWidth : x
-  const adjustedY = Math.min(y, window.innerHeight - 220)
+  const adjustedY = Math.min(y, window.innerHeight - 260)
 
   const handleNewFile = async () => {
     onClose()
@@ -182,6 +206,11 @@ const FileContextMenu = ({ x, y, node, onClose, onRefresh }: FileContextMenuProp
     }
   }
 
+  const handleTogglePin = () => {
+    onClose()
+    togglePinnedFile(node.path, node.name)
+  }
+
   return (
     <motion.div
       ref={menuRef}
@@ -215,13 +244,18 @@ const FileContextMenu = ({ x, y, node, onClose, onRefresh }: FileContextMenuProp
         <MenuItem Icon={FolderPlus} label="New Folder" onClick={handleNewFolder} />
         <div className="mx-3 my-1 h-px" style={{ backgroundColor: '#222222' }} />
         <MenuItem Icon={Pencil} label="Rename" onClick={handleRename} />
+        {!node.isDirectory && (
+          <MenuItem
+            Icon={pinned ? PinOff : Pin}
+            label={pinned ? 'Unpin File' : 'Pin File'}
+            onClick={handleTogglePin}
+          />
+        )}
         <MenuItem Icon={Trash2} label="Delete" color="#f87171" onClick={handleDelete} />
       </div>
     </motion.div>
   )
 }
-
-// ── File tree node ────────────────────────────────────────────────────────────
 
 interface FileTreeNodeProps {
   node: FileNode
@@ -235,16 +269,21 @@ const FileTreeNode = memo(function FileTreeNode({
   onContextMenu
 }: FileTreeNodeProps) {
   const [isOpen, setIsOpen] = useState(false)
-  const { openFile, activeFile } = useFileStore()
+  const { openFile, activeFile, isPinned } = useFileStore()
   const isSelected = activeFile === node.path
+  const pinned = !node.isDirectory && isPinned(node.path)
 
   const handleClick = useCallback(async () => {
     if (node.isDirectory) {
       setIsOpen((prev) => !prev)
     } else {
-      const content = await window.api.readFile(node.path)
-      if (content !== null) {
-        openFile(node.path, node.name, content)
+      try {
+        const content = await window.api.readFile(node.path)
+        if (content !== null) {
+          openFile(node.path, node.name, content)
+        }
+      } catch {
+        useUIStore.getState().addToast(`Failed to open ${node.name}`, 'error')
       }
     }
   }, [node.isDirectory, node.path, node.name, openFile])
@@ -292,9 +331,10 @@ const FileTreeNode = memo(function FileTreeNode({
             </>
           )}
         </div>
-        <span className="truncate text-[13px] font-medium tracking-wide leading-tight mt-px">
+        <span className="truncate text-[13px] font-medium tracking-wide leading-tight mt-px flex-1">
           {node.name}
         </span>
+        {pinned && <Pin size={10} className="ml-1 text-amber-400/80 shrink-0" strokeWidth={2} />}
       </div>
       {node.isDirectory && isOpen && node.children && (
         <div className="relative">
@@ -313,113 +353,188 @@ const FileTreeNode = memo(function FileTreeNode({
   )
 })
 
-// ── Sidebar ───────────────────────────────────────────────────────────────────
-
-export const Sidebar = () => {
+const ExplorerPanel = ({
+  onContextMenu
+}: {
+  onContextMenu: (e: React.MouseEvent, node: FileNode) => void
+}) => {
   const {
     fileTree,
     setWorkspaceDir,
     setFileTree,
     workspaceDir,
     openFile,
-    setActiveSearchQuery,
     recentFiles,
     removeFromRecentFiles,
     clearRecentFiles
   } = useFileStore()
-  const { sidebarWidth, setSidebarWidth, activeView } = useUIStore()
+
+  const handleOpenFolder = async () => {
+    try {
+      const dirPath = await window.api.openDirectory()
+      if (!dirPath) return
+      setWorkspaceDir(dirPath)
+      const tree = await window.api.readDirectory(dirPath)
+      setFileTree(tree)
+    } catch {
+      useUIStore.getState().addToast('Failed to open folder', 'error')
+    }
+  }
+
+  if (fileTree.length > 0) {
+    return (
+      <>
+        <PinnedFilesStrip />
+        <div
+          className="flex-1 overflow-y-auto hide-scrollbar pt-1 pb-4"
+          onContextMenu={(e) => {
+            if (e.target === e.currentTarget && workspaceDir) {
+              e.preventDefault()
+              const rootNode: FileNode = {
+                path: workspaceDir,
+                name: workspaceDir.split(/[\\/]/).pop() || 'workspace',
+                isDirectory: true
+              }
+              onContextMenu(e, rootNode)
+            }
+          }}
+        >
+          {fileTree.map((node) => (
+            <FileTreeNode key={node.path} node={node} onContextMenu={onContextMenu} />
+          ))}
+        </div>
+      </>
+    )
+  }
+
+  return (
+    <div className="flex-1 overflow-y-auto hide-scrollbar flex flex-col">
+      <PinnedFilesStrip />
+      {recentFiles.length > 0 && (
+        <div className="border-b border-white/[0.04]">
+          <div className="flex items-center justify-between px-4 py-2">
+            <div className="flex items-center gap-2">
+              <Clock size={12} className="text-zinc-500" />
+              <span className="text-[11px] font-semibold tracking-wider uppercase text-zinc-500">
+                Recent Files
+              </span>
+            </div>
+            <button
+              onClick={clearRecentFiles}
+              className="text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors"
+              title="Clear recent files"
+            >
+              Clear
+            </button>
+          </div>
+          <div className="pb-2">
+            {recentFiles.slice(0, 10).map((file) => (
+              <div
+                key={file.path}
+                className="flex items-center group px-4 py-1.5 cursor-pointer text-zinc-500 hover:bg-white/[0.02] hover:text-zinc-300 transition-colors"
+                onClick={async () => {
+                  try {
+                    const content = await window.api.readFile(file.path)
+                    if (content !== null) {
+                      openFile(file.path, file.name, content)
+                    }
+                  } catch {
+                    useUIStore.getState().addToast(`Failed to open ${file.name}`, 'error')
+                  }
+                }}
+              >
+                <span className="shrink-0 mr-2 scale-90">{getFileIcon(file.name)}</span>
+                <span className="truncate text-[13px] font-medium flex-1">{file.name}</span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    removeFromRecentFiles(file.path)
+                  }}
+                  className="opacity-0 group-hover:opacity-100 p-1 hover:bg-white/[0.06] rounded transition-opacity"
+                  title="Remove from recent"
+                >
+                  <X size={12} className="text-zinc-500" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="flex-1 flex items-center justify-center">
+        <div className="p-6 text-center flex flex-col items-center gap-4">
+          <div className="w-14 h-14 rounded-none flex items-center justify-center mb-1 bg-white/[0.03] border border-white/[0.05] shadow-inner">
+            <FolderOpen size={24} strokeWidth={1.4} className="text-zinc-500" />
+          </div>
+          <p className="text-[13px] text-zinc-500 font-medium tracking-wide">No workspace open</p>
+          <button
+            onClick={handleOpenFolder}
+            className="mt-2 px-4 py-2 rounded-none bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.05] text-[13px] text-zinc-300 font-medium transition-all duration-200 hover:scale-105 active:scale-95"
+          >
+            Open Folder
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export const Sidebar = () => {
+  const { workspaceDir, setFileTree } = useFileStore()
+  const { sidebarWidth, setSidebarWidth, activeView, activeGroup, setActiveView } = useUIStore()
+  const { unreadCount } = useActivityStore()
   const { width, startResizing, isResizing } = useResizable(sidebarWidth, 160, 600, setSidebarWidth)
 
-  const [searchQuery, setSearchQuery] = useState('')
-  const [replaceQuery, setReplaceQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<
-    Array<{
-      path: string
-      relativePath: string
-      name: string
-      line: number
-      column: number
-      lineContent: string
-      matchLength: number
-    }>
-  >([])
-  const [isSearching, setIsSearching] = useState(false)
-  const [caseSensitive, setCaseSensitive] = useState(false)
-  const [isReplacing, setIsReplacing] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; node: FileNode } | null>(
     null
   )
 
   const refreshTree = useCallback(async () => {
     if (!workspaceDir) return
-    const tree = await window.api.readDirectory(workspaceDir)
-    setFileTree(tree)
-  }, [workspaceDir, setFileTree])
-
-  useEffect(() => {
-    if (!searchQuery || !workspaceDir) {
-      setSearchResults([])
-      return
-    }
-
-    let cancelled = false
-
-    const timer = setTimeout(async () => {
-      setIsSearching(true)
-      try {
-        const results = await window.api.searchWithContext(searchQuery, workspaceDir, caseSensitive)
-        if (!cancelled) setSearchResults(results || [])
-      } catch (err) {
-        if (!cancelled) console.error(err)
-      } finally {
-        if (!cancelled) setIsSearching(false)
-      }
-    }, 500)
-
-    return () => {
-      cancelled = true
-      clearTimeout(timer)
-    }
-  }, [searchQuery, workspaceDir, caseSensitive])
-
-  const handleReplaceAll = async () => {
-    if (!workspaceDir || !searchQuery || !replaceQuery || searchResults.length === 0) return
-
-    setIsReplacing(true)
     try {
-      const uniquePaths = [...new Set(searchResults.map((r) => r.path))]
-      const replacements = uniquePaths.map((path) => ({
-        path,
-        search: searchQuery,
-        replace: replaceQuery,
-        caseSensitive
-      }))
-
-      const result = await window.api.replaceInFiles(replacements)
-      if (result.ok) {
-        setSearchQuery('')
-        setReplaceQuery('')
-        setSearchResults([])
-      }
-    } catch (err) {
-      console.error('Replace failed:', err)
-    } finally {
-      setIsReplacing(false)
-    }
-  }
-
-  const handleOpenFolder = async () => {
-    const dirPath = await window.api.openDirectory()
-    if (dirPath) {
-      setWorkspaceDir(dirPath)
-      const tree = await window.api.readDirectory(dirPath)
+      const tree = await window.api.readDirectory(workspaceDir)
       setFileTree(tree)
+    } catch {
+      // workspace may have been closed or file system unavailable
     }
-  }
+  }, [workspaceDir, setFileTree])
 
   const handleNodeContextMenu = (e: React.MouseEvent, node: FileNode) => {
     e.preventDefault()
     setContextMenu({ x: e.clientX, y: e.clientY, node })
+  }
+
+  const tabs: SubTab[] = (
+    activeGroup === 'files' || activeGroup === 'work' ? GROUP_TABS[activeGroup] : []
+  )
+    .filter((id) => id !== 'search')
+    .map((id) => ({
+      id,
+      label: TAB_META[id].label,
+      icon: TAB_META[id].icon,
+      badge: id === 'activity' ? unreadCount : undefined
+    }))
+
+  const renderPanel = () => {
+    switch (activeView) {
+      case 'explorer':
+        return <ExplorerPanel onContextMenu={handleNodeContextMenu} />
+      case 'find':
+      case 'search':
+        return <UnifiedSearch />
+      case 'bookmarks':
+        return <BookmarkPanel />
+      case 'git':
+        return <GitDashboard />
+      case 'tasks':
+        return <TaskTracker />
+      case 'notes':
+        return <NotesPanel />
+      case 'activity':
+        return <ActivityFeed />
+      default:
+        return <ExplorerPanel onContextMenu={handleNodeContextMenu} />
+    }
   }
 
   return (
@@ -432,246 +547,11 @@ export const Sidebar = () => {
       }}
     >
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <div
-          className="h-12 px-4 flex items-center justify-between border-b shrink-0 bg-[#050505]"
-          style={{ borderColor: '#222222' }}
-        >
-          <span className="text-[11px] font-semibold tracking-wider uppercase text-zinc-500">
-            {activeView === 'explorer'
-              ? 'Explorer'
-              : activeView === 'search'
-                ? 'Search'
-                : activeView === 'tasks'
-                  ? 'Tasks'
-                  : activeView === 'git'
-                    ? 'Source Control'
-                    : activeView === 'activity'
-                      ? 'Activity'
-                      : activeView === 'bookmarks'
-                        ? 'Bookmarks'
-                        : 'Search'}
-          </span>
-        </div>
+        <SubTabStrip tabs={tabs} activeTab={activeView} onSelect={setActiveView} />
 
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {activeView === 'activity' ? (
-            <ActivityFeed />
-          ) : activeView === 'tasks' ? (
-            <TaskTracker />
-          ) : activeView === 'git' ? (
-            <GitDashboard />
-          ) : activeView === 'bookmarks' ? (
-            <BookmarkPanel />
-          ) : activeView === 'explorer' ? (
-            fileTree.length > 0 ? (
-              <div
-                className="flex-1 overflow-y-auto hide-scrollbar pt-1 pb-4"
-                onContextMenu={(e) => {
-                  // Right-click on empty space → context menu for workspace root
-                  if (e.target === e.currentTarget && workspaceDir) {
-                    e.preventDefault()
-                    const rootNode: FileNode = {
-                      path: workspaceDir,
-                      name: workspaceDir.split('/').pop() ?? 'workspace',
-                      isDirectory: true
-                    }
-                    setContextMenu({ x: e.clientX, y: e.clientY, node: rootNode })
-                  }
-                }}
-              >
-                {fileTree.map((node) => (
-                  <FileTreeNode key={node.path} node={node} onContextMenu={handleNodeContextMenu} />
-                ))}
-              </div>
-            ) : (
-              <div className="flex-1 overflow-y-auto hide-scrollbar flex flex-col">
-                {/* Recent Files Section */}
-                {recentFiles.length > 0 && (
-                  <div className="border-b border-white/[0.04]">
-                    <div className="flex items-center justify-between px-4 py-2">
-                      <div className="flex items-center gap-2">
-                        <Clock size={12} className="text-zinc-500" />
-                        <span className="text-[11px] font-semibold tracking-wider uppercase text-zinc-500">
-                          Recent Files
-                        </span>
-                      </div>
-                      <button
-                        onClick={clearRecentFiles}
-                        className="text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors"
-                        title="Clear recent files"
-                      >
-                        Clear
-                      </button>
-                    </div>
-                    <div className="pb-2">
-                      {recentFiles.slice(0, 10).map((file) => (
-                        <div
-                          key={file.path}
-                          className="flex items-center group px-4 py-1.5 cursor-pointer text-zinc-500 hover:bg-white/[0.02] hover:text-zinc-300 transition-colors"
-                          onClick={async () => {
-                            const content = await window.api.readFile(file.path)
-                            if (content !== null) {
-                              openFile(file.path, file.name, content)
-                            }
-                          }}
-                        >
-                          <span className="shrink-0 mr-2 scale-90">{getFileIcon(file.name)}</span>
-                          <span className="truncate text-[13px] font-medium flex-1">
-                            {file.name}
-                          </span>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              removeFromRecentFiles(file.path)
-                            }}
-                            className="opacity-0 group-hover:opacity-100 p-1 hover:bg-white/[0.06] rounded transition-opacity"
-                            title="Remove from recent"
-                          >
-                            <X size={12} className="text-zinc-500" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Open Folder Section */}
-                <div className="flex-1 flex items-center justify-center">
-                  <div className="p-6 text-center flex flex-col items-center gap-4">
-                    <div className="w-14 h-14 rounded-none flex items-center justify-center mb-1 bg-white/[0.03] border border-white/[0.05] shadow-inner">
-                      <FolderOpen size={24} strokeWidth={1.4} className="text-zinc-500" />
-                    </div>
-                    <p className="text-[13px] text-zinc-500 font-medium tracking-wide">
-                      No workspace open
-                    </p>
-                    <button
-                      onClick={handleOpenFolder}
-                      className="mt-2 px-4 py-2 rounded-none bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.05] text-[13px] text-zinc-300 font-medium transition-all duration-200 hover:scale-105 active:scale-95"
-                    >
-                      Open Folder
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )
-          ) : (
-            <div className="p-3 flex flex-col flex-1 overflow-hidden">
-              {/* Search input */}
-              <div className="relative shrink-0 mb-2">
-                <Search
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500"
-                  size={14}
-                  strokeWidth={2}
-                />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search in files…"
-                  className="w-full bg-[#0A0A0A] border border-white/[0.06] rounded-none text-[13px] text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-white/[0.12] transition-colors py-2"
-                  style={{ paddingLeft: '2.25rem' }}
-                />
-              </div>
-
-              {/* Replace input */}
-              <div className="relative shrink-0 mb-2">
-                <Replace
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500"
-                  size={14}
-                  strokeWidth={2}
-                />
-                <input
-                  type="text"
-                  value={replaceQuery}
-                  onChange={(e) => setReplaceQuery(e.target.value)}
-                  placeholder="Replace with…"
-                  className="w-full bg-[#0A0A0A] border border-white/[0.06] rounded-none text-[13px] text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-white/[0.12] transition-colors py-2"
-                  style={{ paddingLeft: '2.25rem' }}
-                />
-              </div>
-
-              {/* Options row */}
-              <div className="flex items-center justify-between mb-3">
-                <button
-                  onClick={() => setCaseSensitive(!caseSensitive)}
-                  className={`flex items-center gap-1.5 px-2 py-1 text-[11px] rounded-none transition-colors ${
-                    caseSensitive
-                      ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                      : 'text-zinc-500 hover:text-zinc-400 border border-transparent'
-                  }`}
-                  title="Match case"
-                >
-                  <CaseSensitive size={14} />
-                  <span>Aa</span>
-                </button>
-
-                {searchResults.length > 0 && replaceQuery && (
-                  <button
-                    onClick={handleReplaceAll}
-                    disabled={isReplacing}
-                    className="flex items-center gap-1.5 px-2 py-1 text-[11px] bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-none hover:bg-amber-500/30 transition-colors disabled:opacity-50"
-                  >
-                    {isReplacing ? (
-                      <RefreshCw size={12} className="animate-spin" />
-                    ) : (
-                      <Replace size={12} />
-                    )}
-                    <span>Replace All ({searchResults.length})</span>
-                  </button>
-                )}
-              </div>
-
-              {/* Results */}
-              <div className="flex-1 overflow-y-auto hide-scrollbar text-sm">
-                {isSearching ? (
-                  <div className="text-[12px] font-medium tracking-wide text-center mt-6 animate-pulse text-zinc-500">
-                    Searching…
-                  </div>
-                ) : searchResults.length > 0 ? (
-                  <div className="space-y-0.5">
-                    {searchResults.slice(0, 100).map((res, idx) => (
-                      <div
-                        key={`${res.path}:${res.line}:${res.column}:${idx}`}
-                        onClick={async () => {
-                          setActiveSearchQuery(searchQuery)
-                          const content = await window.api.readFile(res.path)
-                          if (content !== null) {
-                            openFile(res.path, res.name, content)
-                          }
-                        }}
-                        className="px-2 py-1.5 rounded-none cursor-pointer group text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.03] transition-colors"
-                      >
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <span className="shrink-0 opacity-70">{getFileIcon(res.name)}</span>
-                          <span className="truncate text-[12px] font-medium text-zinc-300">
-                            {res.relativePath}
-                          </span>
-                          <span className="text-[10px] text-zinc-600">:{res.line}</span>
-                        </div>
-                        <div className="pl-5 text-[11px] text-zinc-500 truncate font-mono">
-                          {res.lineContent.slice(0, 100)}
-                        </div>
-                      </div>
-                    ))}
-                    {searchResults.length > 100 && (
-                      <div className="text-[11px] text-zinc-600 text-center py-2">
-                        +{searchResults.length - 100} more results
-                      </div>
-                    )}
-                  </div>
-                ) : searchQuery ? (
-                  <div className="text-[12px] font-medium tracking-wide text-center mt-6 text-zinc-500">
-                    No results found
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          )}
-        </div>
+        <div className="flex-1 flex flex-col overflow-hidden">{renderPanel()}</div>
       </div>
 
-      {/* Resize handle */}
       <div
         className={`absolute right-0 top-0 bottom-0 z-10 cursor-col-resize transition-colors ${isResizing ? '' : 'hover:bg-[var(--color-accent-glow-strong)]'}`}
         style={{
@@ -682,7 +562,6 @@ export const Sidebar = () => {
         onMouseDown={startResizing}
       />
 
-      {/* File context menu */}
       <AnimatePresence>
         {contextMenu && (
           <FileContextMenu

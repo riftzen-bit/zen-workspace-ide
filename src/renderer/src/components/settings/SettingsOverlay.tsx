@@ -15,12 +15,19 @@ import {
   Palette
 } from 'lucide-react'
 import { useUIStore } from '../../store/useUIStore'
-import { useSettingsStore, AIProviderType } from '../../store/useSettingsStore'
+import {
+  useSettingsStore,
+  AIProviderType,
+  EDITOR_FONT_FAMILIES,
+  type EditorCursorStyle
+} from '../../store/useSettingsStore'
 import {
   useThemeStore,
-  applyTheme,
   PRESET_THEMES,
-  type ThemePreset
+  PRESET_LABELS,
+  PRESET_MODES,
+  type ThemePreset,
+  type ThemeColors
 } from '../../store/useThemeStore'
 import { transition } from '../../lib/motion'
 
@@ -111,75 +118,140 @@ const Toggle = ({ value, onChange }: { value: boolean; onChange: (v: boolean) =>
   </button>
 )
 
-const THEME_LABELS: Record<ThemePreset, string> = {
-  default: 'Default',
-  midnight: 'Midnight',
-  forest: 'Forest',
-  ocean: 'Ocean',
-  sunset: 'Sunset',
-  custom: 'Custom'
-}
+const COLOR_PICKER_KEYS: { key: keyof ThemeColors; label: string }[] = [
+  { key: 'accent', label: 'Accent' },
+  { key: 'accentBright', label: 'Accent Bright' },
+  { key: 'secondary', label: 'Secondary' },
+  { key: 'surface0', label: 'Background' },
+  { key: 'surface2', label: 'Panel' },
+  { key: 'surface3', label: 'Card' },
+  { key: 'textPrimary', label: 'Text' },
+  { key: 'textSecondary', label: 'Text Dim' }
+]
 
 const ThemeSelector = () => {
-  const { activePreset, setPreset } = useThemeStore()
+  const activePreset = useThemeStore((s) => s.activePreset)
+  const customColors = useThemeStore((s) => s.customColors)
+  const customMode = useThemeStore((s) => s.customMode)
+  const setPreset = useThemeStore((s) => s.setPreset)
+  const setCustomColor = useThemeStore((s) => s.setCustomColor)
+  const setCustomMode = useThemeStore((s) => s.setCustomMode)
+  const resetToDefault = useThemeStore((s) => s.resetToDefault)
 
-  const handlePresetChange = (preset: ThemePreset) => {
-    setPreset(preset)
-    const colors =
-      preset === 'custom' ? useThemeStore.getState().customColors : PRESET_THEMES[preset]
-    applyTheme(colors)
+  const allPresets = Object.keys(PRESET_THEMES) as Exclude<ThemePreset, 'custom'>[]
+  const darkPresets = allPresets.filter((p) => PRESET_MODES[p] === 'dark')
+  const lightPresets = allPresets.filter((p) => PRESET_MODES[p] === 'light')
+
+  const renderPresetButton = (preset: Exclude<ThemePreset, 'custom'>) => {
+    const colors = PRESET_THEMES[preset]
+    const isActive = activePreset === preset
+    return (
+      <button
+        key={preset}
+        onClick={() => setPreset(preset)}
+        className="flex flex-col items-center gap-2 p-3 rounded-none transition-all"
+        style={{
+          backgroundColor: isActive ? 'var(--color-surface-5)' : 'transparent',
+          border: isActive
+            ? '1px solid var(--color-accent)'
+            : '1px solid var(--color-border-subtle)'
+        }}
+      >
+        <div className="flex gap-1">
+          <div className="w-4 h-4 rounded-none" style={{ backgroundColor: colors.surface2 }} />
+          <div className="w-4 h-4 rounded-none" style={{ backgroundColor: colors.accent }} />
+          <div className="w-4 h-4 rounded-none" style={{ backgroundColor: colors.textPrimary }} />
+        </div>
+        <span
+          className="text-caption"
+          style={{ color: isActive ? 'var(--color-accent)' : 'var(--color-text-muted)' }}
+        >
+          {PRESET_LABELS[preset]}
+        </span>
+      </button>
+    )
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div>
         <h4 className="text-body font-medium mb-3" style={{ color: 'var(--color-text-secondary)' }}>
-          Color Preset
+          Dark Themes
         </h4>
-        <div className="grid grid-cols-3 gap-2">
-          {(Object.keys(PRESET_THEMES) as ThemePreset[])
-            .filter((p) => p !== 'custom')
-            .map((preset) => {
-              const colors = PRESET_THEMES[preset]
-              const isActive = activePreset === preset
-              return (
-                <button
-                  key={preset}
-                  onClick={() => handlePresetChange(preset)}
-                  className="flex flex-col items-center gap-2 p-3 rounded-none transition-all"
-                  style={{
-                    backgroundColor: isActive ? 'var(--color-surface-5)' : 'transparent',
-                    border: isActive
-                      ? '1px solid var(--color-accent)'
-                      : '1px solid var(--color-border-subtle)'
-                  }}
-                >
-                  <div className="flex gap-1">
-                    <div
-                      className="w-4 h-4 rounded-none"
-                      style={{ backgroundColor: colors.surface2 }}
-                    />
-                    <div
-                      className="w-4 h-4 rounded-none"
-                      style={{ backgroundColor: colors.accent }}
-                    />
-                    <div
-                      className="w-4 h-4 rounded-none"
-                      style={{ backgroundColor: colors.textPrimary }}
-                    />
-                  </div>
-                  <span
-                    className="text-caption"
-                    style={{
-                      color: isActive ? 'var(--color-accent)' : 'var(--color-text-muted)'
-                    }}
-                  >
-                    {THEME_LABELS[preset]}
-                  </span>
-                </button>
-              )
-            })}
+        <div className="grid grid-cols-3 gap-2">{darkPresets.map(renderPresetButton)}</div>
+      </div>
+
+      <div>
+        <h4 className="text-body font-medium mb-3" style={{ color: 'var(--color-text-secondary)' }}>
+          Light Themes
+        </h4>
+        <div className="grid grid-cols-3 gap-2">{lightPresets.map(renderPresetButton)}</div>
+      </div>
+
+      <div className="pt-4 space-y-3" style={{ borderTop: '1px solid var(--color-border-subtle)' }}>
+        <div className="flex items-center justify-between">
+          <h4 className="text-body font-medium" style={{ color: 'var(--color-text-secondary)' }}>
+            Custom Colors
+          </h4>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCustomMode(customMode === 'dark' ? 'light' : 'dark')}
+              className="px-2 py-1 text-caption rounded-none transition-colors"
+              style={{
+                backgroundColor: 'var(--color-surface-4)',
+                border: '1px solid var(--color-border-default)',
+                color: 'var(--color-text-secondary)'
+              }}
+              title="Toggle base mode for custom theme"
+            >
+              {customMode === 'dark' ? 'Dark base' : 'Light base'}
+            </button>
+            <button
+              onClick={resetToDefault}
+              className="px-2 py-1 text-caption rounded-none transition-colors"
+              style={{
+                backgroundColor: 'var(--color-surface-4)',
+                border: '1px solid var(--color-border-default)',
+                color: 'var(--color-text-muted)'
+              }}
+            >
+              Reset
+            </button>
+          </div>
         </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          {COLOR_PICKER_KEYS.map(({ key, label }) => {
+            const value = customColors[key]
+            const hex = /^#[0-9a-f]{6}$/i.test(value) ? value : '#888888'
+            return (
+              <label
+                key={key}
+                className="flex items-center justify-between gap-3 px-3 py-2 rounded-none"
+                style={{
+                  backgroundColor: 'var(--color-surface-4)',
+                  border: '1px solid var(--color-border-subtle)'
+                }}
+              >
+                <span className="text-caption" style={{ color: 'var(--color-text-muted)' }}>
+                  {label}
+                </span>
+                <input
+                  type="color"
+                  value={hex}
+                  onChange={(e) => setCustomColor(key, e.target.value)}
+                  className="w-7 h-7 rounded-none cursor-pointer bg-transparent"
+                  style={{ border: '1px solid var(--color-border-default)' }}
+                  aria-label={label}
+                />
+              </label>
+            )
+          })}
+        </div>
+
+        <p className="text-caption" style={{ color: 'var(--color-text-muted)' }}>
+          Editing any color above switches to the Custom preset and saves automatically.
+        </p>
       </div>
     </div>
   )
@@ -216,6 +288,22 @@ export const SettingsOverlay = () => {
     setSmartContextEnabled,
     inlineCompletionEnabled,
     setInlineCompletionEnabled,
+    autoSaveEnabled,
+    setAutoSaveEnabled,
+    autoSaveInterval,
+    setAutoSaveInterval,
+    editorFontFamily,
+    setEditorFontFamily,
+    editorLineHeight,
+    setEditorLineHeight,
+    editorCursorStyle,
+    setEditorCursorStyle,
+    editorMinimapEnabled,
+    setEditorMinimapEnabled,
+    editorLigaturesEnabled,
+    setEditorLigaturesEnabled,
+    editorRenderWhitespace,
+    setEditorRenderWhitespace,
     adaptiveAmbientEnabled,
     setAdaptiveAmbientEnabled,
     agentBudgetLimit,
@@ -836,6 +924,198 @@ export const SettingsOverlay = () => {
                       <WrapText size={14} /> Word Wrap
                     </label>
                     <Toggle value={wordWrap} onChange={setWordWrap} />
+                  </div>
+                </div>
+
+                <div
+                  className="rounded-none p-5 flex flex-col gap-4"
+                  style={{
+                    backgroundColor: 'var(--color-surface-3)',
+                    border: '1px solid var(--color-border-subtle)'
+                  }}
+                >
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <h4
+                        className="text-body font-medium"
+                        style={{ color: 'var(--color-text-secondary)' }}
+                      >
+                        Auto Save
+                      </h4>
+                      <p className="text-caption mt-1" style={{ color: 'var(--color-text-muted)' }}>
+                        Automatically save files after you stop typing.
+                      </p>
+                    </div>
+                    <Toggle value={autoSaveEnabled} onChange={setAutoSaveEnabled} />
+                  </div>
+
+                  {autoSaveEnabled && (
+                    <div className="space-y-2">
+                      <label
+                        className="text-body font-medium block"
+                        style={{ color: 'var(--color-text-secondary)' }}
+                      >
+                        Delay ({autoSaveInterval}ms)
+                      </label>
+                      <input
+                        type="range"
+                        min="500"
+                        max="5000"
+                        step="250"
+                        value={autoSaveInterval}
+                        onChange={(e) => setAutoSaveInterval(Number(e.target.value))}
+                        className="w-full h-1.5 rounded-none appearance-none cursor-pointer"
+                        style={{
+                          accentColor: 'var(--color-accent)',
+                          backgroundColor: 'var(--color-surface-5)'
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Editor look & feel */}
+                <div
+                  className="rounded-none p-5 flex flex-col gap-5"
+                  style={{
+                    backgroundColor: 'var(--color-surface-3)',
+                    border: '1px solid var(--color-border-subtle)'
+                  }}
+                >
+                  <div className="grid grid-cols-2 gap-5">
+                    <div className="space-y-2">
+                      <label
+                        className="text-body font-medium block"
+                        style={{ color: 'var(--color-text-secondary)' }}
+                      >
+                        Font Family
+                      </label>
+                      <select
+                        value={editorFontFamily}
+                        onChange={(e) =>
+                          setEditorFontFamily(
+                            e.target.value as (typeof EDITOR_FONT_FAMILIES)[number]
+                          )
+                        }
+                        className="text-body rounded-none px-3 py-1.5 focus:outline-none w-full"
+                        style={{
+                          backgroundColor: 'var(--color-surface-4)',
+                          border: '1px solid var(--color-border-default)',
+                          color: 'var(--color-text-primary)'
+                        }}
+                      >
+                        {EDITOR_FONT_FAMILIES.map((f) => (
+                          <option key={f} value={f}>
+                            {f}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label
+                        className="text-body font-medium block"
+                        style={{ color: 'var(--color-text-secondary)' }}
+                      >
+                        Cursor Style
+                      </label>
+                      <select
+                        value={editorCursorStyle}
+                        onChange={(e) => setEditorCursorStyle(e.target.value as EditorCursorStyle)}
+                        className="text-body rounded-none px-3 py-1.5 focus:outline-none w-full"
+                        style={{
+                          backgroundColor: 'var(--color-surface-4)',
+                          border: '1px solid var(--color-border-default)',
+                          color: 'var(--color-text-primary)'
+                        }}
+                      >
+                        <option value="line">Line</option>
+                        <option value="line-thin">Line Thin</option>
+                        <option value="block">Block</option>
+                        <option value="block-outline">Block Outline</option>
+                        <option value="underline">Underline</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label
+                      className="text-body font-medium block"
+                      style={{ color: 'var(--color-text-secondary)' }}
+                    >
+                      Line Height ({editorLineHeight}px)
+                    </label>
+                    <input
+                      type="range"
+                      min="14"
+                      max="40"
+                      step="1"
+                      value={editorLineHeight}
+                      onChange={(e) => setEditorLineHeight(Number(e.target.value))}
+                      className="w-full h-1.5 rounded-none appearance-none cursor-pointer"
+                      style={{
+                        accentColor: 'var(--color-accent)',
+                        backgroundColor: 'var(--color-surface-5)'
+                      }}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label
+                      className="text-body font-medium block"
+                      style={{ color: 'var(--color-text-secondary)' }}
+                    >
+                      Render Whitespace
+                    </label>
+                    <select
+                      value={editorRenderWhitespace}
+                      onChange={(e) =>
+                        setEditorRenderWhitespace(
+                          e.target.value as 'none' | 'boundary' | 'selection' | 'all'
+                        )
+                      }
+                      className="text-body rounded-none px-3 py-1.5 focus:outline-none w-full"
+                      style={{
+                        backgroundColor: 'var(--color-surface-4)',
+                        border: '1px solid var(--color-border-default)',
+                        color: 'var(--color-text-primary)'
+                      }}
+                    >
+                      <option value="none">None</option>
+                      <option value="boundary">Boundary</option>
+                      <option value="selection">Selection</option>
+                      <option value="all">All</option>
+                    </select>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <h4
+                        className="text-body font-medium"
+                        style={{ color: 'var(--color-text-secondary)' }}
+                      >
+                        Minimap
+                      </h4>
+                      <p className="text-caption mt-1" style={{ color: 'var(--color-text-muted)' }}>
+                        Show overview map on the right side of the editor.
+                      </p>
+                    </div>
+                    <Toggle value={editorMinimapEnabled} onChange={setEditorMinimapEnabled} />
+                  </div>
+
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <h4
+                        className="text-body font-medium"
+                        style={{ color: 'var(--color-text-secondary)' }}
+                      >
+                        Font Ligatures
+                      </h4>
+                      <p className="text-caption mt-1" style={{ color: 'var(--color-text-muted)' }}>
+                        Render glyphs like =&gt;, !==, --&gt; as combined symbols when supported.
+                      </p>
+                    </div>
+                    <Toggle value={editorLigaturesEnabled} onChange={setEditorLigaturesEnabled} />
                   </div>
                 </div>
               </section>

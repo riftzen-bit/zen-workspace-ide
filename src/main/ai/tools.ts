@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import { exec } from 'child_process'
+import { execFile } from 'child_process'
 import { resolvePathWithinRoot } from '../security'
 
 const TOOL_OUTPUT_MAX_CHARS = 60_000
@@ -80,9 +80,14 @@ export async function executeTool(
           return 'Error: Invalid command payload'
         }
 
+        const isWin = process.platform === 'win32'
+        const shell = isWin ? process.env.COMSPEC || 'cmd.exe' : '/bin/sh'
+        const shellArgs = isWin ? ['/d', '/s', '/c', command] : ['-c', command]
+
         return new Promise((resolve) => {
-          exec(
-            command,
+          execFile(
+            shell,
+            shellArgs,
             {
               cwd,
               timeout: TOOL_COMMAND_TIMEOUT_MS,

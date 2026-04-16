@@ -1,4 +1,5 @@
 import { ipcMain, dialog, IpcMainInvokeEvent } from 'electron'
+import { isTrustedIpcSender } from '../security'
 import { writeFile } from 'fs/promises'
 import { GoogleGenAI } from '@google/genai'
 import { getGeminiOAuthAccess } from '../oauth/googleOAuth'
@@ -192,6 +193,7 @@ export function setupLyriaHandlers(): void {
   ipcMain.handle(
     'lyria:generate',
     async (event: IpcMainInvokeEvent, params: LyriaGenerateParams) => {
+      if (!isTrustedIpcSender(event)) return
       currentAbortController?.abort()
       currentAbortController = new AbortController()
       const signal = currentAbortController.signal
@@ -256,17 +258,34 @@ export function setupLyriaHandlers(): void {
     }
   )
 
-  ipcMain.handle('lyria:abort', () => {
+  ipcMain.handle('lyria:abort', (event) => {
+    if (!isTrustedIpcSender(event)) return
     currentAbortController?.abort()
     currentAbortController = null
   })
 
   ipcMain.handle(
     'lyria:save',
-    async (_: IpcMainInvokeEvent, audioBase64: string, mimeType: string, suggestedName: string) => {
+    async (
+      event: IpcMainInvokeEvent,
+      audioBase64: string,
+      mimeType: string,
+      suggestedName: string
+    ) => {
+      if (!isTrustedIpcSender(event)) return { ok: false, error: 'Untrusted sender' }
       const ext = mimeType.includes('wav') ? 'wav' : 'mp3'
+      // Strip path separators and traversal segments so a malicious renderer
+      // cannot prefill the Save dialog with `../foo` or `C:\Windows\foo`.
+      const safeName =
+        (suggestedName || 'lyria-track')
+          .replace(/[\\/]+/g, '-')
+          .replace(/\.{2,}/g, '.')
+          // eslint-disable-next-line no-control-regex
+          .replace(/[\x00-\x1f<>:"|?*]/g, '')
+          .trim()
+          .slice(0, 120) || 'lyria-track'
       const { filePath, canceled } = await dialog.showSaveDialog({
-        defaultPath: `${suggestedName}.${ext}`,
+        defaultPath: `${safeName}.${ext}`,
         filters: [
           { name: 'Audio', extensions: [ext] },
           { name: 'All Files', extensions: ['*'] }

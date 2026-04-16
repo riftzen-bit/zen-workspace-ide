@@ -58,6 +58,8 @@ export class OllamaProvider implements AIProvider {
       }
     }
 
-    onChunk({ type: 'done' })
+    if (!signal?.aborted) {
+      onChunk({ type: 'done' })
+    }
   }
 }

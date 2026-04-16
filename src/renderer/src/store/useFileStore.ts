@@ -9,6 +9,12 @@ interface RecentFile {
   lastOpened: number
 }
 
+export interface PinnedFile {
+  path: string
+  name: string
+  pinnedAt: number
+}
+
 interface FileState {
   workspaceDir: string | null
   fileTree: FileNode[]
@@ -18,8 +24,10 @@ interface FileState {
   pendingLocation: { path: string; line: number; column: number } | null
   editorSelection: string
   fileContents: Record<string, string>
+  savedContents: Record<string, string>
   isSaving: boolean
   recentFiles: RecentFile[]
+  pinnedFiles: PinnedFile[]
 
   // Actions
   setWorkspaceDir: (dir: string) => void
@@ -35,9 +43,13 @@ interface FileState {
   setIsSaving: (isSaving: boolean) => void
   resetForProjectSwitch: () => void
   reloadFileFromDisk: (path: string, content: string) => void
+  markFileSaved: (path: string, content: string) => void
   markFileDeleted: (path: string) => void
   clearRecentFiles: () => void
   removeFromRecentFiles: (path: string) => void
+  togglePinnedFile: (path: string, name: string) => void
+  removePinnedFile: (path: string) => void
+  isPinned: (path: string) => boolean
 }
 
 export const useFileStore = create<FileState>()(
@@ -51,8 +63,10 @@ export const useFileStore = create<FileState>()(
       pendingLocation: null,
       editorSelection: '',
       fileContents: {},
+      savedContents: {},
       isSaving: false,
       recentFiles: [],
+      pinnedFiles: [],
 
       setWorkspaceDir: (dir) => set({ workspaceDir: dir }),
       setFileTree: (tree) => set({ fileTree: tree }),
@@ -86,6 +100,10 @@ export const useFileStore = create<FileState>()(
             ...state.fileContents,
             [path]: state.fileContents[path] ?? content
           },
+          savedContents: {
+            ...state.savedContents,
+            [path]: state.savedContents[path] ?? content
+          },
           openFiles: alreadyOpen ? state.openFiles : [...state.openFiles, { path, name }],
           recentFiles: updatedRecentFiles
         }))
@@ -101,10 +119,13 @@ export const useFileStore = create<FileState>()(
           }
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
           const { [path]: _removed, ...remainingContents } = state.fileContents
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { [path]: _savedRemoved, ...remainingSaved } = state.savedContents
           return {
             openFiles: newOpenFiles,
             activeFile: newActiveFile,
             fileContents: remainingContents,
+            savedContents: remainingSaved,
             pendingLocation:
               state.pendingLocation?.path === path && newActiveFile !== path
                 ? null
@@ -133,7 +154,13 @@ export const useFileStore = create<FileState>()(
 
       reloadFileFromDisk: (path, content) =>
         set((state) => ({
-          fileContents: { ...state.fileContents, [path]: content }
+          fileContents: { ...state.fileContents, [path]: content },
+          savedContents: { ...state.savedContents, [path]: content }
+        })),
+
+      markFileSaved: (path, content) =>
+        set((state) => ({
+          savedContents: { ...state.savedContents, [path]: content }
         })),
 
       markFileDeleted: (path) => {
@@ -146,10 +173,13 @@ export const useFileStore = create<FileState>()(
           }
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
           const { [path]: _removed, ...remainingContents } = state.fileContents
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { [path]: _savedRemoved, ...remainingSaved } = state.savedContents
           return {
             openFiles: newOpenFiles,
             activeFile: newActiveFile,
             fileContents: remainingContents,
+            savedContents: remainingSaved,
             pendingLocation:
               state.pendingLocation?.path === path && newActiveFile !== path
                 ? null
@@ -164,6 +194,7 @@ export const useFileStore = create<FileState>()(
           openFiles: [],
           activeFile: null,
           fileContents: {},
+          savedContents: {},
           activeSearchQuery: null,
           pendingLocation: null,
           editorSelection: ''
@@ -174,7 +205,26 @@ export const useFileStore = create<FileState>()(
       removeFromRecentFiles: (path) =>
         set((state) => ({
           recentFiles: state.recentFiles.filter((f) => f.path !== path)
-        }))
+        })),
+
+      togglePinnedFile: (path, name) => {
+        const { pinnedFiles } = get()
+        const existing = pinnedFiles.find((f) => f.path === path)
+        if (existing) {
+          set({ pinnedFiles: pinnedFiles.filter((f) => f.path !== path) })
+        } else {
+          const MAX_PINNED = 12
+          const next = [{ path, name, pinnedAt: Date.now() }, ...pinnedFiles].slice(0, MAX_PINNED)
+          set({ pinnedFiles: next })
+        }
+      },
+
+      removePinnedFile: (path) =>
+        set((state) => ({
+          pinnedFiles: state.pinnedFiles.filter((f) => f.path !== path)
+        })),
+
+      isPinned: (path) => get().pinnedFiles.some((f) => f.path === path)
     }),
     {
       name: 'file-storage',
@@ -184,7 +234,9 @@ export const useFileStore = create<FileState>()(
         openFiles: state.openFiles,
         activeFile: state.activeFile,
         fileContents: state.fileContents,
-        recentFiles: state.recentFiles
+        savedContents: state.savedContents,
+        recentFiles: state.recentFiles,
+        pinnedFiles: state.pinnedFiles
       })
     }
   )

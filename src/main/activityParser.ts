@@ -1,8 +1,8 @@
-// Strip ANSI escape codes from terminal output
-/* eslint-disable no-control-regex */
+// Strip ANSI escape codes from terminal output. Control chars are required
+// here to match the ESC sequences produced by interactive PTYs.
 const ANSI_REGEX =
+  // eslint-disable-next-line no-control-regex
   /\x1B\[[0-?]*[ -/]*[@-~]|\x1B\][^\x07\x1B]*(?:\x07|\x1B\\)|\x1B[PX^_][\s\S]*?\x1B\\|\x1B[@-_]/g
-/* eslint-enable no-control-regex */
 
 export function stripAnsi(str: string): string {
   return str.replace(ANSI_REGEX, '')
@@ -139,6 +139,10 @@ export function parseLine(line: string): ParseResult | null {
 // Per-terminal line buffers (accumulate partial lines until newline)
 const lineBuffers: Record<string, string> = {}
 
+// Hard cap to avoid unbounded growth if a process never emits a newline
+// (e.g. a stuck spinner writing only \r, or giant JSON on one line).
+const MAX_LINE_BUFFER_BYTES = 64 * 1024
+
 let eventCounter = 0
 
 function nextId(): string {
@@ -155,7 +159,11 @@ export function processChunk(terminalId: string, data: string): ActivityEvent[] 
 
   // Split on newlines, keeping partial last line in buffer
   const parts = lineBuffers[terminalId].split(/\r\n|[\r\n]/)
-  lineBuffers[terminalId] = parts.pop() ?? ''
+  let remainder = parts.pop() ?? ''
+  if (remainder.length > MAX_LINE_BUFFER_BYTES) {
+    remainder = remainder.slice(-MAX_LINE_BUFFER_BYTES)
+  }
+  lineBuffers[terminalId] = remainder
 
   for (const line of parts) {
     const result = parseLine(line)

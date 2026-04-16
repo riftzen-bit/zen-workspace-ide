@@ -46,13 +46,13 @@ export function setupFSHandlers(): void {
     return currentWorkspace
   })
 
-  ipcMain.handle('fs:setWorkspace', (event, dirPath: string) => {
+  ipcMain.handle('fs:setWorkspace', async (event, dirPath: string) => {
     if (!isTrustedIpcSender(event)) return
     if (!dirPath || typeof dirPath !== 'string') return
 
     const resolvedPath = resolve(normalize(dirPath))
     try {
-      const stat = fs.statSync(resolvedPath)
+      const stat = await fs.promises.stat(resolvedPath)
       if (!stat.isDirectory()) return
       currentWorkspace = canonicalizePath(resolvedPath)
     } catch {
@@ -207,7 +207,12 @@ export function setupFSHandlers(): void {
       const safeDirPath = currentWorkspace ? resolvePathWithinRoot(currentWorkspace, dirPath) : null
       if (!safeDirPath) return []
 
-      return await searchWithContextAsync(query, safeDirPath, caseSensitive)
+      return await searchWithContextAsync(
+        query,
+        safeDirPath,
+        caseSensitive,
+        currentWorkspace ?? safeDirPath
+      )
     }
   )
 
@@ -217,17 +222,26 @@ export function setupFSHandlers(): void {
       event,
       replacements: Array<{ path: string; search: string; replace: string; caseSensitive: boolean }>
     ) => {
-      if (!isTrustedIpcSender(event)) return { ok: false, error: 'Untrusted sender', count: 0 }
+      if (!isTrustedIpcSender(event)) {
+        return { ok: false, error: 'Untrusted sender', count: 0, failures: [] }
+      }
 
       let totalReplaced = 0
+      const failures: Array<{ path: string; error: string }> = []
 
       for (const { path: filePath, search, replace, caseSensitive } of replacements) {
-        if (!isWithinWorkspace(filePath)) continue
+        if (!isWithinWorkspace(filePath)) {
+          failures.push({ path: filePath, error: 'Outside workspace' })
+          continue
+        }
 
         const safeFilePath = currentWorkspace
           ? resolvePathWithinRoot(currentWorkspace, filePath)
           : null
-        if (!safeFilePath) continue
+        if (!safeFilePath) {
+          failures.push({ path: filePath, error: 'Path could not be resolved' })
+          continue
+        }
 
         try {
           const content = await fs.promises.readFile(safeFilePath, 'utf-8')
@@ -236,17 +250,20 @@ export function setupFSHandlers(): void {
           const matches = content.match(regex)
           if (!matches) continue
 
-          const newContent = content.replace(regex, replace)
+          const newContent = content.replace(regex, () => replace)
           if (newContent !== content) {
             await fs.promises.writeFile(safeFilePath, newContent, 'utf-8')
             totalReplaced += matches.length
           }
-        } catch {
-          // Skip files that can't be read/written
+        } catch (e: unknown) {
+          failures.push({
+            path: filePath,
+            error: e instanceof Error ? e.message : String(e)
+          })
         }
       }
 
-      return { ok: true, count: totalReplaced }
+      return { ok: failures.length === 0, count: totalReplaced, failures }
     }
   )
 }
@@ -379,7 +396,10 @@ async function searchFilesAsync(
 
 async function scanTodosAsync(dir: string, workspaceRoot: string): Promise<WorkspaceTodo[]> {
   const results: WorkspaceTodo[] = []
-  const TODO_PATTERN = /\b(TODO|FIXME|HACK)\b[:\s-]*(.*)$/i
+  // Only match tags that follow a comment marker (//, /*, *, #, <!--, --, ;)
+  // and are uppercase — avoids false positives in strings, type unions, identifiers.
+  const TODO_PATTERN =
+    /(?:\/\/+|\/\*+|#+|<!--|--|;+|^\s*\*+)\s+(TODO|FIXME|HACK)\b(?:\([^)]*\))?\s*[:-]?\s*(.*)$/
 
   async function scan(currentDir: string) {
     let list: string[] = []
@@ -438,8 +458,10 @@ async function scanTodosAsync(dir: string, workspaceRoot: string): Promise<Works
         const line = lines[index]
         const match = line.match(TODO_PATTERN)
         if (!match) continue
-        const tag = match[1].toUpperCase() as 'TODO' | 'FIXME' | 'HACK'
-        const markerIndex = line.toUpperCase().indexOf(tag)
+        const tag = match[1] as 'TODO' | 'FIXME' | 'HACK'
+        const markerIndex = line.indexOf(tag, match.index ?? 0)
+        const rawText = match[2] ?? ''
+        const cleanedText = rawText.replace(/\s*(\*\/|-->)\s*$/, '').trim()
         results.push({
           id: `${fullPath}:${index + 1}:${markerIndex + 1}`,
           path: fullPath,
@@ -450,7 +472,7 @@ async function scanTodosAsync(dir: string, workspaceRoot: string): Promise<Works
           line: index + 1,
           column: markerIndex + 1,
           tag,
-          text: match[2]?.trim() || line.trim()
+          text: cleanedText || line.trim()
         })
       }
     })
@@ -484,7 +506,8 @@ export type SearchMatch = {
 async function searchWithContextAsync(
   query: string,
   dir: string,
-  caseSensitive: boolean
+  caseSensitive: boolean,
+  workspaceRoot: string
 ): Promise<SearchMatch[]> {
   const results: SearchMatch[] = []
   if (!query || query.trim().length === 0) return results
@@ -545,8 +568,8 @@ async function searchWithContextAsync(
             while ((match = regex.exec(line)) !== null) {
               results.push({
                 path: fullPath,
-                relativePath: fullPath.startsWith(dir)
-                  ? fullPath.slice(dir.length).replace(/^[\\/]+/, '')
+                relativePath: fullPath.startsWith(workspaceRoot)
+                  ? fullPath.slice(workspaceRoot.length).replace(/^[\\/]+/, '')
                   : fullPath,
                 name: file,
                 line: i + 1,

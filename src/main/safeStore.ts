@@ -21,7 +21,10 @@ const SENSITIVE_KEYS = new Set([
 const PREFIX = 'encrypted:'
 
 function encryptValue(value: string): string {
-  if (!safeStorage.isEncryptionAvailable()) return value
+  if (!safeStorage.isEncryptionAvailable()) {
+    console.warn('safeStorage encryption unavailable — credentials stored as plaintext')
+    return value
+  }
   return safeStorage.encryptString(value).toString('base64')
 }
 

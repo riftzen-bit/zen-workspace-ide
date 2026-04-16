@@ -196,6 +196,14 @@ const ThinkingIndicator = () => {
 export const AIChat = () => {
   const [input, setInput] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const chunkUnsubRef = useRef<(() => void) | null>(null)
+
+  useEffect(() => {
+    return () => {
+      chunkUnsubRef.current?.()
+      chunkUnsubRef.current = null
+    }
+  }, [])
   const [viewMode, setViewMode] = useState<'chat' | 'history'>('chat')
   const [contextFiles, setContextFiles] = useState<ContextFile[]>([])
   const [excludedContextPaths, setExcludedContextPaths] = useState<string[]>([])
@@ -406,6 +414,7 @@ export const AIChat = () => {
     let genMusicTriggered = false
 
     // Listen for streaming chunks
+    chunkUnsubRef.current?.()
     const unsubscribe = window.api.ai.onChunk((chunk) => {
       if (chunk.type === 'text' && chunk.text) {
         accumulatedText += chunk.text
@@ -470,6 +479,7 @@ export const AIChat = () => {
         unsubscribe()
       }
     })
+    chunkUnsubRef.current = unsubscribe
 
     try {
       await window.api.ai.chat({

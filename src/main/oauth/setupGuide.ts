@@ -1,11 +1,14 @@
 import { createServer, IncomingMessage, ServerResponse } from 'http'
 import { AddressInfo } from 'net'
+import { randomBytes } from 'crypto'
 import { deleteSecureValue, getSecureValue, setSecureValue } from '../safeStore'
 import { BrowserWindow } from 'electron'
 
 let activeServer: ReturnType<typeof createServer> | null = null
+let activeToken: string | null = null
+let activeAutoCloseTimer: NodeJS.Timeout | null = null
 
-function getSetupGuideHTML(port: number): string {
+function getSetupGuideHTML(port: number, token: string): string {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -459,6 +462,7 @@ function getSetupGuideHTML(port: number): string {
 
   <script>
     const API_URL = 'http://127.0.0.1:${port}';
+    const CSRF_TOKEN = '${token}';
 
     async function saveApiKey() {
       const apiKey = document.getElementById('apiKey').value.trim();
@@ -471,7 +475,7 @@ function getSetupGuideHTML(port: number): string {
       try {
         const res = await fetch(API_URL + '/save', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN },
           body: JSON.stringify({ apiKey })
         });
         const data = await res.json();
@@ -500,7 +504,7 @@ function getSetupGuideHTML(port: number): string {
       try {
         const res = await fetch(API_URL + '/save', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN },
           body: JSON.stringify({ clientId, clientSecret })
         });
         const data = await res.json();
@@ -530,13 +534,36 @@ export async function startSetupGuideServer(): Promise<string> {
     }
     activeServer = null
   }
+  if (activeAutoCloseTimer) {
+    clearTimeout(activeAutoCloseTimer)
+    activeAutoCloseTimer = null
+  }
 
   return new Promise((resolve, reject) => {
+    activeToken = randomBytes(32).toString('hex')
+    const token = activeToken
+
     const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
-      // CORS headers for localhost
-      res.setHeader('Access-Control-Allow-Origin', '*')
+      const { port: serverPort } = server.address() as AddressInfo
+      const allowedOrigin = `http://127.0.0.1:${serverPort}`
+
+      // Reject Host headers other than 127.0.0.1/localhost on the right port
+      // to block DNS-rebinding attacks against this temporary local server.
+      const hostHeader = (req.headers.host ?? '').toLowerCase()
+      const allowedHosts = new Set([
+        `127.0.0.1:${serverPort}`,
+        `localhost:${serverPort}`,
+        `[::1]:${serverPort}`
+      ])
+      if (!allowedHosts.has(hostHeader)) {
+        res.writeHead(421, { 'Content-Type': 'text/plain; charset=utf-8' })
+        res.end('Invalid Host')
+        return
+      }
+
+      res.setHeader('Access-Control-Allow-Origin', allowedOrigin)
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-CSRF-Token')
 
       if (req.method === 'OPTIONS') {
         res.writeHead(204)
@@ -547,6 +574,11 @@ export async function startSetupGuideServer(): Promise<string> {
       const url = new URL(req.url ?? '/', `http://127.0.0.1`)
 
       if (req.method === 'POST' && url.pathname === '/save') {
+        if (req.headers['x-csrf-token'] !== token) {
+          res.writeHead(403, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ success: false, error: 'Invalid token' }))
+          return
+        }
         let body = ''
         req.on('data', (chunk) => {
           body += chunk
@@ -604,7 +636,7 @@ export async function startSetupGuideServer(): Promise<string> {
       // Serve the guide page
       const { port } = server.address() as AddressInfo
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
-      res.end(getSetupGuideHTML(port))
+      res.end(getSetupGuideHTML(port, token))
     })
 
     server.listen(0, '127.0.0.1', () => {
@@ -615,8 +647,9 @@ export async function startSetupGuideServer(): Promise<string> {
 
     server.on('error', reject)
 
-    // Auto-close after 30 minutes
-    setTimeout(
+    // Auto-close after 30 minutes. Track the timer so a later startSetupGuideServer()
+    // call can clear it, and .unref() so it doesn't keep the process alive on quit.
+    activeAutoCloseTimer = setTimeout(
       () => {
         try {
           server.close()
@@ -624,8 +657,10 @@ export async function startSetupGuideServer(): Promise<string> {
           /* ignore */
         }
         if (activeServer === server) activeServer = null
+        activeAutoCloseTimer = null
       },
       30 * 60 * 1000
     )
+    activeAutoCloseTimer.unref?.()
   })
 }

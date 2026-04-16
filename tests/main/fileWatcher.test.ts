@@ -47,7 +47,6 @@ describe('fileWatcher', () => {
   it('should register IPC handlers', () => {
     setupFileWatcher()
     expect(ipcMain.handle).toHaveBeenCalledWith('fs:watchWorkspace', expect.any(Function))
-    expect(ipcMain.handle).toHaveBeenCalledWith('fs:stopWatcher', expect.any(Function))
   })
 
   it('should start chokidar watcher when fs:watchWorkspace is called', async () => {
@@ -73,17 +72,6 @@ describe('fileWatcher', () => {
     await handlers['fs:watchWorkspace'](null, dirPath)
 
     expect(chokidar.watch).toHaveBeenCalledTimes(1)
-  })
-
-  it('should stop watcher when fs:stopWatcher is called', async () => {
-    setupFileWatcher()
-    const dirPath = '/test/path/3'
-
-    await handlers['fs:watchWorkspace'](null, dirPath)
-    const mockWatcher = (chokidar.watch as any).mock.results[0].value
-
-    await handlers['fs:stopWatcher']()
-    expect(mockWatcher.close).toHaveBeenCalled()
   })
 
   it('should handle file system events and send to window', async () => {
